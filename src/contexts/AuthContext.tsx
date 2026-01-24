@@ -193,14 +193,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     let mounted = true;
 
-
-    // Ensure loading never gets stuck for more than 10 seconds
+    // Ensure loading never gets stuck for more than 3 seconds (faster failsafe)
     const failsafeTimeout = setTimeout(() => {
-      if (mounted) {
+      if (mounted && loading) {
         console.log('Failsafe timeout - setting loading to false');
         setLoading(false);
       }
-    }, 10000);
+    }, 3000);
 
     const handleAuthStateChange = async (event: string, newSession: Session | null) => {
       console.log('Auth state changed:', event, !!newSession?.user);
@@ -237,7 +236,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 clearTimeout(failsafeTimeout);
               }
             }
-          }, 100);
+          }, 50); // Reduced from 100ms
         } else {
           if (mounted) {
             setProfile(null);
@@ -258,15 +257,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
 
-    // Initialize auth state with timeout
+    // Initialize auth state with faster timeout
     const initAuth = async () => {
       try {
         console.log('Getting initial session...');
 
-        // Add timeout to getSession call
+        // Faster timeout for session fetch
         const sessionPromise = supabase.auth.getSession();
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Session fetch timeout')), 5000)
+          setTimeout(() => reject(new Error('Session fetch timeout')), 2000)
         );
 
         const { data: { session: initialSession } } = await Promise.race([
@@ -288,14 +287,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    // Add timeout for initialization
+    // Faster initialization timeout
     const initializationTimeout = setTimeout(() => {
-      if (mounted) {
+      if (mounted && loading) {
         console.log('Initialization timeout, proceeding without session');
         setLoading(false);
         clearTimeout(failsafeTimeout);
       }
-    }, 8000);
+    }, 2500);
 
     initAuth();
 
