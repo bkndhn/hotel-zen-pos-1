@@ -1,0 +1,979 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Scrollbar hide utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Blue Gradient Theme */
+    --background: 0 0% 100%;
+    --foreground: 222 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 84% 4.9%;
+
+    /* Vibrant Blue Primary */
+    --primary: 218 90% 55%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 218 95% 60%;
+
+    --secondary: 220 40% 96%;
+    --secondary-foreground: 222 84% 4.9%;
+
+    --muted: 220 40% 96%;
+    --muted-foreground: 220 16% 47%;
+
+    /* Purple accent for contrast */
+    --accent: 252 80% 60%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 218 90% 55%;
+
+    --radius: 0.75rem;
+
+    /* Theme-aware button colors */
+    --btn-increment: 218 90% 55%;
+    --btn-decrement: 218 70% 45%;
+    --qty-badge: 218 90% 55%;
+
+    /* Blue Gradient Palette */
+    --gradient-primary: linear-gradient(135deg, hsl(218 90% 55%), hsl(230 85% 60%));
+    --gradient-secondary: linear-gradient(135deg, hsl(220 40% 96%), hsl(220 16% 47%));
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 70% 45%));
+    --gradient-hero: linear-gradient(135deg, hsl(218 90% 55%) 0%, hsl(252 80% 60%) 100%);
+
+    /* Blue shadows and glows */
+    --shadow-elegant: 0 10px 30px -10px hsl(218 90% 55% / 0.3);
+    --shadow-glow: 0 0 40px hsl(218 95% 60% / 0.4);
+    --shadow-card: 0 4px 6px -1px hsl(222 84% 4.9% / 0.1);
+
+    /* Animation */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Sidebar - Blue theme */
+    --sidebar-background: 222 84% 4.9%;
+    --sidebar-foreground: 220 40% 96%;
+    --sidebar-primary: 218 90% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 15%;
+    --sidebar-accent-foreground: 220 40% 96%;
+    --sidebar-border: 220 19% 20%;
+    --sidebar-ring: 218 90% 55%;
+
+    /* Accessibility Settings */
+    --app-font-scale: 1;
+  }
+
+  .dark {
+    --background: 213 27% 8%;
+    --foreground: 220 14% 96%;
+
+    --card: 213 27% 12%;
+    --card-foreground: 220 14% 96%;
+
+    --popover: 213 27% 12%;
+    --popover-foreground: 220 14% 96%;
+
+    --primary: 213 90% 55%;
+    --primary-foreground: 213 27% 8%;
+    --primary-glow: 213 94% 42%;
+
+    --secondary: 41 60% 25%;
+    --secondary-foreground: 220 14% 96%;
+
+    --muted: 213 15% 15%;
+    --muted-foreground: 220 9% 65%;
+
+    --accent: 41 70% 35%;
+    --accent-foreground: 220 14% 96%;
+
+    --success: 142 76% 45%;
+    --success-foreground: 220 14% 96%;
+
+    --warning: 38 92% 60%;
+    --warning-foreground: 213 27% 8%;
+
+    --destructive: 0 84% 70%;
+    --destructive-foreground: 220 14% 96%;
+
+    --border: 213 15% 20%;
+    --input: 213 15% 20%;
+    --ring: 213 90% 55%;
+
+    /* Dark mode gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(213 90% 55%), hsl(213 94% 42%));
+    --gradient-secondary: linear-gradient(135deg, hsl(41 60% 25%), hsl(41 70% 35%));
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 45%), hsl(142 70% 55%));
+    --gradient-hero: linear-gradient(135deg, hsl(213 90% 55%) 0%, hsl(41 70% 35%) 100%);
+
+    /* Dark shadows */
+    --shadow-elegant: 0 10px 30px -10px hsl(213 90% 55% / 0.5);
+    --shadow-glow: 0 0 40px hsl(213 94% 42% / 0.6);
+    --shadow-card: 0 4px 6px -1px hsl(213 27% 8% / 0.3);
+
+    --sidebar-background: 213 27% 12%;
+    --sidebar-foreground: 220 14% 96%;
+    --sidebar-primary: 213 90% 55%;
+    --sidebar-primary-foreground: 213 27% 8%;
+    --sidebar-accent: 213 20% 18%;
+    --sidebar-accent-foreground: 220 14% 96%;
+    --sidebar-border: 213 15% 18%;
+    --sidebar-ring: 213 90% 55%;
+  }
+
+  /* ===== THEME: Purple Gradient ===== */
+  .theme-purple {
+    --background: 0 0% 100%;
+    --foreground: 270 50% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 270 50% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 270 50% 10%;
+
+    /* Deep Purple Primary */
+    --primary: 270 70% 55%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 270 80% 60%;
+
+    --secondary: 280 30% 96%;
+    --secondary-foreground: 270 50% 10%;
+
+    --muted: 280 30% 96%;
+    --muted-foreground: 270 20% 50%;
+
+    /* Violet accent */
+    --accent: 290 85% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 270 15% 90%;
+    --input: 270 15% 90%;
+    --ring: 270 70% 55%;
+
+    /* Theme-aware button colors */
+    --btn-increment: 270 70% 55%;
+    --btn-decrement: 290 60% 45%;
+    --qty-badge: 270 70% 55%;
+
+    /* Purple Gradient Palette */
+    --gradient-primary: linear-gradient(135deg, hsl(270 70% 55%), hsl(290 85% 55%));
+    --gradient-secondary: linear-gradient(135deg, hsl(280 30% 96%), hsl(270 20% 50%));
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 70% 45%));
+    --gradient-hero: linear-gradient(135deg, hsl(270 70% 55%) 0%, hsl(290 85% 55%) 50%, hsl(320 70% 55%) 100%);
+
+    /* Purple shadows and glows */
+    --shadow-elegant: 0 10px 30px -10px hsl(270 70% 55% / 0.3);
+    --shadow-glow: 0 0 40px hsl(270 80% 60% / 0.4);
+    --shadow-card: 0 4px 6px -1px hsl(270 50% 10% / 0.1);
+
+    /* Sidebar - Purple theme */
+    --sidebar-background: 270 50% 10%;
+    --sidebar-foreground: 280 30% 96%;
+    --sidebar-primary: 270 70% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 270 30% 18%;
+    --sidebar-accent-foreground: 280 30% 96%;
+    --sidebar-border: 270 25% 22%;
+    --sidebar-ring: 270 70% 55%;
+  }
+
+  /* ===== THEME: Green ===== */
+  .theme-green {
+    --background: 0 0% 100%;
+    --foreground: 160 50% 8%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 160 50% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 160 50% 8%;
+
+    /* Emerald Primary */
+    --primary: 160 74% 42%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 160 80% 48%;
+
+    --secondary: 155 30% 96%;
+    --secondary-foreground: 160 50% 8%;
+
+    --muted: 155 30% 96%;
+    --muted-foreground: 160 20% 45%;
+
+    /* Teal accent */
+    --accent: 175 75% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 155 15% 90%;
+    --input: 155 15% 90%;
+    --ring: 160 74% 42%;
+
+    /* Theme-aware button colors */
+    --btn-increment: 160 74% 42%;
+    --btn-decrement: 175 60% 35%;
+    --qty-badge: 160 74% 42%;
+
+    /* Green Gradient Palette */
+    --gradient-primary: linear-gradient(135deg, hsl(160 74% 42%), hsl(175 75% 40%));
+    --gradient-secondary: linear-gradient(135deg, hsl(155 30% 96%), hsl(160 20% 45%));
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 70% 45%));
+    --gradient-hero: linear-gradient(135deg, hsl(160 74% 42%) 0%, hsl(175 75% 40%) 50%, hsl(185 70% 45%) 100%);
+
+    /* Green shadows and glows */
+    --shadow-elegant: 0 10px 30px -10px hsl(160 74% 42% / 0.3);
+    --shadow-glow: 0 0 40px hsl(160 80% 48% / 0.4);
+    --shadow-card: 0 4px 6px -1px hsl(160 50% 8% / 0.1);
+
+    /* Sidebar - Green theme */
+    --sidebar-background: 160 50% 8%;
+    --sidebar-foreground: 155 30% 96%;
+    --sidebar-primary: 160 74% 42%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 160 35% 15%;
+    --sidebar-accent-foreground: 155 30% 96%;
+    --sidebar-border: 160 25% 18%;
+    --sidebar-ring: 160 74% 42%;
+  }
+
+  /* ===== THEME: Rose/Pink ===== */
+  .theme-rose {
+    --background: 0 0% 100%;
+    --foreground: 350 50% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 350 50% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 350 50% 12%;
+
+    /* Rose Primary */
+    --primary: 350 75% 58%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 350 85% 65%;
+
+    --secondary: 350 30% 96%;
+    --secondary-foreground: 350 50% 12%;
+
+    --muted: 350 30% 96%;
+    --muted-foreground: 350 20% 50%;
+
+    /* Pink accent */
+    --accent: 330 80% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 350 15% 90%;
+    --input: 350 15% 90%;
+    --ring: 350 75% 58%;
+
+    /* Theme-aware button colors */
+    --btn-increment: 350 75% 58%;
+    --btn-decrement: 330 65% 48%;
+    --qty-badge: 350 75% 58%;
+
+    /* Rose Gradient Palette */
+    --gradient-primary: linear-gradient(135deg, hsl(350 75% 58%), hsl(330 80% 55%));
+    --gradient-secondary: linear-gradient(135deg, hsl(350 30% 96%), hsl(350 20% 50%));
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 70% 45%));
+    --gradient-hero: linear-gradient(135deg, hsl(350 75% 58%) 0%, hsl(330 80% 55%) 50%, hsl(310 70% 60%) 100%);
+
+    /* Rose shadows and glows */
+    --shadow-elegant: 0 10px 30px -10px hsl(350 75% 58% / 0.3);
+    --shadow-glow: 0 0 40px hsl(350 85% 65% / 0.4);
+    --shadow-card: 0 4px 6px -1px hsl(350 50% 12% / 0.1);
+
+    /* Sidebar - Rose theme */
+    --sidebar-background: 350 50% 12%;
+    --sidebar-foreground: 350 30% 96%;
+    --sidebar-primary: 350 75% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 350 35% 18%;
+    --sidebar-accent-foreground: 350 30% 96%;
+    --sidebar-border: 350 25% 22%;
+    --sidebar-ring: 350 75% 58%;
+  }
+
+  /* ===== THEME: Sunset/Orange ===== */
+  .theme-sunset {
+    --background: 0 0% 100%;
+    --foreground: 25 60% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 25 60% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 25 60% 10%;
+
+    /* Orange Primary */
+    --primary: 25 95% 55%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 25 100% 60%;
+
+    --secondary: 35 40% 96%;
+    --secondary-foreground: 25 60% 10%;
+
+    --muted: 35 40% 96%;
+    --muted-foreground: 25 25% 50%;
+
+    /* Coral accent */
+    --accent: 10 85% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 30 15% 90%;
+    --input: 30 15% 90%;
+    --ring: 25 95% 55%;
+
+    /* Theme-aware button colors */
+    --btn-increment: 25 95% 55%;
+    --btn-decrement: 10 75% 45%;
+    --qty-badge: 25 95% 55%;
+
+    /* Sunset Gradient Palette */
+    --gradient-primary: linear-gradient(135deg, hsl(25 95% 55%), hsl(10 85% 55%));
+    --gradient-secondary: linear-gradient(135deg, hsl(35 40% 96%), hsl(25 25% 50%));
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 70% 45%));
+    --gradient-hero: linear-gradient(135deg, hsl(40 95% 55%) 0%, hsl(25 95% 55%) 50%, hsl(10 85% 55%) 100%);
+
+    /* Sunset shadows and glows */
+    --shadow-elegant: 0 10px 30px -10px hsl(25 95% 55% / 0.3);
+    --shadow-glow: 0 0 40px hsl(25 100% 60% / 0.4);
+    --shadow-card: 0 4px 6px -1px hsl(25 60% 10% / 0.1);
+
+    /* Sidebar - Sunset theme */
+    --sidebar-background: 25 60% 10%;
+    --sidebar-foreground: 35 40% 96%;
+    --sidebar-primary: 25 95% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 25 40% 18%;
+    --sidebar-accent-foreground: 35 40% 96%;
+    --sidebar-border: 25 30% 22%;
+    --sidebar-ring: 25 95% 55%;
+  }
+
+  /* ===== THEME: Navy Blue ===== */
+  .theme-navy {
+    --background: 0 0% 100%;
+    --foreground: 240 60% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 60% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 60% 10%;
+
+    /* Navy Blue Primary - #000080 = HSL 240, 100%, 25% */
+    --primary: 240 100% 25%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 240 100% 35%;
+
+    --secondary: 235 30% 96%;
+    --secondary-foreground: 240 60% 10%;
+
+    --muted: 235 30% 96%;
+    --muted-foreground: 240 20% 50%;
+
+    /* Indigo accent */
+    --accent: 230 90% 35%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 235 15% 88%;
+    --input: 235 15% 88%;
+    --ring: 240 100% 25%;
+
+    /* Theme-aware button colors */
+    --btn-increment: 240 100% 25%;
+    --btn-decrement: 230 80% 30%;
+    --qty-badge: 240 100% 25%;
+
+    /* Navy Gradient Palette */
+    --gradient-primary: linear-gradient(135deg, hsl(240 100% 25%), hsl(230 90% 35%));
+    --gradient-secondary: linear-gradient(135deg, hsl(235 30% 96%), hsl(240 20% 50%));
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 70% 45%));
+    --gradient-hero: linear-gradient(135deg, hsl(240 100% 25%) 0%, hsl(230 90% 35%) 50%, hsl(220 80% 45%) 100%);
+
+    /* Navy shadows and glows */
+    --shadow-elegant: 0 10px 30px -10px hsl(240 100% 25% / 0.35);
+    --shadow-glow: 0 0 40px hsl(240 100% 35% / 0.45);
+    --shadow-card: 0 4px 6px -1px hsl(240 60% 10% / 0.1);
+
+    /* Sidebar - Navy theme */
+    --sidebar-background: 240 60% 10%;
+    --sidebar-foreground: 235 30% 96%;
+    --sidebar-primary: 240 100% 25%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 40% 18%;
+    --sidebar-accent-foreground: 235 30% 96%;
+    --sidebar-border: 240 30% 22%;
+    --sidebar-ring: 240 100% 25%;
+  }
+
+  /* ===== THEME: Hot Pink ===== */
+  .theme-hotpink {
+    --background: 0 0% 100%;
+    --foreground: 322 50% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 322 50% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 322 50% 15%;
+
+    /* Dark Pink Primary - #C11C84 = HSL 322, 75%, 43% */
+    --primary: 322 75% 43%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 322 80% 50%;
+
+    --secondary: 320 40% 96%;
+    --secondary-foreground: 322 50% 15%;
+
+    --muted: 320 40% 96%;
+    --muted-foreground: 322 25% 50%;
+
+    /* Magenta accent */
+    --accent: 310 70% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 322 20% 88%;
+    --input: 322 20% 88%;
+    --ring: 322 75% 43%;
+
+    /* Theme-aware button colors */
+    --btn-increment: 322 75% 43%;
+    --btn-decrement: 310 65% 38%;
+    --qty-badge: 322 75% 43%;
+
+    /* Dark Pink Gradient Palette */
+    --gradient-primary: linear-gradient(135deg, hsl(322 75% 43%), hsl(310 70% 50%));
+    --gradient-secondary: linear-gradient(135deg, hsl(320 40% 96%), hsl(322 25% 50%));
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 70% 45%));
+    --gradient-hero: linear-gradient(135deg, hsl(322 75% 43%) 0%, hsl(310 70% 50%) 50%, hsl(300 65% 55%) 100%);
+
+    /* Dark Pink shadows and glows */
+    --shadow-elegant: 0 10px 30px -10px hsl(322 75% 43% / 0.35);
+    --shadow-glow: 0 0 40px hsl(322 80% 50% / 0.45);
+    --shadow-card: 0 4px 6px -1px hsl(322 50% 15% / 0.1);
+
+    /* Sidebar - Dark Pink theme */
+    --sidebar-background: 322 50% 15%;
+    --sidebar-foreground: 320 40% 96%;
+    --sidebar-primary: 322 75% 43%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 322 40% 22%;
+    --sidebar-accent-foreground: 320 40% 96%;
+    --sidebar-border: 322 35% 25%;
+    --sidebar-ring: 322 75% 43%;
+  }
+  /* ===== THEME: Bright Blue (#0324fc) ===== */
+  .theme-blue-bright {
+    --background: 0 0% 100%;
+    --foreground: 232 98% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 232 98% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 232 98% 10%;
+
+    /* Bright Blue Primary - #0324fc = HSL 232, 98%, 50% */
+    --primary: 232 98% 50%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 232 100% 60%;
+
+    --secondary: 232 30% 96%;
+    --secondary-foreground: 232 98% 10%;
+
+    --muted: 232 30% 96%;
+    --muted-foreground: 232 20% 50%;
+
+    /* Vivid Violet accent */
+    --accent: 260 90% 60%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 232 20% 90%;
+    --input: 232 20% 90%;
+    --ring: 232 98% 50%;
+
+    /* Theme-aware button colors */
+    --btn-increment: 232 98% 50%;
+    --btn-decrement: 260 80% 50%;
+    --qty-badge: 232 98% 50%;
+
+    /* Bright Blue Gradient Palette */
+    --gradient-primary: linear-gradient(135deg, hsl(232 98% 50%), hsl(220 90% 55%));
+    --gradient-secondary: linear-gradient(135deg, hsl(232 30% 96%), hsl(232 20% 50%));
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 70% 45%));
+    --gradient-hero: linear-gradient(135deg, hsl(232 98% 50%) 0%, hsl(260 90% 60%) 100%);
+
+    /* Bright Blue shadows and glows */
+    --shadow-elegant: 0 10px 30px -10px hsl(232 98% 50% / 0.35);
+    --shadow-glow: 0 0 40px hsl(232 98% 50% / 0.45);
+    --shadow-card: 0 4px 6px -1px hsl(232 50% 10% / 0.1);
+
+    /* Sidebar - Bright Blue theme */
+    --sidebar-background: 232 60% 10%;
+    --sidebar-foreground: 232 30% 96%;
+    --sidebar-primary: 232 98% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 232 40% 18%;
+    --sidebar-accent-foreground: 232 30% 96%;
+    --sidebar-border: 232 30% 22%;
+    --sidebar-ring: 232 98% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    /* Responsive root font size with scaling support */
+    font-size: calc(14px * var(--app-font-scale, 1));
+  }
+  
+  /* Medium screens */
+  @media (min-width: 480px) {
+    html {
+      font-size: calc(15px * var(--app-font-scale, 1));
+    }
+  }
+  
+  /* Large screens */
+  @media (min-width: 768px) {
+    html {
+      font-size: calc(16px * var(--app-font-scale, 1));
+    }
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-size: 1rem;
+    line-height: 1.5;
+    letter-spacing: -0.01em;
+    overflow-x: hidden;
+    min-height: 100vh;
+    min-height: 100dvh;
+    /* Safe areas for notch devices */
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
+  }
+
+  /* Global container safety */
+  #root {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  /* Premium Typography */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+
+  h1 {
+    font-size: clamp(1.25rem, 4vw, 1.75rem);
+  }
+
+  h2 {
+    font-size: clamp(1.125rem, 3.5vw, 1.5rem);
+  }
+
+  h3 {
+    font-size: clamp(1rem, 3vw, 1.25rem);
+  }
+
+  h4 {
+    font-size: clamp(0.9rem, 2.5vw, 1.125rem);
+  }
+
+  /* Touch-friendly defaults */
+  button,
+  [role="button"],
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  input,
+  textarea,
+  select {
+    font-family: inherit;
+    font-size: 16px;
+    max-width: 100%;
+    /* Prevents zoom on iOS */
+  }
+
+  /* Smooth scrolling containers */
+  .scroll-smooth {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@layer utilities {
+
+  /* Hide scrollbars while maintaining functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+    /* Chrome, Safari and Opera */
+  }
+
+  /* Mobile responsiveness for billing page */
+  @media screen and (max-width: 768px) {
+    .cart-view {
+      width: 100%;
+      max-width: 100%;
+      margin: 10px auto;
+      padding: 10px;
+      overflow-x: hidden;
+      /* Prevent cart from causing horizontal scroll */
+    }
+
+    .category-view {
+      width: 100%;
+      max-width: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-x: hidden;
+      /* Prevent category view from causing horizontal scroll */
+    }
+
+    .category-card,
+    .cart-item {
+      width: 100%;
+      max-width: 100%;
+      font-size: 14px;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+
+    .payment-methods {
+      display: flex;
+      overflow-x: auto;
+      gap: 5px;
+      padding-bottom: 8px;
+      /* Only this container should scroll horizontally */
+    }
+
+    .payment-methods button {
+      flex-shrink: 0;
+      min-width: 50px;
+    }
+
+    /* Category menu horizontal scroll - ONLY this section scrolls */
+    .category-menu {
+      display: flex;
+      overflow-x: auto;
+      gap: 8px;
+      padding: 10px 0;
+      /* Only this container should scroll horizontally */
+    }
+
+    .category-menu button {
+      flex-shrink: 0;
+      min-width: 80px;
+      white-space: nowrap;
+    }
+
+    .generate-button {
+      width: 100%;
+      padding: 10px;
+    }
+
+    .touch-friendly {
+      min-height: 44px;
+      min-width: 44px;
+    }
+
+    /* Ensure main container doesn't overflow */
+    .container {
+      max-width: 100%;
+      overflow-x: hidden;
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+  }
+
+  /* Premium animations */
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  @keyframes float {
+
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+
+    50% {
+      transform: translateY(-5px);
+    }
+  }
+
+  @keyframes pulse-glow {
+
+    0%,
+    100% {
+      box-shadow: 0 0 5px hsl(var(--primary) / 0.3);
+    }
+
+    50% {
+      box-shadow: 0 0 20px hsl(var(--primary) / 0.6);
+    }
+  }
+
+  @keyframes gradient-shift {
+    0% {
+      background-position: 0% 50%;
+    }
+
+    50% {
+      background-position: 100% 50%;
+    }
+
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  /* Vibrant button styles */
+  .btn-vibrant {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    background-size: 200% 200%;
+    animation: gradient-shift 3s ease infinite;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-vibrant:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 10px 30px -10px hsl(var(--primary) / 0.5);
+  }
+
+  .btn-vibrant:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  /* Glassmorphism cards */
+  .glass-card {
+    background: linear-gradient(135deg,
+        hsl(var(--background) / 0.8),
+        hsl(var(--background) / 0.6));
+    backdrop-filter: blur(10px);
+    border: 1px solid hsl(var(--border) / 0.5);
+    box-shadow: 0 8px 32px hsl(var(--foreground) / 0.1);
+  }
+
+  /* Colorful category chips */
+  .category-chip {
+    background: linear-gradient(135deg,
+        hsl(var(--primary) / 0.1),
+        hsl(var(--accent) / 0.1));
+    border: 1px solid hsl(var(--primary) / 0.3);
+    transition: all 0.2s ease;
+  }
+
+  .category-chip:hover {
+    background: linear-gradient(135deg,
+        hsl(var(--primary) / 0.2),
+        hsl(var(--accent) / 0.2));
+    transform: translateY(-1px);
+  }
+
+  .category-chip.active {
+    background: linear-gradient(135deg,
+        hsl(var(--primary)),
+        hsl(var(--primary) / 0.8));
+    color: hsl(var(--primary-foreground));
+    box-shadow: 0 4px 15px hsl(var(--primary) / 0.4);
+  }
+
+  /* Item card enhancements */
+  .item-card {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid hsl(var(--border));
+  }
+
+  .item-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px -15px hsl(var(--primary) / 0.3);
+    border-color: hsl(var(--primary) / 0.3);
+  }
+
+  /* Animated loading skeleton */
+  .skeleton {
+    background: linear-gradient(90deg,
+        hsl(var(--muted)) 25%,
+        hsl(var(--muted-foreground) / 0.1) 50%,
+        hsl(var(--muted)) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  /* Cart badge pulse */
+  .cart-badge {
+    animation: pulse-glow 2s infinite;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Floating action button */
+  .fab {
+    animation: float 3s ease-in-out infinite;
+    box-shadow: 0 8px 25px hsl(var(--primary) / 0.4);
+  }
+
+  /* Smooth page transitions */
+  .page-enter {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  .page-enter-active {
+    opacity: 1;
+    transform: translateY(0);
+    transition: all 0.3s ease-out;
+  }
+
+  /* Colorful progress bar */
+  .progress-vibrant {
+    background: linear-gradient(90deg,
+        hsl(142 76% 36%),
+        hsl(174 77% 41%),
+        hsl(213 90% 55%));
+    background-size: 200% 100%;
+    animation: gradient-shift 2s linear infinite;
+  }
+
+  /* Offline indicator */
+  .offline-banner {
+    background: linear-gradient(135deg,
+        hsl(38 92% 50%),
+        hsl(24 96% 53%));
+    animation: pulse-glow 2s infinite;
+  }
+}

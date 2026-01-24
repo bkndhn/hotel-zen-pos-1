@@ -1,0 +1,241 @@
+import React, { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import { X } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+
+interface AdditionalCharge {
+  id: string;
+  name: string;
+  amount: number;
+  description?: string;
+  charge_type: string;
+  unit?: string;
+  is_active: boolean;
+  is_default: boolean;
+}
+
+interface EditAdditionalChargeDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
+  charge: AdditionalCharge | null;
+}
+
+const UNIT_OPTIONS = [
+  'Piece (pc)',
+  'Kilogram (kg)',
+  'Gram (gm)',
+  'Liter (lt)',
+  'Milliliter (ml)',
+  'Box',
+  'Pack',
+  'Bottle'
+];
+
+export const EditAdditionalChargeDialog: React.FC<EditAdditionalChargeDialogProps> = ({
+  open,
+  onOpenChange,
+  onSuccess,
+  charge
+}) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    charge_type: 'fixed',
+    amount: 0,
+    unit: 'Piece (pc)',
+    description: '',
+    is_active: true,
+    is_default: false
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (charge) {
+      setFormData({
+        name: charge.name,
+        charge_type: charge.charge_type,
+        amount: charge.amount,
+        unit: charge.unit || 'Piece (pc)',
+        description: charge.description || '',
+        is_active: charge.is_active,
+        is_default: charge.is_default
+      });
+    }
+  }, [charge]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Charge name is required",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!charge) return;
+
+    try {
+      setIsSubmitting(true);
+      
+      const { error } = await supabase
+        .from('additional_charges')
+        .update({
+          ...formData,
+          unit: formData.charge_type === 'per_unit' ? formData.unit : null
+        })
+        .eq('id', charge.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Additional charge updated successfully"
+      });
+      
+      onSuccess();
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error updating additional charge:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update additional charge",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center justify-between">
+            Edit Additional Charge
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              className="h-6 w-6 p-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="name">Charge Name *</Label>
+            <Input
+              id="name"
+              value={formData.name}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              placeholder="e.g., Packing Charges, Service Tax"
+              required
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="charge_type">Charge Type</Label>
+            <Select
+              value={formData.charge_type}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, charge_type: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fixed">Fixed Amount</SelectItem>
+                <SelectItem value="per_unit">Per Unit</SelectItem>
+                <SelectItem value="percentage">Percentage</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="amount">
+              {formData.charge_type === 'per_unit' ? 'Amount per Unit (₹)' : 
+               formData.charge_type === 'percentage' ? 'Percentage (%)' : 'Amount (₹)'} *
+            </Label>
+            <Input
+              id="amount"
+              type="number"
+              step="0.01"
+              min="0"
+              value={formData.amount}
+              onChange={(e) => setFormData(prev => ({ ...prev, amount: Number(e.target.value) }))}
+              required
+            />
+          </div>
+
+          {formData.charge_type === 'per_unit' && (
+            <div>
+              <Label htmlFor="unit">Unit *</Label>
+              <Select
+                value={formData.unit}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, unit: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {UNIT_OPTIONS.map(unit => (
+                    <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div>
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="Optional description"
+              rows={3}
+            />
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="is_active"
+              checked={formData.is_active}
+              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_active: checked }))}
+            />
+            <Label htmlFor="is_active">Charge is active</Label>
+          </div>
+
+          <div className="flex space-x-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex-1"
+            >
+              {isSubmitting ? 'Updating...' : 'Update Charge'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};

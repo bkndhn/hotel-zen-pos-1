@@ -1,0 +1,62 @@
+import React from 'react';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { useUserPermissions } from '@/hooks/useUserPermissions';
+
+interface ProtectedRouteProps {
+    children: React.ReactNode;
+    requiredPermission: 'dashboard' | 'billing' | 'items' | 'expenses' | 'reports' | 'analytics' | 'settings' | 'users' | 'serviceArea' | 'kitchen';
+    adminOnly?: boolean;
+}
+
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+    children,
+    requiredPermission,
+    adminOnly = false
+}) => {
+    const { profile, loading: authLoading } = useAuth();
+    const { hasAccess, loading: permLoading } = useUserPermissions();
+
+    // Show loading while auth or permissions are loading
+    if (authLoading || permLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
+
+    // Not logged in - redirect to auth
+    if (!profile) {
+        return <Navigate to="/auth" replace />;
+    }
+
+    // SUPER ADMIN: Can ONLY access Users page - nothing else
+    if (profile.role === 'super_admin') {
+        if (requiredPermission !== 'users') {
+            return <Navigate to="/users" replace />;
+        }
+        // Super admin accessing users page - allow it
+        return <>{children}</>;
+    }
+
+    // Admin-only page (like Users page) - super_admin already returned above
+    if (adminOnly && profile.role !== 'admin') {
+        return <Navigate to="/billing" replace />;
+    }
+
+    // Check permission for the page
+    if (!hasAccess(requiredPermission)) {
+        // Find the first page user has access to and redirect there
+        const fallbackPages: (typeof requiredPermission)[] = ['billing', 'dashboard', 'items', 'expenses', 'reports', 'settings'];
+        for (const page of fallbackPages) {
+            if (hasAccess(page)) {
+                return <Navigate to={`/${page === 'billing' ? '' : page}`} replace />;
+            }
+        }
+        // If no access to anything, redirect to auth
+        return <Navigate to="/auth" replace />;
+    }
+
+    return <>{children}</>;
+};

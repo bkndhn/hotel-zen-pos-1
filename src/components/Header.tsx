@@ -1,0 +1,190 @@
+import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useAuth } from '@/contexts/AuthContext';
+import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { NavLink, useLocation } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { LogOut, User, Hotel, Menu, LayoutDashboard, ShoppingCart, Package, Receipt, BarChart3, TrendingUp, Users, Settings, ClipboardList, ChefHat, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { LanguageSwitcher } from './LanguageSwitcher';
+
+const allNavItems = [
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', page: 'dashboard' as const },
+  { to: '/analytics', icon: TrendingUp, label: 'Analytics', page: 'analytics' as const },
+  { to: '/billing', icon: ShoppingCart, label: 'Billing', page: 'billing' as const },
+  { to: '/service-area', icon: ClipboardList, label: 'Service Area', page: 'serviceArea' as const },
+  { to: '/kitchen', icon: ChefHat, label: 'Kitchen Display', page: 'kitchen' as const },
+  { to: '/items', icon: Package, label: 'Items', page: 'items' as const },
+  { to: '/expenses', icon: Receipt, label: 'Expenses', page: 'expenses' as const },
+  { to: '/reports', icon: BarChart3, label: 'Reports', page: 'reports' as const },
+  { to: '/users', icon: Users, label: 'Users', page: 'users' as const },
+  { to: '/settings', icon: Settings, label: 'Settings', page: 'settings' as const },
+];
+
+export const Header: React.FC = () => {
+  const { t } = useTranslation();
+  const { profile, signOut } = useAuth();
+  const { hasAccess, loading: permLoading } = useUserPermissions();
+  const location = useLocation();
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  if (!profile) return null;
+
+  const handleSignOut = async () => {
+    setShowSignOutConfirm(false);
+    await signOut();
+  };
+
+  // Super Admin doesn't need navigation - they only see Users page
+  const isSuperAdmin = profile.role === 'super_admin';
+
+  // Filter nav items based on permissions (empty for super_admin)
+  const navItems = isSuperAdmin ? [] : (permLoading ? [] : allNavItems.filter(item => hasAccess(item.page)));
+
+  return (
+    <>
+      <header className="bg-card/80 backdrop-blur-lg border-b border-border/50 px-3 sm:px-6 py-2 sticky top-0 z-40">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2.5">
+            {/* Mobile Menu Button - Hidden for Super Admin */}
+            {!isSuperAdmin && (
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="md:hidden h-9 w-9">
+                    <Menu className="h-5 w-5" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-72 p-0">
+                  <SheetHeader className="p-4 border-b bg-gradient-to-br from-primary/10 to-primary/5">
+                    <SheetTitle className="flex items-center gap-2">
+                      <div className="w-9 h-9 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center">
+                        <Hotel className="h-5 w-5 text-primary-foreground" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-base">{profile.hotel_name || 'ZEN POS'}</div>
+                        <div className="text-[10px] text-muted-foreground font-medium">Navigation Menu</div>
+                      </div>
+                    </SheetTitle>
+                  </SheetHeader>
+                  <nav className="flex-1 p-3">
+                    <ul className="space-y-1">
+                      {navItems.map(({ to, icon: Icon, label }) => {
+                        const isActive = location.pathname === to ||
+                          (to === '/billing' && location.pathname === '/');
+
+                        return (
+                          <li key={to}>
+                            <NavLink
+                              to={to}
+                              onClick={() => setMobileMenuOpen(false)}
+                              className={cn(
+                                "flex items-center px-4 py-3 rounded-lg transition-all duration-200",
+                                isActive
+                                  ? "bg-primary text-primary-foreground shadow-md"
+                                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                              )}
+                            >
+                              <Icon className="w-5 h-5 mr-3" />
+                              <span className="font-medium">{label}</span>
+                            </NavLink>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </nav>
+                </SheetContent>
+              </Sheet>
+            )}
+
+            <div className="w-9 h-9 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+              <Hotel className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="font-bold text-base tracking-tight text-foreground">
+                ZEN POS
+              </h1>
+              <p className="text-[10px] text-muted-foreground font-medium tracking-wide uppercase">Management System</p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <LanguageSwitcher />
+
+            <Badge variant={profile.role === 'admin' || profile.role === 'super_admin' ? 'default' : 'outline'} className="hidden md:flex text-xs">
+              {profile.role === 'super_admin' ? 'Super Admin' : profile.role === 'admin' ? t('users.admin') : t('users.user')}
+            </Badge>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="flex items-center space-x-2 h-10 px-2 rounded-xl hover:bg-muted/60">
+                  <div className="w-8 h-8 bg-gradient-to-br from-primary/20 to-primary/10 rounded-full flex items-center justify-center ring-2 ring-primary/20">
+                    <User className="w-4 h-4 text-primary" />
+                  </div>
+                  <span className="hidden md:block text-sm font-medium">
+                    {profile.name}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent align="end" className="w-56 rounded-xl">
+                <div className="px-3 py-2">
+                  <p className="text-sm font-semibold">{profile.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {profile.role === 'super_admin' ? 'Super Admin' : profile.role === 'admin' ? t('users.admin') : t('users.user')}
+                  </p>
+                </div>
+
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem
+                  onClick={() => setShowSignOutConfirm(true)}
+                  className="text-destructive focus:text-destructive cursor-pointer rounded-lg mx-1"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  {t('auth.signOut')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </header>
+
+      {/* Sign Out Confirmation Dialog */}
+      <Dialog open={showSignOutConfirm} onOpenChange={setShowSignOutConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LogOut className="w-5 h-5 text-destructive" />
+              {t('auth.signOutConfirm')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('auth.signOutDescription')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowSignOutConfirm(false)}
+              className="flex-1 sm:flex-none"
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleSignOut}
+              className="flex-1 sm:flex-none"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              {t('auth.signOut')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
