@@ -12,10 +12,11 @@ export const printBrowserReceipt = (data: PrintData) => {
     total: data.total
   });
 
-  // Compact item rows with qty (with unit) and total
+  // Compact item rows with header: Item Name | Qty | Value
+  const itemsHeader = `<tr style="font-weight:bold;border-bottom:1px dashed #000"><td>ITEM</td><td style="text-align:center">QTY</td><td style="text-align:right">₹</td></tr>`;
   let itemsHtml = data.items.map(item => {
     const qtyWithUnit = formatQuantityWithUnit(item.quantity, item.unit);
-    return `<tr><td>${qtyWithUnit} × ${item.name}</td><td style="text-align:right">₹${item.total.toFixed(0)}</td></tr>`;
+    return `<tr><td style="max-width:60%;word-break:break-word">${item.name}</td><td style="text-align:center">${qtyWithUnit}</td><td style="text-align:right">${item.total.toFixed(0)}</td></tr>`;
   }).join('');
 
   const totalItems = data.totalItemsCount || data.items.length;
@@ -68,7 +69,7 @@ export const printBrowserReceipt = (data: PrintData) => {
   
   <hr>
   
-  <table>${itemsHtml}</table>
+  <table>${itemsHeader}${itemsHtml}</table>
   
   <hr>
   
