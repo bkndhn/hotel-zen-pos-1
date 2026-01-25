@@ -14,6 +14,7 @@ interface UserPermissions {
     serviceArea: boolean;
     kitchen: boolean;
     customerDisplay: boolean;
+    tables: boolean;
 }
 
 const DEFAULT_PERMISSIONS: UserPermissions = {
@@ -28,6 +29,7 @@ const DEFAULT_PERMISSIONS: UserPermissions = {
     serviceArea: false,
     kitchen: false,
     customerDisplay: false,
+    tables: false,
 };
 
 const ADMIN_PERMISSIONS: UserPermissions = {
@@ -42,6 +44,7 @@ const ADMIN_PERMISSIONS: UserPermissions = {
     serviceArea: true,
     kitchen: true,
     customerDisplay: true,
+    tables: true,
 };
 
 interface PermissionsContextType {
@@ -219,7 +222,8 @@ export const PermissionsProvider: React.FC<{ children: ReactNode }> = ({ childre
             users: '/users',
             serviceArea: '/service-area',
             kitchen: '/kitchen',
-            customerDisplay: '/customer-display'
+            customerDisplay: '/customer-display',
+            tables: '/tables'
         };
 
         const handlePermissionChange = (userId: string, pageName: string, hasAccess: boolean) => {

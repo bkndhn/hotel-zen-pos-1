@@ -24,6 +24,7 @@ import NotFound from "./pages/NotFound";
 import ServiceArea from "./pages/ServiceArea";
 import KitchenDisplay from "./pages/KitchenDisplay";
 import CustomerDisplay from "./pages/CustomerDisplay";
+import TableManagement from "./pages/TableManagement";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PendingBillsQueue } from "./components/PendingBillsQueue";
@@ -231,6 +232,7 @@ const App = () => {
                   <Route path="/settings" element={<Layout><ProtectedRoute requiredPermission="settings"><Settings /></ProtectedRoute></Layout>} />
                   <Route path="/service-area" element={<Layout><ProtectedRoute requiredPermission="serviceArea"><ServiceArea /></ProtectedRoute></Layout>} />
                   <Route path="/kitchen" element={<Layout><ProtectedRoute requiredPermission="kitchen"><KitchenDisplay /></ProtectedRoute></Layout>} />
+                  <Route path="/tables" element={<Layout><ProtectedRoute requiredPermission="tables"><TableManagement /></ProtectedRoute></Layout>} />
                   <Route path="/display" element={<CustomerDisplay />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
