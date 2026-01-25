@@ -15,6 +15,7 @@ import { PaymentTypesManagement } from '@/components/PaymentTypesManagement';
 import { BluetoothPrinterSettings } from '@/components/BluetoothPrinterSettings';
 import { ShopSettingsForm } from '@/components/ShopSettingsForm';
 import { ThemeSettings } from '@/components/ThemeSettings';
+import { WhatsAppSettings } from '@/components/WhatsAppSettings';
 
 interface AdditionalCharge {
   id: string;
@@ -305,6 +306,9 @@ const Settings = () => {
           </Card>
 
 
+
+          {/* WhatsApp Bill Share Settings */}
+          <WhatsAppSettings />
 
           {/* Bluetooth Printer Settings */}
           <BluetoothPrinterSettings />

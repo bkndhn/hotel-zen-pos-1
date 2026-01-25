@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Minus, Trash2, Percent, ChevronDown, ChevronUp } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Plus, Minus, Trash2, Percent, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
 import { getShortUnit, formatQuantityWithUnit, isWeightOrVolumeUnit } from '@/utils/timeUtils';
+import { isValidPhoneNumber } from '@/utils/whatsappBillShare';
 
 interface CartItem {
   id: string;
@@ -50,7 +53,10 @@ interface CompletePaymentDialogProps {
     discountType: 'flat' | 'percentage';
     additionalCharges: { name: string; amount: number; enabled: boolean }[];
     finalItems?: CartItem[]; // Optional for backward compatibility, but we'll use it
+    customerMobile?: string;
+    sendWhatsApp?: boolean;
   }) => void;
+  whatsappEnabled?: boolean;
 }
 
 export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
@@ -61,7 +67,8 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
   additionalCharges,
   onUpdateQuantity,
   onRemoveItem,
-  onCompletePayment
+  onCompletePayment,
+  whatsappEnabled = false
 }) => {
   const [paymentAmounts, setPaymentAmounts] = useState<Record<string, number>>({});
   const [discount, setDiscount] = useState(0);
@@ -71,6 +78,8 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
   const [chargeAmountOverrides, setChargeAmountOverrides] = useState<Record<string, number>>({});
   const [itemQuantityOverrides, setItemQuantityOverrides] = useState<Record<string, number>>({});
   const [showDiscount, setShowDiscount] = useState(false);
+  const [customerMobile, setCustomerMobile] = useState('');
+  const [sendWhatsApp, setSendWhatsApp] = useState(false);
   const hasInitialized = React.useRef(false);
 
   // Get total quantity for charges (smart count: 1 for weighted items, sum for pieces)
@@ -198,7 +207,9 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
       discount: discountAmount,
       discountType,
       additionalCharges: selectedAdditionalCharges,
-      finalItems: finalItems
+      finalItems: finalItems,
+      customerMobile: customerMobile.trim() || undefined,
+      sendWhatsApp: sendWhatsApp && customerMobile.trim().length > 0
     });
   };
 
@@ -217,6 +228,8 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
       setChargeAmountOverrides({});
       setItemQuantityOverrides({});
       setShowDiscount(false);
+      setCustomerMobile('');
+      setSendWhatsApp(false);
     }
   }, [open]);
 
@@ -466,6 +479,40 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
               </div>
             )}
           </div>
+
+          {/* WhatsApp Bill Share - Only if enabled */}
+          {whatsappEnabled && (
+            <div className="bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-950/20 dark:to-teal-950/20 rounded-lg p-2 flex-shrink-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                <MessageCircle className="w-4 h-4 text-green-600" />
+                <span className="font-semibold text-xs text-green-700 dark:text-green-400">WhatsApp Bill Share</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="tel"
+                  value={customerMobile}
+                  onChange={(e) => setCustomerMobile(e.target.value)}
+                  placeholder="Customer mobile (e.g. 9876543210)"
+                  className="flex-1 h-8 text-xs bg-white dark:bg-gray-800"
+                />
+                <div className="flex items-center gap-1.5">
+                  <Switch
+                    id="send-whatsapp"
+                    checked={sendWhatsApp}
+                    onCheckedChange={setSendWhatsApp}
+                    disabled={!customerMobile.trim()}
+                    className="scale-75"
+                  />
+                  <Label htmlFor="send-whatsapp" className="text-[10px] text-muted-foreground whitespace-nowrap">
+                    Send
+                  </Label>
+                </div>
+              </div>
+              {customerMobile && !isValidPhoneNumber(customerMobile) && (
+                <p className="text-[10px] text-red-500 mt-1">Invalid phone number format</p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Summary - Fixed at bottom */}

@@ -116,6 +116,7 @@ export type Database = {
           bill_no: string
           created_at: string
           created_by: string
+          customer_mobile: string | null
           date: string
           discount: number | null
           id: string
@@ -127,6 +128,8 @@ export type Database = {
           service_status: Database["public"]["Enums"]["service_status"] | null
           status_updated_at: string | null
           total_amount: number
+          whatsapp_sent: boolean | null
+          whatsapp_sent_at: string | null
         }
         Insert: {
           additional_charges?: Json | null
@@ -134,6 +137,7 @@ export type Database = {
           bill_no: string
           created_at?: string
           created_by: string
+          customer_mobile?: string | null
           date?: string
           discount?: number | null
           id?: string
@@ -145,6 +149,8 @@ export type Database = {
           service_status?: Database["public"]["Enums"]["service_status"] | null
           status_updated_at?: string | null
           total_amount: number
+          whatsapp_sent?: boolean | null
+          whatsapp_sent_at?: string | null
         }
         Update: {
           additional_charges?: Json | null
@@ -152,6 +158,7 @@ export type Database = {
           bill_no?: string
           created_at?: string
           created_by?: string
+          customer_mobile?: string | null
           date?: string
           discount?: number | null
           id?: string
@@ -163,6 +170,8 @@ export type Database = {
           service_status?: Database["public"]["Enums"]["service_status"] | null
           status_updated_at?: string | null
           total_amount?: number
+          whatsapp_sent?: boolean | null
+          whatsapp_sent_at?: string | null
         }
         Relationships: [
           {
@@ -524,6 +533,10 @@ export type Database = {
           updated_at: string | null
           user_id: string
           whatsapp: string | null
+          whatsapp_bill_share_enabled: boolean | null
+          whatsapp_business_api_enabled: boolean | null
+          whatsapp_business_api_token: string | null
+          whatsapp_business_phone_id: string | null
         }
         Insert: {
           address?: string | null
@@ -541,6 +554,10 @@ export type Database = {
           updated_at?: string | null
           user_id: string
           whatsapp?: string | null
+          whatsapp_bill_share_enabled?: boolean | null
+          whatsapp_business_api_enabled?: boolean | null
+          whatsapp_business_api_token?: string | null
+          whatsapp_business_phone_id?: string | null
         }
         Update: {
           address?: string | null
@@ -558,8 +575,69 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
           whatsapp?: string | null
+          whatsapp_bill_share_enabled?: boolean | null
+          whatsapp_business_api_enabled?: boolean | null
+          whatsapp_business_api_token?: string | null
+          whatsapp_business_phone_id?: string | null
         }
         Relationships: []
+      }
+      tables: {
+        Row: {
+          admin_id: string | null
+          capacity: number | null
+          created_at: string
+          current_bill_id: string | null
+          display_order: number | null
+          id: string
+          is_active: boolean
+          status: string
+          table_name: string | null
+          table_number: string
+          updated_at: string
+        }
+        Insert: {
+          admin_id?: string | null
+          capacity?: number | null
+          created_at?: string
+          current_bill_id?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean
+          status?: string
+          table_name?: string | null
+          table_number: string
+          updated_at?: string
+        }
+        Update: {
+          admin_id?: string | null
+          capacity?: number | null
+          created_at?: string
+          current_bill_id?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean
+          status?: string
+          table_name?: string | null
+          table_number?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tables_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tables_current_bill_id_fkey"
+            columns: ["current_bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_permissions: {
         Row: {
