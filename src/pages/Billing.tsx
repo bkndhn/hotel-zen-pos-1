@@ -156,6 +156,9 @@ const Billing = () => {
   });
   const [itemCategories, setItemCategories] = useState<ItemCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const [selectedTableNumber, setSelectedTableNumber] = useState<string | null>(null);
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
   const syncChannelRef = useRef<any>(null);
 
   // Setup Global Sync Channel for Cross-Device updates
@@ -438,6 +441,7 @@ const Billing = () => {
           printerWidth: data.printer_width as '58mm' | '80mm' || '58mm'
         };
         setBillSettings(settings);
+        setWhatsappEnabled(data.whatsapp_bill_share_enabled || false);
         // Update cache
         localStorage.setItem('hotel_pos_bill_header', JSON.stringify(settings));
         return settings;
@@ -873,6 +877,90 @@ const Billing = () => {
     }
   };
 
+  // WhatsApp Share and CRM Save
+  const handleWhatsAppShare = async (
+    billNo: string,
+    customerMobile: string,
+    cartItems: CartItem[],
+    total: number,
+    paymentMethod: string,
+    adminId: string | null | undefined
+  ) => {
+    try {
+      const { formatBillMessage, shareViaWhatsApp, isValidPhoneNumber } = await import('@/utils/whatsappBillShare');
+      
+      if (!isValidPhoneNumber(customerMobile)) {
+        toast({ title: "Invalid Phone", description: "Cannot send WhatsApp - invalid number", variant: "destructive" });
+        return;
+      }
+
+      // Save/Update customer in CRM
+      const cleanPhone = customerMobile.replace(/[\s\-\(\)\+]/g, '');
+      
+      if (adminId) {
+        const { data: existingCustomer } = await supabase
+          .from('customers')
+          .select('id, total_visits, total_spent')
+          .eq('admin_id', adminId)
+          .eq('phone', cleanPhone)
+          .maybeSingle();
+
+        if (existingCustomer) {
+          // Update existing customer
+          await supabase
+            .from('customers')
+            .update({
+              total_visits: existingCustomer.total_visits + 1,
+              total_spent: existingCustomer.total_spent + total,
+              last_visit_at: new Date().toISOString()
+            })
+            .eq('id', existingCustomer.id);
+        } else {
+          // Create new customer
+          await supabase
+            .from('customers')
+            .insert({
+              admin_id: adminId,
+              phone: cleanPhone,
+              total_visits: 1,
+              total_spent: total,
+              last_visit_at: new Date().toISOString()
+            });
+        }
+      }
+
+      // Format and send WhatsApp message
+      const now = new Date();
+      const subtotal = cartItems.reduce((sum, item) => {
+        const baseValue = item.base_value || 1;
+        return sum + (item.quantity / baseValue) * item.price;
+      }, 0);
+
+      const message = formatBillMessage({
+        billNo,
+        shopName: billSettings?.shopName || profile?.hotel_name || 'Hotel',
+        items: cartItems.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          total: (item.quantity / (item.base_value || 1)) * item.price,
+          unit: item.unit
+        })),
+        subtotal,
+        total,
+        date: now.toLocaleDateString('en-IN'),
+        time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+        paymentMethod
+      });
+
+      shareViaWhatsApp(customerMobile, message);
+      
+      toast({ title: "WhatsApp", description: "Opening WhatsApp to share bill..." });
+    } catch (error) {
+      console.error('WhatsApp share error:', error);
+      toast({ title: "WhatsApp Error", description: "Failed to share via WhatsApp", variant: "destructive" });
+    }
+  };
+
   const handleCompletePayment = async (paymentData: {
     paymentMethod: string;
     paymentAmounts: Record<string, number>;
@@ -884,6 +972,8 @@ const Billing = () => {
       enabled: boolean;
     }[];
     finalItems?: CartItem[];
+    customerMobile?: string;
+    sendWhatsApp?: boolean;
   }) => {
     setPaymentDialogOpen(false);
 
@@ -908,21 +998,32 @@ const Billing = () => {
 
       const isOffline = !navigator.onLine;
 
-      // Generate Bill Number
+      // Generate Bill Number with admin isolation
       let billNumber: string;
       const continueBillFromYesterday = localStorage.getItem('hotel_pos_continue_bill_number') !== 'false';
+      
+      // Get admin_id for data isolation (admin's own id if admin, or parent admin_id if sub-user)
+      const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
 
       if (isOffline) {
         billNumber = `BILL-OFF-${Date.now()}`;
       } else if (continueBillFromYesterday) {
-        // Continue sequential numbering from all bills
-        const { data: allBillNos } = await supabase
+        // Continue sequential numbering - ISOLATED per admin
+        let query = supabase
           .from('bills')
           .select('bill_no')
           .order('created_at', { ascending: false })
           .limit(100);
+        
+        // Filter by admin_id for isolation
+        if (adminId) {
+          query = query.eq('admin_id', adminId);
+        }
 
-        let maxNumber = 55;
+        const { data: allBillNos } = await query;
+
+        // Start from 0 for new admins (first bill will be 000001)
+        let maxNumber = 0;
         if (allBillNos && allBillNos.length > 0) {
           allBillNos.forEach(bill => {
             const match = bill.bill_no.match(/^BILL-(\d{6})$/);
@@ -941,12 +1042,18 @@ const Billing = () => {
         const datePrefix = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getFullYear()).slice(-2)}`;
         const todayDateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-        // Get today's bills only
-        const { data: todayBills } = await supabase
+        // Get today's bills only - ISOLATED per admin
+        let todayQuery = supabase
           .from('bills')
           .select('bill_no')
           .eq('date', todayDateString)
           .order('created_at', { ascending: false });
+        
+        if (adminId) {
+          todayQuery = todayQuery.eq('admin_id', adminId);
+        }
+
+        const { data: todayBills } = await todayQuery;
 
         let todayMaxNumber = 0;
         if (todayBills && todayBills.length > 0) {
@@ -982,8 +1089,7 @@ const Billing = () => {
       const paymentMode = mapPaymentMode(paymentData.paymentMethod);
       const additionalChargesArray = paymentData.additionalCharges.map(c => ({ name: c.name, amount: c.amount }));
 
-      // Get admin_id for data isolation (admin's own id if admin, or parent admin_id if sub-user)
-      const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+      // adminId already defined above for bill number isolation
 
       const billPayload = {
         bill_no: billNumber,
@@ -1141,10 +1247,20 @@ const Billing = () => {
 
         // Print successful - Save bill to database
         await saveBillToDatabase(billPayload, validCart, billNumber);
+        
+        // WhatsApp share after successful payment
+        if (paymentData.sendWhatsApp && paymentData.customerMobile) {
+          await handleWhatsAppShare(billNumber, paymentData.customerMobile, validCart, totalAmount, paymentData.paymentMethod, adminId);
+        }
       } else {
         // Auto-print disabled - Just save bill
         await saveBillToDatabase(billPayload, validCart, billNumber);
         console.log("Auto-print disabled, bill saved without printing.");
+        
+        // WhatsApp share after successful payment
+        if (paymentData.sendWhatsApp && paymentData.customerMobile) {
+          await handleWhatsAppShare(billNumber, paymentData.customerMobile, validCart, totalAmount, paymentData.paymentMethod, adminId);
+        }
       }
 
     } catch (error: any) {
@@ -1414,7 +1530,7 @@ const Billing = () => {
     </div>}
 
     {/* Payment Dialog */}
-    <CompletePaymentDialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen} cart={cart} paymentTypes={paymentTypes} additionalCharges={additionalCharges} onUpdateQuantity={updateQuantity} onRemoveItem={removeFromCart} onCompletePayment={handleCompletePayment} />
+    <CompletePaymentDialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen} cart={cart} paymentTypes={paymentTypes} additionalCharges={additionalCharges} onUpdateQuantity={updateQuantity} onRemoveItem={removeFromCart} onCompletePayment={handleCompletePayment} whatsappEnabled={whatsappEnabled} />
 
     {/* Printer Error Dialog */}
     <PrinterErrorDialog

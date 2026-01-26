@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { useSwipeGesture } from '@/hooks/useSwipeGesture';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { LogOut, User, Hotel, Menu, LayoutDashboard, ShoppingCart, Package, Receipt, BarChart3, TrendingUp, Users, Settings, ClipboardList, ChefHat, X } from 'lucide-react';
+import { LogOut, User, Hotel, Menu, LayoutDashboard, ShoppingCart, Package, Receipt, BarChart3, TrendingUp, Users, Settings, ClipboardList, ChefHat, LayoutGrid } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LanguageSwitcher } from './LanguageSwitcher';
 
@@ -18,6 +19,7 @@ const allNavItems = [
   { to: '/billing', icon: ShoppingCart, label: 'Billing', page: 'billing' as const },
   { to: '/service-area', icon: ClipboardList, label: 'Service Area', page: 'serviceArea' as const },
   { to: '/kitchen', icon: ChefHat, label: 'Kitchen Display', page: 'kitchen' as const },
+  { to: '/tables', icon: LayoutGrid, label: 'Tables', page: 'tables' as const },
   { to: '/items', icon: Package, label: 'Items', page: 'items' as const },
   { to: '/expenses', icon: Receipt, label: 'Expenses', page: 'expenses' as const },
   { to: '/reports', icon: BarChart3, label: 'Reports', page: 'reports' as const },
@@ -45,6 +47,17 @@ export const Header: React.FC = () => {
 
   // Filter nav items based on permissions (empty for super_admin)
   const navItems = isSuperAdmin ? [] : (permLoading ? [] : allNavItems.filter(item => hasAccess(item.page)));
+
+  // Enable swipe gesture to open sidebar on mobile
+  useSwipeGesture({
+    onSwipeRight: () => {
+      if (!isSuperAdmin) {
+        setMobileMenuOpen(true);
+      }
+    },
+    threshold: 50,
+    edgeWidth: 30,
+  });
 
   return (
     <>
