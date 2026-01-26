@@ -12,11 +12,11 @@ export const printBrowserReceipt = (data: PrintData) => {
     total: data.total
   });
 
-  // Compact item rows with header: Item Name | Qty | Value
-  const itemsHeader = `<tr style="font-weight:bold;border-bottom:1px dashed #000"><td>ITEM</td><td style="text-align:center">QTY</td><td style="text-align:right">₹</td></tr>`;
+  // Compact item rows with header: Item Name | Qty | Value (with two decimals)
+  const itemsHeader = `<tr style="font-weight:bold;border-bottom:1px dashed #000"><td>ITEM</td><td style="text-align:center">QTY</td><td style="text-align:right">Value</td></tr>`;
   let itemsHtml = data.items.map(item => {
     const qtyWithUnit = formatQuantityWithUnit(item.quantity, item.unit);
-    return `<tr><td style="max-width:60%;word-break:break-word">${item.name}</td><td style="text-align:center">${qtyWithUnit}</td><td style="text-align:right">${item.total.toFixed(0)}</td></tr>`;
+    return `<tr><td style="max-width:60%;word-break:break-word">${item.name}</td><td style="text-align:center">${qtyWithUnit}</td><td style="text-align:right">${item.total.toFixed(2)}</td></tr>`;
   }).join('');
 
   const totalItems = data.totalItemsCount || data.items.length;
@@ -80,10 +80,10 @@ export const printBrowserReceipt = (data: PrintData) => {
   <hr>
   
   <table>
-    <tr><td>Subtotal:</td><td style="text-align:right">₹${data.subtotal.toFixed(0)}</td></tr>
-    ${data.additionalCharges?.map(c => `<tr><td>${c.name}:</td><td style="text-align:right">₹${c.amount.toFixed(0)}</td></tr>`).join('') || ''}
-    ${data.discount && data.discount > 0 ? `<tr><td>Discount:</td><td style="text-align:right">-₹${data.discount.toFixed(0)}</td></tr>` : ''}
-    <tr class="total"><td>TOTAL:</td><td style="text-align:right">₹${data.total.toFixed(0)}</td></tr>
+    <tr><td>Subtotal:</td><td style="text-align:right">₹${data.subtotal.toFixed(2)}</td></tr>
+    ${data.additionalCharges?.map(c => `<tr><td>${c.name}:</td><td style="text-align:right">₹${c.amount.toFixed(2)}</td></tr>`).join('') || ''}
+    ${data.discount && data.discount > 0 ? `<tr><td>Discount:</td><td style="text-align:right">-₹${data.discount.toFixed(2)}</td></tr>` : ''}
+    <tr class="total"><td>TOTAL:</td><td style="text-align:right">₹${data.total.toFixed(2)}</td></tr>
   </table>
   
   <table style="margin-top:8px">
