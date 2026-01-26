@@ -94,8 +94,7 @@ const KitchenDisplay = () => {
     const fetchBills = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
 
-        const now = new Date();
-        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        if (!silent) setLoading(true);
 
         try {
             // Always try to fetch from server first with a timeout
@@ -107,7 +106,8 @@ const KitchenDisplay = () => {
                         id, quantity, items (id, name, unit, base_value)
                     )
                 `)
-                .eq('date', today)
+                // REMOVED: .eq('date', today) - To prevent issues with wrong client time
+                // Instead, we just show EVERYTHING that is active (pending/preparing/ready)
                 .or('is_deleted.is.null,is_deleted.eq.false')
                 .in('kitchen_status', ['pending', 'preparing', 'ready'])
                 .neq('service_status', 'completed')

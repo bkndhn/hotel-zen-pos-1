@@ -737,52 +737,88 @@ const Billing = () => {
     validCart: CartItem[],
     billNumber: string
   ) => {
-    // 1. Create Bill
-    const { data: billData, error: billError } = await supabase
-      .from('bills')
-      .insert(billPayload)
-      .select()
-      .single();
-
-    if (billError) throw billError;
-    if (!billData) throw new Error('Failed to create bill record');
-
-    // 2. Create Bill Items
-    const billItems = validCart.map(item => {
-      const baseValue = item.base_value || 1;
-      return {
-        bill_id: billData.id,
+    // 1. Prepare payload for RPC
+    const rpcPayload = {
+      p_bill_no: billNumber,
+      p_payment_mode: billPayload.payment_mode,
+      p_items: validCart.map(item => ({
         item_id: item.id,
-        quantity: item.quantity,
-        price: item.price,
-        total: (item.quantity / baseValue) * item.price
-      };
-    });
+        quantity: item.quantity
+      })),
+      p_user_id: billPayload.created_by,
+      p_discount: billPayload.discount || 0,
+      p_payment_details: billPayload.payment_details || {},
+      p_table_id: selectedTableId || null
+    };
 
-    const { error: itemsError } = await supabase
-      .from('bill_items')
-      .insert(billItems);
+    console.log('Sending secure bill transaction:', rpcPayload);
 
-    if (itemsError) {
-      console.error("Failed to insert items, rolling back bill...", itemsError);
-      await supabase.from('bills').delete().eq('id', billData.id);
-      throw itemsError;
+    // 2. CHECK CONNECTION & EXECUTE
+    if (navigator.onLine) {
+      try {
+        const { data: transactionResult, error: transactionError } = await supabase
+          .rpc('create_bill_transaction', rpcPayload);
+
+        if (transactionError) {
+          // If it's a network error disguised as an RPC error, throw it so catch block handles it
+          if (transactionError.message?.includes('Failed to fetch') || transactionError.message?.includes('Network request failed')) {
+            throw new Error('Network Error');
+          }
+          console.error('Transaction failed:', transactionError);
+          throw transactionError; // Real logic error (e.g. Stock), let it bubble up
+        }
+
+        console.log('Bill created successfully via RPC:', transactionResult);
+      } catch (e: any) {
+        // Only fallback if it is genuinely a network error
+        if (e.message === 'Network Error' || e.message?.includes('Failed to fetch')) {
+          console.log('Network failed during RPC, saving offline...');
+          await saveOffline();
+          return; // EXIT HERE, don't show success toast twice
+        }
+        throw e; // Re-throw other errors (Stock, etc)
+      }
+    } else {
+      // Offline immediately
+      await saveOffline();
+      return; // EXIT HERE
     }
 
-    // 3. Stock Deduction
-    for (const item of validCart) {
-      const { data: currentItem } = await supabase
-        .from('items')
-        .select('stock_quantity')
-        .eq('id', item.id)
-        .single();
+    // Helper to Save Offline
+    async function saveOffline() {
+      const { offlineManager } = await import('@/utils/offlineManager');
 
-      if (currentItem && currentItem.stock_quantity !== null && currentItem.stock_quantity !== undefined) {
-        await supabase
-          .from('items')
-          .update({ stock_quantity: Math.max(0, (currentItem.stock_quantity || 0) - item.quantity) })
-          .eq('id', item.id);
-      }
+      // Prepare offline bill object
+      const offlineBill = {
+        id: crypto.randomUUID(), // Temp ID
+        bill_no: billNumber, // Temporary bill number (will be replaced on sync)
+        total_amount: billPayload.total_amount,
+        discount: billPayload.discount || 0,
+        payment_mode: billPayload.payment_mode,
+        payment_details: billPayload.payment_details || {},
+        additional_charges: billPayload.additional_charges || [],
+        created_by: billPayload.created_by,
+        date: new Date().toISOString().split('T')[0],
+        created_at: new Date().toISOString(),
+        items: validCart.map(item => ({
+          item_id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: (item.quantity / (item.base_value || 1)) * item.price
+        })),
+        // table_id: selectedTableId // Add if supported
+      };
+
+      await offlineManager.savePendingBill(offlineBill);
+
+      toast({
+        title: "Saved Offline 📴",
+        description: "Bill saved locally. Will sync when online.",
+        duration: 3000
+      });
+
+      // We still want to clear cart and print receipt even if offline!
     }
 
     toast({
@@ -888,7 +924,7 @@ const Billing = () => {
   ) => {
     try {
       const { formatBillMessage, shareViaWhatsApp, isValidPhoneNumber } = await import('@/utils/whatsappBillShare');
-      
+
       if (!isValidPhoneNumber(customerMobile)) {
         toast({ title: "Invalid Phone", description: "Cannot send WhatsApp - invalid number", variant: "destructive" });
         return;
@@ -896,7 +932,7 @@ const Billing = () => {
 
       // Save/Update customer in CRM
       const cleanPhone = customerMobile.replace(/[\s\-\(\)\+]/g, '');
-      
+
       if (adminId) {
         const { data: existingCustomer } = await supabase
           .from('customers')
@@ -953,7 +989,7 @@ const Billing = () => {
       });
 
       shareViaWhatsApp(customerMobile, message);
-      
+
       toast({ title: "WhatsApp", description: "Opening WhatsApp to share bill..." });
     } catch (error) {
       console.error('WhatsApp share error:', error);
@@ -1001,7 +1037,7 @@ const Billing = () => {
       // Generate Bill Number with admin isolation
       let billNumber: string;
       const continueBillFromYesterday = localStorage.getItem('hotel_pos_continue_bill_number') !== 'false';
-      
+
       // Get admin_id for data isolation (admin's own id if admin, or parent admin_id if sub-user)
       const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
 
@@ -1014,7 +1050,7 @@ const Billing = () => {
           .select('bill_no')
           .order('created_at', { ascending: false })
           .limit(100);
-        
+
         // Filter by admin_id for isolation
         if (adminId) {
           query = query.eq('admin_id', adminId);
@@ -1048,7 +1084,7 @@ const Billing = () => {
           .select('bill_no')
           .eq('date', todayDateString)
           .order('created_at', { ascending: false });
-        
+
         if (adminId) {
           todayQuery = todayQuery.eq('admin_id', adminId);
         }
@@ -1247,7 +1283,7 @@ const Billing = () => {
 
         // Print successful - Save bill to database
         await saveBillToDatabase(billPayload, validCart, billNumber);
-        
+
         // WhatsApp share after successful payment
         if (paymentData.sendWhatsApp && paymentData.customerMobile) {
           await handleWhatsAppShare(billNumber, paymentData.customerMobile, validCart, totalAmount, paymentData.paymentMethod, adminId);
@@ -1256,7 +1292,7 @@ const Billing = () => {
         // Auto-print disabled - Just save bill
         await saveBillToDatabase(billPayload, validCart, billNumber);
         console.log("Auto-print disabled, bill saved without printing.");
-        
+
         // WhatsApp share after successful payment
         if (paymentData.sendWhatsApp && paymentData.customerMobile) {
           await handleWhatsAppShare(billNumber, paymentData.customerMobile, validCart, totalAmount, paymentData.paymentMethod, adminId);
