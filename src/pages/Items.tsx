@@ -168,6 +168,7 @@ const Items: React.FC = () => {
 
   const fetchCategories = async () => {
     try {
+      // Fetch categories
       const { data, error } = await supabase
         .from('item_categories')
         .select('name')
@@ -175,7 +176,32 @@ const Items: React.FC = () => {
         .order('name');
 
       if (error) throw error;
-      setCategories((data || []).map(cat => cat.name));
+      
+      let categoryNames = (data || []).map(cat => cat.name);
+      
+      // Fetch display settings for category order
+      if (profile?.user_id) {
+        const { data: displayData } = await supabase
+          .from('display_settings')
+          .select('category_order')
+          .eq('user_id', profile.user_id)
+          .maybeSingle();
+        
+        if (displayData?.category_order && displayData.category_order.length > 0) {
+          const categoryOrder = displayData.category_order;
+          // Sort categories based on saved order (same logic as Billing page)
+          categoryNames = [...categoryNames].sort((a, b) => {
+            const indexA = categoryOrder.indexOf(a);
+            const indexB = categoryOrder.indexOf(b);
+            if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+            if (indexA === -1) return 1;
+            if (indexB === -1) return -1;
+            return indexA - indexB;
+          });
+        }
+      }
+      
+      setCategories(categoryNames);
     } catch (error) {
       console.error('Error fetching categories:', error);
     }
