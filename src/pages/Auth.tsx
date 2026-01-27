@@ -113,7 +113,7 @@ const Auth = () => {
     try {
       const { supabase } = await import('@/integrations/supabase/client');
       const { error } = await supabase.auth.resetPasswordForEmail(formData.email, {
-        redirectTo: `${window.location.origin}/update-password`,
+        redirectTo: `${window.location.origin}/auth`,
       });
 
       if (error) throw error;

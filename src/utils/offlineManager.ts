@@ -374,32 +374,67 @@ class OfflineManager {
     }
 
     private async syncBillToSupabase(bill: PendingBill): Promise<void> {
-        console.log(`[Sync] Syncing offline bill ${bill.bill_no}...`);
+        // Generate proper sequential bill number
+        const { data: allBillNos } = await supabase
+            .from('bills')
+            .select('bill_no')
+            .order('created_at', { ascending: false })
+            .limit(100);
 
-        // Prepare secure RPC payload
-        // We pass "PENDING" for bill_no because the server will generate the authoritative sequential ID.
-        const rpcPayload = {
-            p_bill_no: "PENDING",
-            p_payment_mode: bill.payment_mode,
-            p_items: bill.items.map(item => ({
-                item_id: item.item_id,
-                quantity: item.quantity
-            })),
-            p_user_id: bill.created_by,
-            p_discount: bill.discount || 0,
-            p_payment_details: bill.payment_details || {},
-            // p_table_id: bill.table_id
+        let maxNumber = 55;
+        if (allBillNos && allBillNos.length > 0) {
+            allBillNos.forEach((b: any) => {
+                const match = b.bill_no.match(/^BILL-(\d{6})$/);
+                if (match) {
+                    const num = parseInt(match[1], 10);
+                    if (num > maxNumber) maxNumber = num;
+                }
+            });
+        }
+        const properBillNumber = `BILL-${String(maxNumber + 1).padStart(6, '0')}`;
+
+        // Create the bill in Supabase
+        const billData = {
+            bill_no: properBillNumber,
+            total_amount: bill.total_amount,
+            discount: bill.discount,
+            payment_mode: bill.payment_mode as any,
+            payment_details: bill.payment_details,
+            additional_charges: bill.additional_charges,
+            created_by: bill.created_by,
+            date: bill.date,
+            service_status: 'pending' as const
         };
 
-        // @ts-ignore
-        const { data, error } = await supabase.rpc('create_bill_transaction', rpcPayload);
+        const { data: createdBill, error: billError } = await supabase
+            .from('bills')
+            .insert([billData])
+            .select()
+            .single();
 
-        if (error) {
-            console.error('[Sync] RPC Failed:', error);
-            throw error;
+        if (billError) throw billError;
+        if (!createdBill) throw new Error('Failed to create bill');
+
+        // Create bill items
+        const billItems = bill.items.map(item => ({
+            bill_id: createdBill.id,
+            item_id: item.item_id,
+            quantity: item.quantity,
+            price: item.price,
+            total: item.total
+        }));
+
+        const { error: itemsError } = await supabase
+            .from('bill_items')
+            .insert(billItems);
+
+        if (itemsError) {
+            // Rollback
+            await supabase.from('bills').delete().eq('id', createdBill.id);
+            throw itemsError;
         }
 
-        console.log(`[Sync] Bill synced successfully. Server assigned: ${(data as any).bill_no}`);
+        console.log(`[Sync] Offline bill ${bill.bill_no} → ${properBillNumber}`);
 
         // Dispatch sync event
         window.dispatchEvent(new CustomEvent('bills-updated'));
@@ -412,30 +447,60 @@ class OfflineManager {
                     const billData = item.data.bill;
                     const itemsData = item.data.items;
 
-                    console.log(`[Sync] Processing queued bill...`);
+                    // Generate proper sequential bill number
+                    const { data: allBillNos } = await supabase
+                        .from('bills')
+                        .select('bill_no')
+                        .order('created_at', { ascending: false })
+                        .limit(100);
 
-                    // Use RPC to ensure safe atomic creation and server-side numbering
-                    const rpcPayload = {
-                        p_bill_no: "PENDING",
-                        p_payment_mode: billData.payment_mode,
-                        p_items: itemsData.map((i: any) => ({
-                            item_id: i.item_id,
-                            quantity: i.quantity
-                        })),
-                        p_user_id: billData.created_by,
-                        p_discount: billData.discount || 0,
-                        p_payment_details: billData.payment_details || {}
+                    let maxNumber = 55;
+                    if (allBillNos && allBillNos.length > 0) {
+                        allBillNos.forEach((bill: any) => {
+                            const match = bill.bill_no.match(/^BILL-(\d{6})$/);
+                            if (match) {
+                                const num = parseInt(match[1], 10);
+                                if (num > maxNumber) {
+                                    maxNumber = num;
+                                }
+                            }
+                        });
+                    }
+                    const properBillNumber = `BILL-${String(maxNumber + 1).padStart(6, '0')}`;
+
+                    const finalBillData = {
+                        ...billData,
+                        bill_no: properBillNumber
                     };
 
-                    // @ts-ignore
-                    const { data, error } = await supabase.rpc('create_bill_transaction', rpcPayload);
+                    const { data: createdBill, error: billError } = await supabase
+                        .from('bills')
+                        .insert(finalBillData)
+                        .select()
+                        .single();
 
-                    if (error) {
-                        console.error('[Sync] Queue processing failed:', error);
-                        throw error;
+                    if (billError) throw billError;
+
+                    if (createdBill && itemsData && itemsData.length > 0) {
+                        const billItems = itemsData.map((billItem: any) => ({
+                            bill_id: createdBill.id,
+                            item_id: billItem.item_id,
+                            quantity: billItem.quantity,
+                            price: billItem.price,
+                            total: billItem.total
+                        }));
+
+                        const { error: itemsError } = await supabase
+                            .from('bill_items')
+                            .insert(billItems);
+
+                        if (itemsError) {
+                            await supabase.from('bills').delete().eq('id', createdBill.id);
+                            throw itemsError;
+                        }
                     }
 
-                    console.log(`[Sync] Queued bill synced. Server assigned: ${(data as any).bill_no}`);
+                    console.log(`Offline bill synced: ${billData.bill_no} → ${properBillNumber}`);
                 }
                 break;
             case 'expense':

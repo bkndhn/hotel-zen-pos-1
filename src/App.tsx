@@ -29,7 +29,6 @@ import CRM from "./pages/CRM";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PendingBillsQueue } from "./components/PendingBillsQueue";
-import UpdatePassword from "./pages/UpdatePassword";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -223,7 +222,6 @@ const App = () => {
               <PermissionsProvider>
                 <Routes>
                   <Route path="/auth" element={<Auth />} />
-                  <Route path="/update-password" element={<UpdatePassword />} />
                   <Route path="/" element={<Layout><ProtectedRoute requiredPermission="billing"><Billing /></ProtectedRoute></Layout>} />
                   <Route path="/dashboard" element={<Layout><ProtectedRoute requiredPermission="dashboard"><Dashboard /></ProtectedRoute></Layout>} />
                   <Route path="/analytics" element={<Layout><ProtectedRoute requiredPermission="analytics"><DashboardAnalytics /></ProtectedRoute></Layout>} />

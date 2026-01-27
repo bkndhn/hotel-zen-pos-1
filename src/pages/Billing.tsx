@@ -737,88 +737,52 @@ const Billing = () => {
     validCart: CartItem[],
     billNumber: string
   ) => {
-    // 1. Prepare payload for RPC
-    const rpcPayload = {
-      p_bill_no: billNumber,
-      p_payment_mode: billPayload.payment_mode,
-      p_items: validCart.map(item => ({
+    // 1. Create Bill
+    const { data: billData, error: billError } = await supabase
+      .from('bills')
+      .insert(billPayload)
+      .select()
+      .single();
+
+    if (billError) throw billError;
+    if (!billData) throw new Error('Failed to create bill record');
+
+    // 2. Create Bill Items
+    const billItems = validCart.map(item => {
+      const baseValue = item.base_value || 1;
+      return {
+        bill_id: billData.id,
         item_id: item.id,
-        quantity: item.quantity
-      })),
-      p_user_id: billPayload.created_by,
-      p_discount: billPayload.discount || 0,
-      p_payment_details: billPayload.payment_details || {},
-      p_table_id: selectedTableId || null
-    };
+        quantity: item.quantity,
+        price: item.price,
+        total: (item.quantity / baseValue) * item.price
+      };
+    });
 
-    console.log('Sending secure bill transaction:', rpcPayload);
+    const { error: itemsError } = await supabase
+      .from('bill_items')
+      .insert(billItems);
 
-    // 2. CHECK CONNECTION & EXECUTE
-    if (navigator.onLine) {
-      try {
-        const { data: transactionResult, error: transactionError } = await supabase
-          .rpc('create_bill_transaction', rpcPayload);
-
-        if (transactionError) {
-          // If it's a network error disguised as an RPC error, throw it so catch block handles it
-          if (transactionError.message?.includes('Failed to fetch') || transactionError.message?.includes('Network request failed')) {
-            throw new Error('Network Error');
-          }
-          console.error('Transaction failed:', transactionError);
-          throw transactionError; // Real logic error (e.g. Stock), let it bubble up
-        }
-
-        console.log('Bill created successfully via RPC:', transactionResult);
-      } catch (e: any) {
-        // Only fallback if it is genuinely a network error
-        if (e.message === 'Network Error' || e.message?.includes('Failed to fetch')) {
-          console.log('Network failed during RPC, saving offline...');
-          await saveOffline();
-          return; // EXIT HERE, don't show success toast twice
-        }
-        throw e; // Re-throw other errors (Stock, etc)
-      }
-    } else {
-      // Offline immediately
-      await saveOffline();
-      return; // EXIT HERE
+    if (itemsError) {
+      console.error("Failed to insert items, rolling back bill...", itemsError);
+      await supabase.from('bills').delete().eq('id', billData.id);
+      throw itemsError;
     }
 
-    // Helper to Save Offline
-    async function saveOffline() {
-      const { offlineManager } = await import('@/utils/offlineManager');
+    // 3. Stock Deduction
+    for (const item of validCart) {
+      const { data: currentItem } = await supabase
+        .from('items')
+        .select('stock_quantity')
+        .eq('id', item.id)
+        .single();
 
-      // Prepare offline bill object
-      const offlineBill = {
-        id: crypto.randomUUID(), // Temp ID
-        bill_no: billNumber, // Temporary bill number (will be replaced on sync)
-        total_amount: billPayload.total_amount,
-        discount: billPayload.discount || 0,
-        payment_mode: billPayload.payment_mode,
-        payment_details: billPayload.payment_details || {},
-        additional_charges: billPayload.additional_charges || [],
-        created_by: billPayload.created_by,
-        date: new Date().toISOString().split('T')[0],
-        created_at: new Date().toISOString(),
-        items: validCart.map(item => ({
-          item_id: item.id,
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          total: (item.quantity / (item.base_value || 1)) * item.price
-        })),
-        // table_id: selectedTableId // Add if supported
-      };
-
-      await offlineManager.savePendingBill(offlineBill);
-
-      toast({
-        title: "Saved Offline 📴",
-        description: "Bill saved locally. Will sync when online.",
-        duration: 3000
-      });
-
-      // We still want to clear cart and print receipt even if offline!
+      if (currentItem && currentItem.stock_quantity !== null && currentItem.stock_quantity !== undefined) {
+        await supabase
+          .from('items')
+          .update({ stock_quantity: Math.max(0, (currentItem.stock_quantity || 0) - item.quantity) })
+          .eq('id', item.id);
+      }
     }
 
     toast({
@@ -831,14 +795,11 @@ const Billing = () => {
     // Layer 3: Window custom events - same tab (0ms)
     window.dispatchEvent(new CustomEvent('bills-updated'));
 
-    const realBillId = (transactionResult as any).bill_id || (transactionResult as any).id;
-    const realBillNo = (transactionResult as any).bill_no || billNumber;
-
     // Layer 1: BroadcastChannel - same browser tabs (0ms) - INSTANT VOICE
     billsChannel?.postMessage({
       type: 'new-bill',
-      bill_no: realBillNo,
-      bill_id: realBillId,
+      bill_no: billNumber,
+      bill_id: billData.id,
       timestamp: Date.now()
     });
 
@@ -847,14 +808,14 @@ const Billing = () => {
       type: 'broadcast',
       event: 'new-bill',
       payload: {
-        bill_id: realBillId,
-        bill_no: realBillNo,
+        bill_id: billData.id,
+        bill_no: billNumber,
         action: 'create',
         timestamp: Date.now()
       }
     });
 
-    return { ...transactionResult, bill_no: realBillNo };
+    return billData;
   };
 
   // Handler for retry print button in error dialog
@@ -1037,16 +998,78 @@ const Billing = () => {
 
       const isOffline = !navigator.onLine;
 
-      // === BILL NUMBER GENERATION STRATEGY ===
-      // Online: Server generates the number (Race-condition free). We pass "PENDING".
-      // Offline: We generate a temp "BILL-OFF-" number.
-      let billNumber = "PENDING";
-      if (isOffline) {
-        billNumber = `BILL-OFF-${Date.now()}`;
-      }
+      // Generate Bill Number with admin isolation
+      let billNumber: string;
+      const continueBillFromYesterday = localStorage.getItem('hotel_pos_continue_bill_number') !== 'false';
 
       // Get admin_id for data isolation (admin's own id if admin, or parent admin_id if sub-user)
       const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+
+      if (isOffline) {
+        billNumber = `BILL-OFF-${Date.now()}`;
+      } else if (continueBillFromYesterday) {
+        // Continue sequential numbering - ISOLATED per admin
+        let query = supabase
+          .from('bills')
+          .select('bill_no')
+          .order('created_at', { ascending: false })
+          .limit(100);
+
+        // Filter by admin_id for isolation
+        if (adminId) {
+          query = query.eq('admin_id', adminId);
+        }
+
+        const { data: allBillNos } = await query;
+
+        // Start from 0 for new admins (first bill will be 000001)
+        let maxNumber = 0;
+        if (allBillNos && allBillNos.length > 0) {
+          allBillNos.forEach(bill => {
+            const match = bill.bill_no.match(/^BILL-(\d{6})$/);
+            if (match) {
+              const num = parseInt(match[1], 10);
+              if (num > maxNumber) {
+                maxNumber = num;
+              }
+            }
+          });
+        }
+        billNumber = `BILL-${String(maxNumber + 1).padStart(6, '0')}`;
+      } else {
+        // Start fresh daily with date prefix: DD/MM/YY-NNN
+        const today = new Date();
+        const datePrefix = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getFullYear()).slice(-2)}`;
+        const todayDateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+        // Get today's bills only - ISOLATED per admin
+        let todayQuery = supabase
+          .from('bills')
+          .select('bill_no')
+          .eq('date', todayDateString)
+          .order('created_at', { ascending: false });
+
+        if (adminId) {
+          todayQuery = todayQuery.eq('admin_id', adminId);
+        }
+
+        const { data: todayBills } = await todayQuery;
+
+        let todayMaxNumber = 0;
+        if (todayBills && todayBills.length > 0) {
+          todayBills.forEach(bill => {
+            // Match pattern DD/MM/YY-NNN
+            const match = bill.bill_no.match(/-(\d{3})$/);
+            if (match) {
+              const num = parseInt(match[1], 10);
+              if (num > todayMaxNumber) {
+                todayMaxNumber = num;
+              }
+            }
+          });
+        }
+        billNumber = `${datePrefix}-${String(todayMaxNumber + 1).padStart(3, '0')}`;
+      }
 
       const now = new Date();
       const subtotal = validCart.reduce((sum, item) => {
@@ -1065,6 +1088,8 @@ const Billing = () => {
       };
       const paymentMode = mapPaymentMode(paymentData.paymentMethod);
       const additionalChargesArray = paymentData.additionalCharges.map(c => ({ name: c.name, amount: c.amount }));
+
+      // adminId already defined above for bill number isolation
 
       const billPayload = {
         bill_no: billNumber,
@@ -1085,6 +1110,7 @@ const Billing = () => {
       // OFFLINE MODE - Use new PendingBill system
       if (isOffline) {
         const { offlineManager } = await import('@/utils/offlineManager');
+
         const pendingBillId = `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
         // Save to pending bills queue (new system)
@@ -1114,7 +1140,7 @@ const Billing = () => {
           duration: 3000
         });
 
-        // Offline Printing (Best Effort)
+        // Try print in offline mode ONLY if auto-print is enabled
         const offlineAutoPrintEnabled = localStorage.getItem('hotel_pos_auto_print') !== 'false';
         if (offlineAutoPrintEnabled) {
           try {
@@ -1155,24 +1181,8 @@ const Billing = () => {
       const freshSettings = await fetchShopSettings();
       const settingsToUse = freshSettings || billSettings;
 
-      // Initial Print Data (Will check for updated Bill No after save if possible, 
-      // but usually we print BEFORE save for speed. Use "PENDING" or skip bill no?)
-      // Customers prefer seeing the bill number on the print.
-      // So we should SAVE FIRST, then PRINT if we want the real number.
-      // BUT current flow is "Try Print First".
-      // We will print "TOKEN" or "..." if we don't have it yet?
-      // Actually, let's SAVE FIRST for reliability and number generation.
-
-      // REVISED FLOW: Save -> Print -> WhatsApp.
-      // This is safer and ensures Bill Number is correct.
-
-      // 1. Save Bill (Get Real ID)
-      const saveResult = await saveBillToDatabase(billPayload, validCart, billNumber);
-      const realBillNo = (saveResult as any)?.bill_no || billNumber;
-
-      // 2. Print Receipt
       const printData: PrintData = {
-        billNo: realBillNo, // Use REAL DB NUMBER
+        billNo: billNumber,
         date: format(now, 'MMM dd, yyyy'),
         time: format(now, 'hh:mm a'),
         items: validCart.map(item => {
@@ -1201,21 +1211,56 @@ const Billing = () => {
         logoUrl: settingsToUse?.logoUrl
       };
 
+      // Check auto-print setting
       const autoPrintEnabled = localStorage.getItem('hotel_pos_auto_print') !== 'false';
-      if (autoPrintEnabled) {
-        try {
-          await printReceipt(printData);
-        } catch (e: any) {
-          console.error("Print failed:", e);
-          // Don't block flow, just notify
-          toast({ title: "Print Failed", description: "Bill saved but print failed.", variant: "destructive" });
-        }
-      }
 
-      // 3. WhatsApp Share
-      if (paymentData.sendWhatsApp && paymentData.customerMobile) {
-        // Use REAL Bill Number!
-        await handleWhatsAppShare(realBillNo, paymentData.customerMobile, validCart, totalAmount, paymentData.paymentMethod, adminId);
+      if (autoPrintEnabled) {
+        // TRY PRINT FIRST - Block bill save if print fails
+        let printed = false;
+        let printError = '';
+
+        try {
+          printed = await printReceipt(printData);
+        } catch (e: any) {
+          console.error("Bluetooth print failed:", e);
+          printError = e.message || "Unable to connect to printer";
+        }
+
+        if (!printed) {
+          // Print failed - Store pending data and show error dialog
+          pendingPaymentRef.current = {
+            paymentData,
+            billPayload,
+            billItems: validCart.map(item => ({
+              item_id: item.id,
+              quantity: item.quantity,
+              price: item.price,
+              total: item.price * item.quantity
+            })),
+            printData,
+            validCart
+          };
+          setPrinterErrorMessage(printError || "Printer not responding. Check if printer is on and connected.");
+          setPrinterErrorOpen(true);
+          return; // DON'T SAVE BILL - Wait for user action
+        }
+
+        // Print successful - Save bill to database
+        await saveBillToDatabase(billPayload, validCart, billNumber);
+
+        // WhatsApp share after successful payment
+        if (paymentData.sendWhatsApp && paymentData.customerMobile) {
+          await handleWhatsAppShare(billNumber, paymentData.customerMobile, validCart, totalAmount, paymentData.paymentMethod, adminId);
+        }
+      } else {
+        // Auto-print disabled - Just save bill
+        await saveBillToDatabase(billPayload, validCart, billNumber);
+        console.log("Auto-print disabled, bill saved without printing.");
+
+        // WhatsApp share after successful payment
+        if (paymentData.sendWhatsApp && paymentData.customerMobile) {
+          await handleWhatsAppShare(billNumber, paymentData.customerMobile, validCart, totalAmount, paymentData.paymentMethod, adminId);
+        }
       }
 
     } catch (error: any) {
