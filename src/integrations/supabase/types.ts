@@ -116,7 +116,6 @@ export type Database = {
           bill_no: string
           created_at: string
           created_by: string
-          customer_id: string | null
           customer_mobile: string | null
           date: string
           discount: number | null
@@ -128,7 +127,6 @@ export type Database = {
           payment_mode: Database["public"]["Enums"]["payment_method"]
           service_status: Database["public"]["Enums"]["service_status"] | null
           status_updated_at: string | null
-          table_id: string | null
           total_amount: number
           whatsapp_sent: boolean | null
           whatsapp_sent_at: string | null
@@ -139,7 +137,6 @@ export type Database = {
           bill_no: string
           created_at?: string
           created_by: string
-          customer_id?: string | null
           customer_mobile?: string | null
           date?: string
           discount?: number | null
@@ -151,7 +148,6 @@ export type Database = {
           payment_mode: Database["public"]["Enums"]["payment_method"]
           service_status?: Database["public"]["Enums"]["service_status"] | null
           status_updated_at?: string | null
-          table_id?: string | null
           total_amount: number
           whatsapp_sent?: boolean | null
           whatsapp_sent_at?: string | null
@@ -162,7 +158,6 @@ export type Database = {
           bill_no?: string
           created_at?: string
           created_by?: string
-          customer_id?: string | null
           customer_mobile?: string | null
           date?: string
           discount?: number | null
@@ -174,7 +169,6 @@ export type Database = {
           payment_mode?: Database["public"]["Enums"]["payment_method"]
           service_status?: Database["public"]["Enums"]["service_status"] | null
           status_updated_at?: string | null
-          table_id?: string | null
           total_amount?: number
           whatsapp_sent?: boolean | null
           whatsapp_sent_at?: string | null
@@ -185,20 +179,6 @@ export type Database = {
             columns: ["admin_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_table_id_fkey"
-            columns: ["table_id"]
-            isOneToOne: false
-            referencedRelation: "tables"
             referencedColumns: ["id"]
           },
         ]
@@ -232,53 +212,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
-      }
-      customers: {
-        Row: {
-          admin_id: string | null
-          created_at: string | null
-          email: string | null
-          id: string
-          last_visit_at: string | null
-          name: string | null
-          phone: string
-          total_spent: number | null
-          total_visits: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          admin_id?: string | null
-          created_at?: string | null
-          email?: string | null
-          id?: string
-          last_visit_at?: string | null
-          name?: string | null
-          phone: string
-          total_spent?: number | null
-          total_visits?: number | null
-          updated_at?: string | null
-        }
-        Update: {
-          admin_id?: string | null
-          created_at?: string | null
-          email?: string | null
-          id?: string
-          last_visit_at?: string | null
-          name?: string | null
-          phone?: string
-          total_spent?: number | null
-          total_visits?: number | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "customers_admin_id_fkey"
-            columns: ["admin_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       display_settings: {
         Row: {
@@ -586,8 +519,6 @@ export type Database = {
       shop_settings: {
         Row: {
           address: string | null
-          bill_number_mode: string | null
-          bill_number_start: number | null
           contact_number: string | null
           created_at: string | null
           facebook: string | null
@@ -609,8 +540,6 @@ export type Database = {
         }
         Insert: {
           address?: string | null
-          bill_number_mode?: string | null
-          bill_number_start?: number | null
           contact_number?: string | null
           created_at?: string | null
           facebook?: string | null
@@ -632,8 +561,6 @@ export type Database = {
         }
         Update: {
           address?: string | null
-          bill_number_mode?: string | null
-          bill_number_start?: number | null
           contact_number?: string | null
           created_at?: string | null
           facebook?: string | null
@@ -768,6 +695,33 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_bill_transaction:
+        | {
+            Args: {
+              p_additional_charges: Json
+              p_bill_no: string
+              p_created_by: string
+              p_date: string
+              p_discount: number
+              p_items: Json
+              p_payment_details: Json
+              p_payment_mode: Database["public"]["Enums"]["payment_method"]
+              p_total_amount: number
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_bill_no: string
+              p_discount: number
+              p_items: Json
+              p_payment_details?: Json
+              p_payment_mode: Database["public"]["Enums"]["payment_method"]
+              p_table_id?: string
+              p_user_id: string
+            }
+            Returns: Json
+          }
       get_my_admin_id: { Args: never; Returns: string }
       get_my_permissions: {
         Args: never

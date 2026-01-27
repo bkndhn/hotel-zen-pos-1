@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { CalendarDays, TrendingUp, TrendingDown, DollarSign, Package, Receipt, CreditCard, BarChart3, Edit, Trash2, Eye, Download, FileSpreadsheet, Printer, Search } from 'lucide-react';
+import { CalendarDays, TrendingUp, TrendingDown, DollarSign, Package, Receipt, CreditCard, BarChart3, Edit, Trash2, Eye, Download, FileSpreadsheet, Printer, Search, MessageCircle, Phone } from 'lucide-react';
 import { FacebookIcon, InstagramIcon, WhatsAppIcon } from '@/components/SocialIcons';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
@@ -21,6 +21,7 @@ import { printReceipt } from '@/utils/bluetoothPrinter';
 import { printBrowserReceipt } from '@/utils/browserPrinter';
 import { offlineManager } from '@/utils/offlineManager';
 import { formatQuantityWithUnit, getShortUnit, calculateSmartQtyCount } from '@/utils/timeUtils';
+import { formatBillMessage, shareViaWhatsApp, isValidPhoneNumber } from '@/utils/whatsappBillShare';
 
 interface Bill {
   id: string;
@@ -98,6 +99,49 @@ const Reports: React.FC = () => {
   const [billToDelete, setBillToDelete] = useState<string | null>(null);
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
   const [billToRestore, setBillToRestore] = useState<string | null>(null);
+  
+  // WhatsApp share state
+  const [whatsappPhone, setWhatsappPhone] = useState('');
+  const [showWhatsappInput, setShowWhatsappInput] = useState(false);
+
+  // Handle WhatsApp share for selected bill
+  const handleWhatsAppShareBill = (bill: Bill) => {
+    if (!whatsappPhone.trim()) {
+      toast({ title: "Enter phone number", description: "Please enter customer's phone number", variant: "destructive" });
+      return;
+    }
+    
+    if (!isValidPhoneNumber(whatsappPhone)) {
+      toast({ title: "Invalid phone", description: "Enter a valid 10-digit mobile number", variant: "destructive" });
+      return;
+    }
+
+    const subtotal = bill.bill_items.reduce((sum, item) => sum + item.total, 0);
+    const billDate = new Date(bill.created_at);
+    
+    const message = formatBillMessage({
+      billNo: bill.bill_no,
+      shopName: billSettings?.shopName || profile?.hotel_name || 'Hotel',
+      items: bill.bill_items.map(item => ({
+        name: item.items?.name || 'Item',
+        quantity: item.quantity,
+        total: item.total,
+        unit: item.items?.unit
+      })),
+      subtotal,
+      discount: bill.discount,
+      additionalCharges: bill.additional_charges || [],
+      total: bill.total_amount,
+      date: format(billDate, 'dd/MM/yyyy'),
+      time: format(billDate, 'hh:mm a'),
+      paymentMethod: bill.payment_mode
+    });
+
+    shareViaWhatsApp(whatsappPhone, message);
+    setWhatsappPhone('');
+    setShowWhatsappInput(false);
+    toast({ title: "Opening WhatsApp", description: "Bill details ready to send" });
+  };
 
   // Cache-first loading: localStorage first, then Supabase sync
   useEffect(() => {
@@ -1597,6 +1641,54 @@ const Reports: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* WhatsApp Share Section */}
+              <div className="border-t pt-4 mt-4">
+                {!showWhatsappInput ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowWhatsappInput(true)}
+                    className="w-full gap-2 text-green-600 border-green-200 hover:bg-green-50"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    Share via WhatsApp
+                  </Button>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Enter customer mobile"
+                          value={whatsappPhone}
+                          onChange={(e) => setWhatsappPhone(e.target.value)}
+                          className="pl-10"
+                          type="tel"
+                          maxLength={12}
+                        />
+                      </div>
+                      <Button
+                        onClick={() => handleWhatsAppShareBill(selectedBill)}
+                        className="bg-green-600 hover:bg-green-700 text-white gap-1"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        Send
+                      </Button>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setShowWhatsappInput(false);
+                        setWhatsappPhone('');
+                      }}
+                      className="w-full text-xs"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
           </DialogContent>
         </Dialog>

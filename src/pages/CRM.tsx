@@ -32,7 +32,7 @@ const CRM: React.FC = () => {
 
   const fetchCustomers = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('customers')
         .select('*')
         .order('last_visit_at', { ascending: false });

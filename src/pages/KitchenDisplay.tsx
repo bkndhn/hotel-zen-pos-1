@@ -557,17 +557,20 @@ const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
             </div>
 
             {/* Items List */}
-            <div className="space-y-1 mb-3">
+            <div className="space-y-2 mb-3">
                 {bill.bill_items.map((item) => (
                     <div
                         key={item.id}
-                        className="flex items-center justify-between text-sm"
+                        className="flex items-center justify-between text-sm bg-muted/30 rounded-lg px-3 py-2"
                     >
-                        <span className="font-medium">
+                        <span className="font-medium flex-1">
                             {item.items?.name || 'Unknown'}
                         </span>
-                        <Badge variant="outline" className="font-bold">
-                            x{item.quantity}
+                        <Badge 
+                            variant="secondary" 
+                            className="font-bold text-base min-w-[60px] justify-center ml-2"
+                        >
+                            {formatQuantityWithUnit(item.quantity, item.items?.unit)}
                         </Badge>
                     </div>
                 ))}

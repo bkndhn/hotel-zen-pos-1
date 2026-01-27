@@ -9,6 +9,7 @@ import { ShoppingCart, Plus, Minus, Search, Grid, List, X, Trash2, Edit2, Check,
 import { Badge } from '@/components/ui/badge';
 import { CompletePaymentDialog } from '@/components/CompletePaymentDialog';
 import { PrinterErrorDialog } from '@/components/PrinterErrorDialog';
+import { TableSelector } from '@/components/TableSelector';
 import { getCachedImageUrl, cacheImageUrl } from '@/utils/imageUtils';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
@@ -898,7 +899,7 @@ const Billing = () => {
       const cleanPhone = customerMobile.replace(/[\s\-\(\)\+]/g, '');
 
       if (adminId) {
-        const { data: existingCustomer } = await supabase
+        const { data: existingCustomer } = await (supabase as any)
           .from('customers')
           .select('id, total_visits, total_spent')
           .eq('admin_id', adminId)
@@ -907,7 +908,7 @@ const Billing = () => {
 
         if (existingCustomer) {
           // Update existing customer
-          await supabase
+          await (supabase as any)
             .from('customers')
             .update({
               total_visits: existingCustomer.total_visits + 1,
@@ -917,7 +918,7 @@ const Billing = () => {
             .eq('id', existingCustomer.id);
         } else {
           // Create new customer
-          await supabase
+          await (supabase as any)
             .from('customers')
             .insert({
               admin_id: adminId,
@@ -1286,12 +1287,20 @@ const Billing = () => {
     <div className="flex-1 p-4 overflow-hidden max-w-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center">
+        <div className="flex items-center gap-3">
           <div className="flex flex-col">
             <h1 className="text-2xl font-bold leading-none">
               {isEditMode ? `Edit Bill - ${editingBill?.bill_no}` : 'Billing'}
             </h1>
           </div>
+          {/* Table Selector */}
+          <TableSelector
+            selectedTableId={selectedTableId}
+            onSelectTable={(tableId, tableNumber) => {
+              setSelectedTableId(tableId);
+              setSelectedTableNumber(tableNumber);
+            }}
+          />
         </div>
       </div>
 
