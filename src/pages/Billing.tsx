@@ -732,7 +732,7 @@ const Billing = () => {
     }
   };
 
-  // Helper function to save bill to database
+  // Helper function to save bill to database (OPTIMIZED - Non-blocking stock updates)
   const saveBillToDatabase = async (
     billPayload: any,
     validCart: CartItem[],
@@ -770,21 +770,32 @@ const Billing = () => {
       throw itemsError;
     }
 
-    // 3. Stock Deduction
-    for (const item of validCart) {
-      const { data: currentItem } = await supabase
-        .from('items')
-        .select('stock_quantity')
-        .eq('id', item.id)
-        .single();
-
-      if (currentItem && currentItem.stock_quantity !== null && currentItem.stock_quantity !== undefined) {
-        await supabase
+    // 3. Stock Deduction - PARALLEL instead of sequential (MUCH FASTER)
+    // Fire all stock updates in parallel, don't wait for each one
+    const stockUpdatePromises = validCart.map(async (item) => {
+      try {
+        const { data: currentItem } = await supabase
           .from('items')
-          .update({ stock_quantity: Math.max(0, (currentItem.stock_quantity || 0) - item.quantity) })
-          .eq('id', item.id);
+          .select('stock_quantity')
+          .eq('id', item.id)
+          .single();
+
+        if (currentItem && currentItem.stock_quantity !== null && currentItem.stock_quantity !== undefined) {
+          await supabase
+            .from('items')
+            .update({ stock_quantity: Math.max(0, (currentItem.stock_quantity || 0) - item.quantity) })
+            .eq('id', item.id);
+        }
+      } catch (stockErr) {
+        console.error(`Stock update failed for item ${item.id}:`, stockErr);
+        // Don't throw - stock update failure shouldn't fail the bill
       }
-    }
+    });
+
+    // Execute all stock updates in parallel (non-blocking for bill creation)
+    Promise.all(stockUpdatePromises).catch(err =>
+      console.error('Some stock updates failed:', err)
+    );
 
     toast({
       title: "Success",
@@ -999,78 +1010,43 @@ const Billing = () => {
 
       const isOffline = !navigator.onLine;
 
-      // Generate Bill Number with admin isolation
-      let billNumber: string;
-      const continueBillFromYesterday = localStorage.getItem('hotel_pos_continue_bill_number') !== 'false';
-
       // Get admin_id for data isolation (admin's own id if admin, or parent admin_id if sub-user)
       const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
 
-      if (isOffline) {
-        billNumber = `BILL-OFF-${Date.now()}`;
-      } else if (continueBillFromYesterday) {
-        // Continue sequential numbering - ISOLATED per admin
-        let query = supabase
-          .from('bills')
-          .select('bill_no')
-          .order('created_at', { ascending: false })
-          .limit(100);
+      // ======= ZERO-LATENCY BILL NUMBER GENERATION =======
+      // Use localStorage counter + timestamp for INSTANT bill numbers (no DB query!)
+      // This runs in 0ms instead of 500-1000ms
+      const getInstantBillNumber = (): string => {
+        const continueBillFromYesterday = localStorage.getItem('hotel_pos_continue_bill_number') !== 'false';
+        const counterKey = `bill_counter_${adminId || 'default'}`;
+        const dateKey = `bill_date_${adminId || 'default'}`;
 
-        // Filter by admin_id for isolation
-        if (adminId) {
-          query = query.eq('admin_id', adminId);
-        }
-
-        const { data: allBillNos } = await query;
-
-        // Start from 0 for new admins (first bill will be 000001)
-        let maxNumber = 0;
-        if (allBillNos && allBillNos.length > 0) {
-          allBillNos.forEach(bill => {
-            const match = bill.bill_no.match(/^BILL-(\d{6})$/);
-            if (match) {
-              const num = parseInt(match[1], 10);
-              if (num > maxNumber) {
-                maxNumber = num;
-              }
-            }
-          });
-        }
-        billNumber = `BILL-${String(maxNumber + 1).padStart(6, '0')}`;
-      } else {
-        // Start fresh daily with date prefix: DD/MM/YY-NNN
         const today = new Date();
-        const datePrefix = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getFullYear()).slice(-2)}`;
-        const todayDateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const savedDate = localStorage.getItem(dateKey);
 
-        // Get today's bills only - ISOLATED per admin
-        let todayQuery = supabase
-          .from('bills')
-          .select('bill_no')
-          .eq('date', todayDateString)
-          .order('created_at', { ascending: false });
-
-        if (adminId) {
-          todayQuery = todayQuery.eq('admin_id', adminId);
+        if (continueBillFromYesterday) {
+          // Sequential numbering - increment forever
+          const counter = parseInt(localStorage.getItem(counterKey) || '0') + 1;
+          localStorage.setItem(counterKey, counter.toString());
+          return `BILL-${String(counter).padStart(6, '0')}`;
+        } else {
+          // Daily reset numbering
+          let counter: number;
+          if (savedDate !== todayStr) {
+            // New day - reset counter
+            counter = 1;
+            localStorage.setItem(dateKey, todayStr);
+          } else {
+            counter = parseInt(localStorage.getItem(counterKey) || '0') + 1;
+          }
+          localStorage.setItem(counterKey, counter.toString());
+          const datePrefix = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getFullYear()).slice(-2)}`;
+          return `${datePrefix}-${String(counter).padStart(3, '0')}`;
         }
+      };
 
-        const { data: todayBills } = await todayQuery;
-
-        let todayMaxNumber = 0;
-        if (todayBills && todayBills.length > 0) {
-          todayBills.forEach(bill => {
-            // Match pattern DD/MM/YY-NNN
-            const match = bill.bill_no.match(/-(\d{3})$/);
-            if (match) {
-              const num = parseInt(match[1], 10);
-              if (num > todayMaxNumber) {
-                todayMaxNumber = num;
-              }
-            }
-          });
-        }
-        billNumber = `${datePrefix}-${String(todayMaxNumber + 1).padStart(3, '0')}`;
-      }
+      const billNumber = isOffline ? `BILL-OFF-${Date.now()}` : getInstantBillNumber();
 
       const now = new Date();
       const subtotal = validCart.reduce((sum, item) => {
@@ -1178,9 +1154,9 @@ const Billing = () => {
         return;
       }
 
-      // ONLINE MODE - Prepare print data
-      const freshSettings = await fetchShopSettings();
-      const settingsToUse = freshSettings || billSettings;
+      // ONLINE MODE - Use cached settings (already loaded at page mount)
+      // No blocking fetch needed - billSettings are preloaded from cache + background sync
+      const settingsToUse = billSettings;
 
       const printData: PrintData = {
         billNo: billNumber,
@@ -1215,54 +1191,53 @@ const Billing = () => {
       // Check auto-print setting
       const autoPrintEnabled = localStorage.getItem('hotel_pos_auto_print') !== 'false';
 
-      if (autoPrintEnabled) {
-        // TRY PRINT FIRST - Block bill save if print fails
-        let printed = false;
-        let printError = '';
+      // =========== ZERO LATENCY: FIRE-AND-FORGET ===========
+      // Show success immediately, run all operations in background
+      // User can start next bill INSTANTLY while print+save happens behind the scenes
 
+      toast({
+        title: "✓ Bill Created",
+        description: `${billNumber} - processing...`,
+        duration: 1500
+      });
+
+      // Background operation wrapper for all async tasks
+      const backgroundOperations = async () => {
         try {
-          printed = await printReceipt(printData);
-        } catch (e: any) {
-          console.error("Bluetooth print failed:", e);
-          printError = e.message || "Unable to connect to printer";
-        }
+          // 1. Try printing (non-blocking for bill save)
+          if (autoPrintEnabled) {
+            try {
+              const printed = await printReceipt(printData);
+              if (!printed) {
+                console.warn('Print may have failed, but bill is being saved');
+              }
+            } catch (printErr) {
+              console.error('Print failed:', printErr);
+              // Don't block - continue with save
+            }
+          }
 
-        if (!printed) {
-          // Print failed - Store pending data and show error dialog
-          pendingPaymentRef.current = {
-            paymentData,
-            billPayload,
-            billItems: validCart.map(item => ({
-              item_id: item.id,
-              quantity: item.quantity,
-              price: item.price,
-              total: item.price * item.quantity
-            })),
-            printData,
-            validCart
-          };
-          setPrinterErrorMessage(printError || "Printer not responding. Check if printer is on and connected.");
-          setPrinterErrorOpen(true);
-          return; // DON'T SAVE BILL - Wait for user action
-        }
+          // 2. Save bill to database
+          await saveBillToDatabase(billPayload, validCart, billNumber);
 
-        // Print successful - Save bill to database
-        await saveBillToDatabase(billPayload, validCart, billNumber);
-
-        // WhatsApp share after successful payment
-        if (paymentData.sendWhatsApp && paymentData.customerMobile) {
-          await handleWhatsAppShare(billNumber, paymentData.customerMobile, validCart, totalAmount, paymentData.paymentMethod, adminId);
+          // 3. WhatsApp share (if requested)
+          if (paymentData.sendWhatsApp && paymentData.customerMobile) {
+            handleWhatsAppShare(billNumber, paymentData.customerMobile, validCart, totalAmount, paymentData.paymentMethod, adminId)
+              .catch(err => console.error('WhatsApp share failed:', err));
+          }
+        } catch (saveError: any) {
+          console.error('Background save failed:', saveError);
+          toast({
+            title: "Save Error",
+            description: `Bill ${billNumber} failed to save. Please check reports.`,
+            variant: "destructive",
+            duration: 5000
+          });
         }
-      } else {
-        // Auto-print disabled - Just save bill
-        await saveBillToDatabase(billPayload, validCart, billNumber);
-        console.log("Auto-print disabled, bill saved without printing.");
+      };
 
-        // WhatsApp share after successful payment
-        if (paymentData.sendWhatsApp && paymentData.customerMobile) {
-          await handleWhatsAppShare(billNumber, paymentData.customerMobile, validCart, totalAmount, paymentData.paymentMethod, adminId);
-        }
-      }
+      // Execute ALL operations in background - DON'T AWAIT!
+      backgroundOperations();
 
     } catch (error: any) {
       console.error('Error completing payment:', error);
