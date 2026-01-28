@@ -10,6 +10,7 @@ import { toast } from '@/hooks/use-toast';
 import { Package, Search, Plus, GripVertical } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { EditItemDialog } from '@/components/EditItemDialog';
+import { AddItemDialog } from '@/components/AddItemDialog';
 import { ItemCategoryManagement } from '@/components/ItemCategoryManagement';
 import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
 import { getShortUnit, formatQuantityWithUnit } from '@/utils/timeUtils';
