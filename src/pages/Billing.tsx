@@ -901,7 +901,7 @@ const Billing = () => {
       if (adminId) {
         const { data: existingCustomer } = await (supabase as any)
           .from('customers')
-          .select('id, total_visits, total_spent')
+          .select('id, visit_count, total_spent')
           .eq('admin_id', adminId)
           .eq('phone', cleanPhone)
           .maybeSingle();
@@ -911,9 +911,9 @@ const Billing = () => {
           await (supabase as any)
             .from('customers')
             .update({
-              total_visits: existingCustomer.total_visits + 1,
+              visit_count: existingCustomer.visit_count + 1,
               total_spent: existingCustomer.total_spent + total,
-              last_visit_at: new Date().toISOString()
+              last_visit: new Date().toISOString()
             })
             .eq('id', existingCustomer.id);
         } else {
@@ -923,9 +923,9 @@ const Billing = () => {
             .insert({
               admin_id: adminId,
               phone: cleanPhone,
-              total_visits: 1,
+              visit_count: 1,
               total_spent: total,
-              last_visit_at: new Date().toISOString()
+              last_visit: new Date().toISOString()
             });
         }
       }

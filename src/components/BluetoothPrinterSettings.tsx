@@ -310,7 +310,7 @@ export const BluetoothPrinterSettings: React.FC = () => {
     );
   }
 
-  const PrinterStatusCard = () => (
+  return (
     <Card className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-none shadow-sm">
       <CardContent className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -482,16 +482,10 @@ export const BluetoothPrinterSettings: React.FC = () => {
                   </Button>
                 </div>
               )}
-
-              {/* Shop Configuration Moved to Main Settings Page */}
             </div>
-
-
           </DialogContent>
         </Dialog>
       </CardContent>
     </Card>
   );
-
-  return <PrinterStatusCard />;
 };
