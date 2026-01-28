@@ -94,7 +94,7 @@ const ServiceArea = () => {
                 .from('bills')
                 .select(`
                     id, bill_no, total_amount, date, created_at,
-                    service_status, kitchen_status, status_updated_at,
+                    service_status, kitchen_status, status_updated_at, table_no,
                     bill_items (
                         id, quantity, price, total,
                         items (id, name, price, unit, base_value)
@@ -410,6 +410,11 @@ const ServiceArea = () => {
                                     <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium">
                                         {getTimeElapsed(bill.created_at)}
                                     </span>
+                                    {(bill as any).table_no && (
+                                        <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                                            {(bill as any).table_no}
+                                        </span>
+                                    )}
                                 </div>
                                 {getStatusBadge(bill)}
                             </div>

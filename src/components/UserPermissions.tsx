@@ -20,6 +20,7 @@ const AVAILABLE_PAGES = [
   { name: 'billing', label: 'Billing', description: 'Create and manage bills' },
   { name: 'serviceArea', label: 'Service Area', description: 'Manage order service' },
   { name: 'kitchen', label: 'Kitchen Display', description: 'Kitchen order screen' },
+  { name: 'tables', label: 'Tables', description: 'Manage tables' },
   { name: 'customerDisplay', label: 'Customer Display', description: 'Public order board' },
   { name: 'items', label: 'Items', description: 'Manage menu items' },
   { name: 'expenses', label: 'Expenses', description: 'Track expenses' },

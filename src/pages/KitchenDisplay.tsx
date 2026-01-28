@@ -31,6 +31,7 @@ interface KitchenBill {
     kitchen_status: 'pending' | 'preparing' | 'ready' | 'served' | 'completed' | 'rejected';
     service_status: 'pending' | 'preparing' | 'ready' | 'served' | 'completed' | 'rejected';
     bill_items: KitchenBillItem[];
+    table_no?: string;
 }
 
 const KitchenDisplay = () => {
@@ -102,7 +103,7 @@ const KitchenDisplay = () => {
             const query = (supabase as any)
                 .from('bills')
                 .select(`
-                    id, bill_no, created_at, kitchen_status, service_status,
+                    id, bill_no, created_at, kitchen_status, service_status, table_no,
                     bill_items (
                         id, quantity, items (id, name, unit, base_value)
                     )
@@ -112,7 +113,7 @@ const KitchenDisplay = () => {
                 .in('kitchen_status', ['pending', 'preparing', 'ready'])
                 .neq('service_status', 'completed')
                 .neq('service_status', 'rejected')
-                .order('created_at', { ascending: true });
+                .order('created_at', { ascending: false });
 
             // Add timeout to prevent hanging
             const timeoutPromise = new Promise((_, reject) => {
@@ -505,6 +506,11 @@ const KitchenDisplay = () => {
                                     <h3 className="text-3xl font-bold text-green-600">
                                         #{bill.bill_no}
                                     </h3>
+                                    {bill.table_no && (
+                                        <span className="text-sm font-bold bg-green-200 text-green-800 px-2 py-1 rounded ml-2">
+                                            {bill.table_no}
+                                        </span>
+                                    )}
                                     <Badge className="bg-green-500 text-white animate-pulse">
                                         <Bell className="w-3 h-3 mr-1" />
                                         READY
@@ -554,6 +560,11 @@ const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
                     <Clock className="w-3 h-3" />
                     {getTimeElapsed(bill.created_at)}
                 </div>
+                {bill.table_no && (
+                    <span className="text-xs font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded absolute right-4 top-10">
+                        {bill.table_no}
+                    </span>
+                )}
             </div>
 
             {/* Items List */}
@@ -566,8 +577,8 @@ const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
                         <span className="font-medium flex-1">
                             {item.items?.name || 'Unknown'}
                         </span>
-                        <Badge 
-                            variant="secondary" 
+                        <Badge
+                            variant="secondary"
                             className="font-bold text-base min-w-[60px] justify-center ml-2"
                         >
                             {formatQuantityWithUnit(item.quantity, item.items?.unit)}

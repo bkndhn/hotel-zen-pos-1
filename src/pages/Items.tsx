@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import { Package, Search, Plus, GripVertical } from 'lucide-react';
-import { AddItemDialog } from '@/components/AddItemDialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { EditItemDialog } from '@/components/EditItemDialog';
 import { ItemCategoryManagement } from '@/components/ItemCategoryManagement';
 import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
@@ -42,6 +42,10 @@ const Items: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categories, setCategories] = useState<string[]>([]);
   const [isReordering, setIsReordering] = useState(false);
+
+  // Permanent delete state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
 
   // Drag and drop refs
   const dragItem = useRef<number | null>(null);
@@ -176,9 +180,9 @@ const Items: React.FC = () => {
         .order('name');
 
       if (error) throw error;
-      
+
       let categoryNames = (data || []).map(cat => cat.name);
-      
+
       // Fetch display settings for category order
       if (profile?.user_id) {
         const { data: displayData } = await supabase
@@ -186,7 +190,7 @@ const Items: React.FC = () => {
           .select('category_order')
           .eq('user_id', profile.user_id)
           .maybeSingle();
-        
+
         if (displayData?.category_order && displayData.category_order.length > 0) {
           const categoryOrder = displayData.category_order;
           // Sort categories based on saved order (same logic as Billing page)
@@ -200,7 +204,7 @@ const Items: React.FC = () => {
           });
         }
       }
-      
+
       setCategories(categoryNames);
     } catch (error) {
       console.error('Error fetching categories:', error);
@@ -234,6 +238,41 @@ const Items: React.FC = () => {
 
   const handleCategoriesUpdated = () => {
     fetchCategories();
+  };
+
+  const confirmDelete = (item: Item) => {
+    setItemToDelete(item);
+    setDeleteDialogOpen(true);
+  };
+
+  const handlePermanentDelete = async () => {
+    if (!itemToDelete) return;
+
+    try {
+      const { error } = await supabase
+        .from('items')
+        .delete()
+        .eq('id', itemToDelete.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Item Deleted",
+        description: `${itemToDelete.name} has been permanently removed.`,
+      });
+
+      fetchItems();
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete item",
+        variant: "destructive"
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setItemToDelete(null);
+    }
   };
 
   const activeItems = filteredItems.filter(item => item.is_active);
@@ -460,7 +499,17 @@ const Items: React.FC = () => {
                               </span>
                             </span>
                             {profile?.role === 'admin' && (
-                              <EditItemDialog item={item} onItemUpdated={handleItemAdded} />
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  className="h-8 px-2 text-xs"
+                                  onClick={() => confirmDelete(item)}
+                                >
+                                  Delete
+                                </Button>
+                                <EditItemDialog item={item} onItemUpdated={handleItemAdded} />
+                              </div>
                             )}
                           </div>
                         </div>
@@ -473,6 +522,22 @@ const Items: React.FC = () => {
           </Card>
         </TabsContent>
       </Tabs>
+      <div className="fixed">
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Permanently?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete "{itemToDelete?.name}"? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handlePermanentDelete} className="bg-red-600 hover:bg-red-700">Delete Permanently</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </div>
   );
 };

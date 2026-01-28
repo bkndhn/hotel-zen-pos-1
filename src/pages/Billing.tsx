@@ -1081,7 +1081,8 @@ const Billing = () => {
         // Service Area & Kitchen Display status - enables realtime updates
         service_status: 'pending',
         kitchen_status: 'pending',
-        status_updated_at: now.toISOString()
+        status_updated_at: now.toISOString(),
+        table_no: selectedTableNumber || null
       };
 
       // OFFLINE MODE - Use new PendingBill system
@@ -1108,7 +1109,8 @@ const Billing = () => {
             quantity: item.quantity,
             price: item.price,
             total: (item.quantity / (item.base_value || 1)) * item.price
-          }))
+          })),
+          table_no: selectedTableNumber || null
         });
 
         toast({
@@ -1144,7 +1146,9 @@ const Billing = () => {
               logoUrl: billSettings?.logoUrl,
               facebook: billSettings?.showFacebook !== false ? billSettings?.facebook : undefined,
               instagram: billSettings?.showInstagram !== false ? billSettings?.instagram : undefined,
-              whatsapp: billSettings?.showWhatsapp !== false ? billSettings?.whatsapp : undefined
+              instagram: billSettings?.showInstagram !== false ? billSettings?.instagram : undefined,
+              whatsapp: billSettings?.showWhatsapp !== false ? billSettings?.whatsapp : undefined,
+              tableNo: selectedTableNumber || undefined
             };
             await printReceipt(offlinePrintData as PrintData);
           } catch (printError) {
@@ -1185,7 +1189,9 @@ const Billing = () => {
         instagram: settingsToUse?.showInstagram !== false ? settingsToUse?.instagram : undefined,
         whatsapp: settingsToUse?.showWhatsapp !== false ? settingsToUse?.whatsapp : undefined,
         printerWidth: settingsToUse?.printerWidth || '58mm',
-        logoUrl: settingsToUse?.logoUrl
+        printerWidth: settingsToUse?.printerWidth || '58mm',
+        logoUrl: settingsToUse?.logoUrl,
+        tableNo: selectedTableNumber || undefined
       };
 
       // Check auto-print setting

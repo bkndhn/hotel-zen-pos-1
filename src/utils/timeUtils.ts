@@ -147,7 +147,7 @@ export const formatQuantityWithUnit = (quantity: number, unit?: string): string 
 
   // For whole numbers, don't show decimal
   if (Number.isInteger(quantity)) {
-    return `${quantity}${shortUnit}`;
+    return `${quantity} ${shortUnit}`;
   }
 
   return `${quantity.toFixed(1)}${shortUnit}`;

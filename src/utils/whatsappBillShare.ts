@@ -2,6 +2,8 @@
  * WhatsApp Bill Sharing Utilities
  */
 
+import { getShortUnit } from '@/utils/timeUtils';
+
 interface BillShareData {
   billNo: string;
   shopName: string;
@@ -24,34 +26,35 @@ export const formatBillMessage = (data: BillShareData): string => {
   message += `📋 Bill #${data.billNo}\n`;
   message += `📅 ${data.date} | ${data.time}\n`;
   message += `━━━━━━━━━━━━━━\n\n`;
-  
+
   // Items
   message += `*Items:*\n`;
   data.items.forEach((item) => {
-    const qty = item.unit ? `${item.quantity} ${item.unit}` : `${item.quantity}`;
+    const shortUnit = getShortUnit(item.unit);
+    const qty = `${item.quantity} ${shortUnit}`;
     message += `• ${item.name} (${qty}) - ₹${item.total.toFixed(0)}\n`;
   });
-  
+
   message += `\n━━━━━━━━━━━━━━\n`;
   message += `Subtotal: ₹${data.subtotal.toFixed(0)}\n`;
-  
+
   // Additional charges
   if (data.additionalCharges && data.additionalCharges.length > 0) {
     data.additionalCharges.forEach(charge => {
       message += `${charge.name}: ₹${charge.amount.toFixed(0)}\n`;
     });
   }
-  
+
   // Discount
   if (data.discount && data.discount > 0) {
     message += `Discount: -₹${data.discount.toFixed(0)}\n`;
   }
-  
+
   message += `━━━━━━━━━━━━━━\n`;
   message += `*TOTAL: ₹${data.total.toFixed(0)}*\n`;
   message += `Paid via: ${data.paymentMethod}\n\n`;
   message += `Thank you for your visit! 🙏`;
-  
+
   return message;
 };
 
@@ -61,7 +64,7 @@ export const formatBillMessage = (data: BillShareData): string => {
 export const shareViaWhatsApp = (phoneNumber: string, message: string): void => {
   // Clean phone number (remove spaces, dashes, etc.)
   let cleanPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
-  
+
   // Add country code if not present (default to India +91)
   if (!cleanPhone.startsWith('+')) {
     if (cleanPhone.startsWith('0')) {
@@ -73,10 +76,10 @@ export const shareViaWhatsApp = (phoneNumber: string, message: string): void => 
   } else {
     cleanPhone = cleanPhone.substring(1); // Remove + for wa.me link
   }
-  
+
   // URL encode the message
   const encodedMessage = encodeURIComponent(message);
-  
+
   // Open WhatsApp
   const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
   window.open(whatsappUrl, '_blank');
@@ -95,7 +98,7 @@ export const sendViaBusinessApi = async (
   // This would call an edge function to send via Meta's API
   // For now, return a placeholder response
   console.log('WhatsApp Business API send requested', { phoneNumber, phoneNumberId });
-  
+
   return {
     success: false,
     error: 'WhatsApp Business API integration coming soon. Please use direct WhatsApp for now.'

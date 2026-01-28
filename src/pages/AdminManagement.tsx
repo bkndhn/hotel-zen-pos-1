@@ -19,6 +19,8 @@ interface Profile {
   status: string;
   created_at: string;
   updated_at: string;
+  last_login?: string;
+  login_count?: number;
 }
 
 type UserStatus = 'active' | 'inactive' | 'suspended';
@@ -82,7 +84,7 @@ const AdminManagement = () => {
     }
   };
 
-  const filteredProfiles = profiles.filter(profile => 
+  const filteredProfiles = profiles.filter(profile =>
     profile.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     profile.hotel_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -136,7 +138,7 @@ const AdminManagement = () => {
                   Add Charge
                 </Button>
               </div>
-              
+
               <AddAdditionalChargeDialog
                 open={chargeDialogOpen}
                 onOpenChange={setChargeDialogOpen}
@@ -176,46 +178,64 @@ const AdminManagement = () => {
         <div className="grid gap-4">
           {filteredProfiles.map((userProfile) => (
             <Card key={userProfile.id}>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="p-2 rounded-full bg-primary/10">
-                      <User className="w-5 h-5" />
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start sm:items-center space-x-4">
+                    <div className="p-2.5 rounded-full bg-primary/10 mt-1 sm:mt-0">
+                      <User className="w-5 h-5 text-primary" />
                     </div>
-                    <div>
-                      <h3 className="font-semibold">{userProfile.name}</h3>
-                      <p className="text-sm text-muted-foreground">{userProfile.hotel_name}</p>
-                      <p className="text-xs text-muted-foreground">Role: {userProfile.role}</p>
+                    <div className="space-y-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                        <h3 className="font-semibold text-lg">{userProfile.name}</h3>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] w-fit font-medium border ${userProfile.status === 'active'
+                            ? 'bg-green-50 text-green-700 border-green-200'
+                            : userProfile.status === 'suspended'
+                              ? 'bg-red-50 text-red-700 border-red-200'
+                              : 'bg-gray-50 text-gray-700 border-gray-200'
+                          }`}>
+                          {userProfile.status.toUpperCase()}
+                        </span>
+                      </div>
+                      <p className="text-sm text-foreground/80 font-medium">{userProfile.hotel_name}</p>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        <span className="capitalize">Role: {userProfile.role}</span>
+                        {userProfile.login_count !== undefined && (
+                          <>
+                            <span>•</span>
+                            <span>Logins: {userProfile.login_count}</span>
+                          </>
+                        )}
+                        {userProfile.last_login && (
+                          <>
+                            <span>•</span>
+                            <span>Last active: {new Date(userProfile.last_login).toLocaleDateString()}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      userProfile.status === 'active' 
-                        ? 'bg-green-100 text-green-800' 
-                        : userProfile.status === 'suspended'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {userProfile.status}
-                    </span>
-                    <div className="flex space-x-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => updateAdminStatus(userProfile.user_id, 'active' as UserStatus)}
-                        className="text-green-600 hover:text-green-700"
-                      >
-                        <UserCheck className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => updateAdminStatus(userProfile.user_id, 'suspended' as UserStatus)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <UserX className="w-4 h-4" />
-                      </Button>
-                    </div>
+
+                  <div className="flex items-center justify-end gap-2 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 mt-2 sm:mt-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => updateAdminStatus(userProfile.user_id, 'active' as UserStatus)}
+                      disabled={userProfile.status === 'active'}
+                      className={`flex-1 sm:flex-none ${userProfile.status === 'active' ? '' : 'text-green-600 hover:text-green-700 hover:bg-green-50'}`}
+                    >
+                      <UserCheck className="w-4 h-4 mr-2" />
+                      Activate
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => updateAdminStatus(userProfile.user_id, 'suspended' as UserStatus)}
+                      disabled={userProfile.status === 'suspended'}
+                      className={`flex-1 sm:flex-none ${userProfile.status === 'suspended' ? '' : 'text-red-600 hover:text-red-700 hover:bg-red-50'}`}
+                    >
+                      <UserX className="w-4 h-4 mr-2" />
+                      Suspend
+                    </Button>
                   </div>
                 </div>
               </CardContent>

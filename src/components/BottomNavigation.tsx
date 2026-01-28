@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -29,14 +29,62 @@ export const BottomNavigation: React.FC = () => {
   const { profile } = useAuth();
   const location = useLocation();
   const { hasAccess, loading } = useUserPermissions();
+  const [visiblePages, setVisiblePages] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Initial load
+    const loadSettings = () => {
+      const saved = localStorage.getItem('hotel_pos_bill_header');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.visiblePages && Array.isArray(parsed.visiblePages)) {
+            setVisiblePages(parsed.visiblePages);
+          } else {
+            // Default: all pages visible
+            setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen']);
+          }
+        } catch {
+          setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen']);
+        }
+      } else {
+        // If no settings, show all by default
+        setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen']);
+      }
+    };
+
+    loadSettings();
+
+    // Listen for updates
+    const handleUpdate = (e: CustomEvent) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setVisiblePages(e.detail);
+      } else {
+        loadSettings();
+      }
+    };
+
+    // Also listen to general shop settings update which updates localStorage
+    const handleShopUpdate = () => loadSettings();
+
+    window.addEventListener('nav-settings-updated', handleUpdate as EventListener);
+    window.addEventListener('shop-settings-updated', handleShopUpdate);
+
+    return () => {
+      window.removeEventListener('nav-settings-updated', handleUpdate as EventListener);
+      window.removeEventListener('shop-settings-updated', handleShopUpdate);
+    };
+  }, []);
 
   if (!profile || loading) return null;
 
   // Super Admin doesn't need bottom navigation - they only see Users page
   if (profile.role === 'super_admin') return null;
 
-  // Filter nav items based on permissions
-  const navItems = allNavItems.filter(item => hasAccess(item.page));
+  // Filter nav items based on permissions AND visibility settings
+  const navItems = allNavItems
+    .filter(item => hasAccess(item.page))
+    .filter(item => visiblePages.length === 0 || visiblePages.includes(item.page as string));
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 md:hidden z-50">

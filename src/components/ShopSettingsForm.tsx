@@ -7,8 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { toast } from '@/hooks/use-toast';
-import { Store, Upload, X, Facebook, Instagram, Phone } from 'lucide-react';
+import { Store, Upload, X, Facebook, Instagram, Phone, Navigation } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export const ShopSettingsForm = () => {
     const { profile } = useAuth();
@@ -31,6 +32,9 @@ export const ShopSettingsForm = () => {
     const [whatsapp, setWhatsapp] = useState('');
     const [showWhatsapp, setShowWhatsapp] = useState(true);
 
+    // Nav Settings
+    const [visiblePages, setVisiblePages] = useState<string[]>(['dashboard', 'billing', 'service', 'kitchen', 'items', 'reports', 'settings', 'customers', 'expenses']);
+
     useEffect(() => {
         // 1. Instant load from localStorage cache (no loading state)
         const saved = localStorage.getItem('hotel_pos_bill_header');
@@ -48,6 +52,7 @@ export const ShopSettingsForm = () => {
                 setShowInstagram(parsed.showInstagram !== false);
                 setWhatsapp(parsed.whatsapp || '');
                 setShowWhatsapp(parsed.showWhatsapp !== false);
+                if (parsed.visiblePages) setVisiblePages(parsed.visiblePages);
             } catch (e) { /* ignore parse errors */ }
         }
         // Always show the form (with cached or empty values)
@@ -82,6 +87,9 @@ export const ShopSettingsForm = () => {
                 setShowInstagram(data.show_instagram !== false);
                 setWhatsapp(data.whatsapp || '');
                 setShowWhatsapp(data.show_whatsapp !== false);
+                if (data.visible_nav_pages && Array.isArray(data.visible_nav_pages)) {
+                    setVisiblePages(data.visible_nav_pages);
+                }
 
                 // Update cache with fresh data from Supabase
                 const cacheData = {
@@ -95,7 +103,10 @@ export const ShopSettingsForm = () => {
                     instagram: data.instagram || '',
                     showInstagram: data.show_instagram !== false,
                     whatsapp: data.whatsapp || '',
-                    showWhatsapp: data.show_whatsapp !== false
+                    showInstagram: data.show_instagram !== false,
+                    whatsapp: data.whatsapp || '',
+                    showWhatsapp: data.show_whatsapp !== false,
+                    visiblePages: data.visible_nav_pages || ['dashboard', 'billing', 'service', 'kitchen', 'items', 'reports', 'settings', 'customers', 'expenses']
                 };
                 localStorage.setItem('hotel_pos_bill_header', JSON.stringify(cacheData));
             }
@@ -182,6 +193,8 @@ export const ShopSettingsForm = () => {
                 show_instagram: showInstagram,
                 whatsapp: cleanUrl(whatsapp),
                 show_whatsapp: showWhatsapp,
+                show_whatsapp: showWhatsapp,
+                visible_nav_pages: visiblePages,
                 updated_at: new Date().toISOString()
             };
 
@@ -194,13 +207,15 @@ export const ShopSettingsForm = () => {
             // Update Local Cache
             const cacheData = {
                 shopName, address, contactNumber, logoUrl, printerWidth,
-                facebook, showFacebook, instagram, showInstagram, whatsapp, showWhatsapp
+                shopName, address, contactNumber, logoUrl, printerWidth,
+                facebook, showFacebook, instagram, showInstagram, whatsapp, showWhatsapp, visiblePages
             };
             localStorage.setItem('hotel_pos_bill_header', JSON.stringify(cacheData));
             localStorage.setItem('hotel_pos_printer_width', printerWidth);
 
             // Trigger global event
             window.dispatchEvent(new Event('shop-settings-updated'));
+            window.dispatchEvent(new CustomEvent('nav-settings-updated', { detail: visiblePages }));
 
             toast({
                 title: "Settings Saved",
@@ -361,6 +376,49 @@ export const ShopSettingsForm = () => {
                                 className="pl-9"
                             />
                         </div>
+                    </div>
+                </div>
+
+                {/* Navigation Menu Settings */}
+                <div className="space-y-4 pt-4 border-t">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Navigation className="w-5 h-5" />
+                        <Label className="text-base font-semibold">Customise Bottom Navigation</Label>
+                    </div>
+                    <CardDescription className="mb-4">
+                        Select which pages should appear in the mobile bottom navigation bar.
+                    </CardDescription>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {[
+                            { id: 'analytics', label: 'Analytics' },
+                            { id: 'billing', label: 'Billing' },
+                            { id: 'serviceArea', label: 'Service' },
+                            { id: 'kitchen', label: 'Kitchen' }, // internal check will map to 'kitchen'
+                            { id: 'tables', label: 'Tables' },
+                            { id: 'items', label: 'Items' },
+                            { id: 'expenses', label: 'Expenses' },
+                            { id: 'reports', label: 'Reports' },
+                            { id: 'settings', label: 'Settings' }
+                        ].map((page) => (
+                            <div key={page.id} className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                                <Checkbox
+                                    id={`nav-${page.id}`}
+                                    checked={visiblePages.includes(page.id === 'kitchen' ? 'kitchen' : page.id)}
+                                    onCheckedChange={(checked) => {
+                                        const pageId = page.id === 'kitchen' ? 'kitchen' : page.id;
+                                        if (checked) {
+                                            setVisiblePages([...visiblePages, pageId]);
+                                        } else {
+                                            setVisiblePages(visiblePages.filter(p => p !== pageId));
+                                        }
+                                    }}
+                                />
+                                <Label htmlFor={`nav-${page.id}`} className="cursor-pointer flex-1">
+                                    {page.label}
+                                </Label>
+                            </div>
+                        ))}
                     </div>
                 </div>
 

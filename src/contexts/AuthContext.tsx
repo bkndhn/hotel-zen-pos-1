@@ -507,6 +507,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Error in login check:', e);
         // Allow login if check fails
       }
+
+      // Update login stats (Fire and forget)
+      try {
+        // First get current count
+        const { data: currentProfile } = await supabase
+          .from('profiles')
+          .select('login_count')
+          .eq('user_id', data.user.id)
+          .single();
+
+        const currentCount = currentProfile?.login_count || 0;
+
+        // Update stats
+        await supabase
+          .from('profiles')
+          .update({
+            last_login: new Date().toISOString(),
+            login_count: currentCount + 1
+          })
+          .eq('user_id', data.user.id);
+      } catch (statError) {
+        console.error('Failed to update login stats:', statError);
+        // Fail silently, don't block login
+      }
     }
 
     console.log('Sign in result: Success');
