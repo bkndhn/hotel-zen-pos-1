@@ -279,8 +279,8 @@ const Users: React.FC = () => {
                     {/* Admin Header */}
                     <CollapsibleTrigger asChild>
                       <div className="p-4 cursor-pointer hover:bg-muted/50 transition-colors">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-start sm:items-center gap-3">
                             {admin.subUsers && admin.subUsers.length > 0 ? (
                               expandedAdmins.has(admin.id) ? (
                                 <ChevronDown className="w-5 h-5 text-muted-foreground" />
@@ -297,154 +297,155 @@ const Users: React.FC = () => {
                               )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            {admin.subUsers && admin.subUsers.length > 0 && (
-                              <Badge variant="outline" className="text-xs">
-                                {admin.subUsers.length} sub-user{admin.subUsers.length !== 1 ? 's' : ''}
-                              </Badge>
-                            )}
-                            <Badge
-                              variant={admin.status === 'active' ? 'default' : admin.status === 'paused' ? 'secondary' : 'destructive'}
-                              className="text-xs"
-                            >
-                              {admin.status}
-                            </Badge>
-                            <Badge variant={getRoleBadgeVariant(admin.role)} className="capitalize flex items-center gap-1">
-                              {getRoleIcon(admin.role)}
-                              {admin.role}
-                            </Badge>
-                          </div>
                         </div>
-
-                        {/* Admin Actions */}
-                        <div className="flex flex-wrap gap-2 mt-3 ml-8">
-                          <Button
-                            size="sm"
-                            variant={admin.status === 'active' ? 'outline' : 'default'}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              updateUserStatus(admin.id, admin.status === 'active' ? 'paused' : 'active', true);
-                            }}
+                        <div className="flex flex-wrap items-center gap-2 ml-8 sm:ml-0">
+                          {admin.subUsers && admin.subUsers.length > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              {admin.subUsers.length} sub-user{admin.subUsers.length !== 1 ? 's' : ''}
+                            </Badge>
+                          )}
+                          <Badge
+                            variant={admin.status === 'active' ? 'default' : admin.status === 'paused' ? 'secondary' : 'destructive'}
                             className="text-xs"
                           >
-                            {admin.status === 'active' ? 'Pause Admin & All Users' : 'Activate'}
-                          </Button>
-                          {admin.status !== 'deleted' && (
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updateUserStatus(admin.id, 'deleted', true);
-                              }}
-                              className="text-xs"
-                            >
-                              Delete
-                            </Button>
-                          )}
+                            {admin.status}
+                          </Badge>
+                          <Badge variant={getRoleBadgeVariant(admin.role)} className="capitalize flex items-center gap-1">
+                            {getRoleIcon(admin.role)}
+                            {admin.role}
+                          </Badge>
                         </div>
                       </div>
-                    </CollapsibleTrigger>
 
-                    {/* Sub-users */}
-                    <CollapsibleContent>
-                      {admin.subUsers && admin.subUsers.length > 0 && (
-                        <div className="border-t bg-muted/30 p-4">
-                          <h5 className="text-sm font-medium mb-3 text-muted-foreground">Sub-users under {admin.name}</h5>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {admin.subUsers.map(subUser => (
-                              <Card key={subUser.id} className="p-3 bg-background">
-                                <div className="flex items-start justify-between">
-                                  <div>
-                                    <h6 className="font-medium">{subUser.name}</h6>
-                                    <Badge
-                                      variant={subUser.status === 'active' ? 'outline' : subUser.status === 'paused' ? 'secondary' : 'destructive'}
-                                      className="text-xs mt-1"
-                                    >
-                                      {admin.status === 'paused' ? 'paused (by admin)' : subUser.status}
-                                    </Badge>
-                                  </div>
-                                  <Badge variant="secondary" className="text-xs capitalize flex items-center gap-1">
-                                    {getRoleIcon(subUser.role)}
-                                    {subUser.role}
-                                  </Badge>
-                                </div>
-                              </Card>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </CollapsibleContent>
-                  </Card>
-                </Collapsible>
-              ))}
-            </div>
-          ) : (
-            // Regular Admin View - Grid of users
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredUsers.map((user) => (
-                <Card key={user.id} className="p-3">
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="font-medium text-base">{user.name}</h4>
-                        {user.hotel_name && (
-                          <p className="text-sm text-muted-foreground">{user.hotel_name}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {getRoleIcon(user.role)}
-                        <Badge
-                          variant={getRoleBadgeVariant(user.role)}
-                          className="text-xs"
-                        >
-                          {user.role}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <Badge
-                      variant={user.status === 'active' ? 'default' : user.status === 'paused' ? 'secondary' : 'destructive'}
-                      className="text-xs"
-                    >
-                      {user.status}
-                    </Badge>
-
-                    <div className="text-xs text-muted-foreground">
-                      <div>Created: {new Date(user.created_at).toLocaleDateString()}</div>
-                      <div>Updated: {new Date(user.updated_at).toLocaleDateString()}</div>
-                    </div>
-
-                    {isAdmin && user.user_id !== profile?.user_id && (
-                      <div className="flex flex-wrap gap-1 pt-2">
+                      {/* Admin Actions */}
+                      <div className="flex flex-wrap gap-2 mt-3 ml-8">
                         <Button
                           size="sm"
-                          variant="outline"
-                          onClick={() => updateUserStatus(user.id, user.status === 'active' ? 'paused' : 'active')}
-                          className="text-xs flex-1 sm:flex-none"
+                          variant={admin.status === 'active' ? 'outline' : 'default'}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateUserStatus(admin.id, admin.status === 'active' ? 'paused' : 'active', true);
+                          }}
+                          className="text-xs"
                         >
-                          {user.status === 'active' ? 'Pause' : 'Activate'}
+                          {admin.status === 'active' ? 'Pause Admin & All Users' : 'Activate'}
                         </Button>
-                        {user.status !== 'deleted' && (
+                        {admin.status !== 'deleted' && (
                           <Button
                             size="sm"
                             variant="destructive"
-                            onClick={() => updateUserStatus(user.id, 'deleted')}
-                            className="text-xs flex-1 sm:flex-none"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateUserStatus(admin.id, 'deleted', true);
+                            }}
+                            className="text-xs"
                           >
                             Delete
                           </Button>
                         )}
                       </div>
+                    </div>
+                  </CollapsibleTrigger>
+
+                  {/* Sub-users */}
+                  <CollapsibleContent>
+                    {admin.subUsers && admin.subUsers.length > 0 && (
+                      <div className="border-t bg-muted/30 p-4">
+                        <h5 className="text-sm font-medium mb-3 text-muted-foreground">Sub-users under {admin.name}</h5>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {admin.subUsers.map(subUser => (
+                            <Card key={subUser.id} className="p-3 bg-background">
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <h6 className="font-medium">{subUser.name}</h6>
+                                  <Badge
+                                    variant={subUser.status === 'active' ? 'outline' : subUser.status === 'paused' ? 'secondary' : 'destructive'}
+                                    className="text-xs mt-1"
+                                  >
+                                    {admin.status === 'paused' ? 'paused (by admin)' : subUser.status}
+                                  </Badge>
+                                </div>
+                                <Badge variant="secondary" className="text-xs capitalize flex items-center gap-1">
+                                  {getRoleIcon(subUser.role)}
+                                  {subUser.role}
+                                </Badge>
+                              </div>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CollapsibleContent>
+                </Card>
+                </Collapsible>
+          ))}
+        </div>
+        ) : (
+        // Regular Admin View - Grid of users
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredUsers.map((user) => (
+            <Card key={user.id} className="p-3">
+              <div className="space-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h4 className="font-medium text-base">{user.name}</h4>
+                    {user.hotel_name && (
+                      <p className="text-sm text-muted-foreground">{user.hotel_name}</p>
                     )}
                   </div>
-                </Card>
-              ))}
-            </div>
+                  <div className="flex items-center gap-1">
+                    {getRoleIcon(user.role)}
+                    <Badge
+                      variant={getRoleBadgeVariant(user.role)}
+                      className="text-xs"
+                    >
+                      {user.role}
+                    </Badge>
+                  </div>
+                </div>
+
+                <Badge
+                  variant={user.status === 'active' ? 'default' : user.status === 'paused' ? 'secondary' : 'destructive'}
+                  className="text-xs"
+                >
+                  {user.status}
+                </Badge>
+
+                <div className="text-xs text-muted-foreground">
+                  <div>Created: {new Date(user.created_at).toLocaleDateString()}</div>
+                  <div>Updated: {new Date(user.updated_at).toLocaleDateString()}</div>
+                </div>
+
+                {isAdmin && user.user_id !== profile?.user_id && (
+                  <div className="flex flex-wrap gap-1 pt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => updateUserStatus(user.id, user.status === 'active' ? 'paused' : 'active')}
+                      className="text-xs flex-1 sm:flex-none"
+                    >
+                      {user.status === 'active' ? 'Pause' : 'Activate'}
+                    </Button>
+                    {user.status !== 'deleted' && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => updateUserStatus(user.id, 'deleted')}
+                        className="text-xs flex-1 sm:flex-none"
+                      >
+                        Delete
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </Card>
+          ))}
+        </div>
           )}
-        </CardContent>
-      </Card>
-    </div>
+      </CardContent>
+    </Card>
+    </div >
   );
 };
 

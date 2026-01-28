@@ -35,6 +35,25 @@ const Auth = () => {
     );
   }
 
+  // Force Pink theme for Auth page
+  React.useEffect(() => {
+    // Save previous theme to restore later (optional, but good practice)
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    const previousColor = metaThemeColor?.getAttribute('content');
+
+    // Set to Pink
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute('content', '#db2777');
+    }
+
+    return () => {
+      // Restore on unmount - though Layout.tsx will also handle this
+      if (metaThemeColor && previousColor) {
+        metaThemeColor.setAttribute('content', previousColor);
+      }
+    };
+  }, []);
+
   // If user is logged in and profile is active, redirect to main page
   if (user && profile?.status === 'active') {
     return <Navigate to="/" replace />;

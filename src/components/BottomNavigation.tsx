@@ -18,10 +18,12 @@ const allNavItems = [
   { to: '/analytics', icon: TrendingUp, label: 'Analytics', page: 'analytics' as const },
   { to: '/billing', icon: ShoppingCart, label: 'Billing', page: 'billing' as const },
   { to: '/service-area', icon: ClipboardList, label: 'Service', page: 'serviceArea' as const },
+  { to: '/kitchen', icon: Receipt, label: 'Kitchen', page: 'kitchen' as const },
   { to: '/tables', icon: LayoutGrid, label: 'Tables', page: 'tables' as const },
   { to: '/items', icon: Package, label: 'Items', page: 'items' as const },
   { to: '/expenses', icon: Receipt, label: 'Expenses', page: 'expenses' as const },
   { to: '/reports', icon: BarChart3, label: 'Reports', page: 'reports' as const },
+  { to: '/crm', icon: Users, label: 'CRM', page: 'settings' as const, visibleKey: 'crm' },
   { to: '/settings', icon: Settings, label: 'Settings', page: 'settings' as const },
 ];
 
@@ -42,14 +44,14 @@ export const BottomNavigation: React.FC = () => {
             setVisiblePages(parsed.visiblePages);
           } else {
             // Default: all pages visible
-            setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen']);
+            setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'crm']);
           }
         } catch {
-          setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen']);
+          setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'crm']);
         }
       } else {
         // If no settings, show all by default
-        setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen']);
+        setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'crm']);
       }
     };
 
@@ -84,7 +86,10 @@ export const BottomNavigation: React.FC = () => {
   // Filter nav items based on permissions AND visibility settings
   const navItems = allNavItems
     .filter(item => hasAccess(item.page))
-    .filter(item => visiblePages.length === 0 || visiblePages.includes(item.page as string));
+    .filter(item => {
+      const key = (item as any).visibleKey || item.page;
+      return visiblePages.length === 0 || visiblePages.includes(key);
+    });
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 md:hidden z-50">

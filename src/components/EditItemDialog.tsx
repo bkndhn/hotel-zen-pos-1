@@ -37,6 +37,7 @@ interface EditItemDialogProps {
 
 export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpdated }) => {
   const [open, setOpen] = useState(false);
+  const [categories, setCategories] = useState<{ id: string, name: string }[]>([]);
   const [formData, setFormData] = useState({
     name: item.name,
     description: item.description || '',
@@ -54,12 +55,33 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
   });
   const [loading, setLoading] = useState(false);
 
+  React.useEffect(() => {
+    if (open) {
+      fetchCategories();
+    }
+  }, [open]);
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('item_categories')
+        .select('id, name')
+        .eq('is_deleted', false)
+        .order('name');
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.price || !formData.purchase_rate || (!formData.unlimited_stock && !formData.stock_quantity)) {
       toast({
         title: "Error",
-        description: formData.unlimited_stock 
+        description: formData.unlimited_stock
           ? "Name, selling price, and purchase rate are required"
           : "Name, selling price, purchase rate, and stock quantity are required",
         variant: "destructive",
@@ -114,7 +136,7 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
       <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
         <Edit className="w-4 h-4" />
       </Button>
-      
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
@@ -142,7 +164,7 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
                 rows={3}
               />
             </div>
-            
+
             <div>
               <Label htmlFor="price">Selling Price *</Label>
               <Input
@@ -173,8 +195,8 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
 
             <div>
               <Label htmlFor="unit">Unit *</Label>
-              <Select 
-                value={formData.unit} 
+              <Select
+                value={formData.unit}
                 onValueChange={(value) => setFormData({ ...formData, unit: value })}
               >
                 <SelectTrigger className="bg-background">
@@ -260,15 +282,25 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
                 Amount to +/- when clicking buttons in the billing page.
               </p>
             </div>
-            
+
             <div>
               <Label htmlFor="category">Category</Label>
-              <Input
-                id="category"
+              <Select
                 value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                placeholder="Enter category (optional)"
-              />
+                onValueChange={(value) => setFormData({ ...formData, category: value })}
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Select Category" />
+                </SelectTrigger>
+                <SelectContent className="bg-background border shadow-lg z-50">
+                  <SelectItem value="none">No Category</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.name}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
@@ -279,7 +311,7 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
                 itemId={item.id}
               />
             </div>
-            
+
             <div className="flex items-center space-x-2">
               <Switch
                 id="is_active"
@@ -288,7 +320,7 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
               />
               <Label htmlFor="is_active">Item is available for sale</Label>
             </div>
-            
+
             <div className="flex justify-end space-x-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel

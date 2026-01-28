@@ -17,6 +17,41 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   console.log('Layout - loading:', loading, 'user:', !!user, 'profile:', !!profile, 'status:', profile?.status);
 
+  // Restore User Theme on Layout Mount (entering app)
+  React.useEffect(() => {
+    const restoreTheme = () => {
+      const savedTheme = localStorage.getItem('hotel_pos_theme') || 'blue';
+      // Default colors matching App.tsx
+      const themeColors: Record<string, string> = {
+        'blue': '#3b82f6',
+        'blue-bright': '#0324fc',
+        'purple': '#9333ea',
+        'green': '#10b981',
+        'rose': '#e11d48',
+        'sunset': '#f97316',
+        'navy': '#1e3a8a',
+        'hotpink': '#c11c84'
+      };
+
+      let colorToSet = themeColors['blue']; // Default
+
+      if (savedTheme === 'custom') {
+        colorToSet = localStorage.getItem('hotel_pos_custom_color') || '#0324fc';
+      } else if (themeColors[savedTheme]) {
+        colorToSet = themeColors[savedTheme];
+      }
+
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+      if (metaThemeColor) {
+        metaThemeColor.setAttribute('content', colorToSet);
+      }
+    };
+
+    if (user && profile) {
+      restoreTheme();
+    }
+  }, [user, profile]);
+
   // Don't show navigation on auth page
   if (location.pathname === '/auth') {
     return <>{children}</>;
