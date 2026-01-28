@@ -213,6 +213,50 @@ export type Database = {
         }
         Relationships: []
       }
+      customers: {
+        Row: {
+          admin_id: string | null
+          created_at: string
+          id: string
+          last_visit: string | null
+          name: string | null
+          phone: string
+          total_spent: number | null
+          updated_at: string
+          visit_count: number | null
+        }
+        Insert: {
+          admin_id?: string | null
+          created_at?: string
+          id?: string
+          last_visit?: string | null
+          name?: string | null
+          phone: string
+          total_spent?: number | null
+          updated_at?: string
+          visit_count?: number | null
+        }
+        Update: {
+          admin_id?: string | null
+          created_at?: string
+          id?: string
+          last_visit?: string | null
+          name?: string | null
+          phone?: string
+          total_spent?: number | null
+          updated_at?: string
+          visit_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       display_settings: {
         Row: {
           category_order: string[] | null
