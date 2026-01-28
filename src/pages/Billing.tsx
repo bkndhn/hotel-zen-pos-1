@@ -918,651 +918,651 @@ const Billing = () => {
         return;
       }
 
-    }
+
 
       // Format and send WhatsApp message
       const now = new Date();
-    const subtotal = cartItems.reduce((sum, item) => {
-      const baseValue = item.base_value || 1;
-      return sum + (item.quantity / baseValue) * item.price;
-    }, 0);
-
-    const message = formatBillMessage({
-      billNo,
-      shopName: billSettings?.shopName || profile?.hotel_name || 'Hotel',
-      items: cartItems.map(item => ({
-        name: item.name,
-        quantity: item.quantity,
-        total: (item.quantity / (item.base_value || 1)) * item.price,
-        unit: item.unit
-      })),
-      subtotal,
-      total,
-      date: now.toLocaleDateString('en-IN'),
-      time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-      paymentMethod
-    });
-
-    shareViaWhatsApp(customerMobile, message);
-
-    toast({ title: "WhatsApp", description: "Opening WhatsApp to share bill..." });
-  } catch (error) {
-    console.error('WhatsApp share error:', error);
-    toast({ title: "WhatsApp Error", description: "Failed to share via WhatsApp", variant: "destructive" });
-  }
-};
-
-const handleCompletePayment = async (paymentData: {
-  paymentMethod: string;
-  paymentAmounts: Record<string, number>;
-  discount: number;
-  discountType: 'flat' | 'percentage';
-  additionalCharges: {
-    name: string;
-    amount: number;
-    enabled: boolean;
-  }[];
-  finalItems?: CartItem[];
-  customerMobile?: string;
-  sendWhatsApp?: boolean;
-}) => {
-  setPaymentDialogOpen(false);
-
-  const finalCart = paymentData.finalItems || cart;
-  const previousCart = [...finalCart];
-
-  // Clear cart immediately for better UX
-  clearCart();
-
-  try {
-    console.log('Completing payment with data:', paymentData);
-
-    const validCart = previousCart.filter(item => item.quantity > 0);
-    if (validCart.length === 0) {
-      toast({
-        title: "Error",
-        description: "Cart was empty",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const isOffline = !navigator.onLine;
-
-    // Get admin_id for data isolation (admin's own id if admin, or parent admin_id if sub-user)
-    const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
-
-    // === SAVE CUSTOMER DATA (Independent of WhatsApp) ===
-    if (paymentData.customerMobile && adminId && !isOffline) {
-      // Clean phone number
-      const cleanPhone = paymentData.customerMobile.replace(/[\s\-\(\)\+]/g, '');
-
-      // Calculate total for this bill
-      const currentBillTotal = validCart.reduce((sum, item) => {
+      const subtotal = cartItems.reduce((sum, item) => {
         const baseValue = item.base_value || 1;
         return sum + (item.quantity / baseValue) * item.price;
-      }, 0) +
-        paymentData.additionalCharges.reduce((sum, charge) => sum + charge.amount, 0) -
-        paymentData.discount;
+      }, 0);
 
-      // Async update - don't block
-      (async () => {
-        try {
-          // Check if customer exists
-          const { data: existingCustomer } = await (supabase as any)
-            .from('customers')
-            .select('id, visit_count, total_spent')
-            .eq('admin_id', adminId)
-            .eq('phone', cleanPhone)
-            .maybeSingle();
+      const message = formatBillMessage({
+        billNo,
+        shopName: billSettings?.shopName || profile?.hotel_name || 'Hotel',
+        items: cartItems.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          total: (item.quantity / (item.base_value || 1)) * item.price,
+          unit: item.unit
+        })),
+        subtotal,
+        total,
+        date: now.toLocaleDateString('en-IN'),
+        time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+        paymentMethod
+      });
 
-          if (existingCustomer) {
-            await (supabase as any)
-              .from('customers')
-              .update({
-                visit_count: existingCustomer.visit_count + 1,
-                total_spent: existingCustomer.total_spent + currentBillTotal,
-                last_visit: new Date().toISOString()
-              })
-              .eq('id', existingCustomer.id);
-          } else {
-            await (supabase as any)
-              .from('customers')
-              .insert({
-                admin_id: adminId,
-                phone: cleanPhone,
-                visit_count: 1,
-                total_spent: currentBillTotal,
-                last_visit: new Date().toISOString(),
-                name: null // Name not collected in billing yet
-              });
-          }
-        } catch (err) {
-          console.error('Failed to save customer data:', err);
-        }
-      })();
+      shareViaWhatsApp(customerMobile, message);
+
+      toast({ title: "WhatsApp", description: "Opening WhatsApp to share bill..." });
+    } catch (error) {
+      console.error('WhatsApp share error:', error);
+      toast({ title: "WhatsApp Error", description: "Failed to share via WhatsApp", variant: "destructive" });
     }
+  };
 
-    // ======= ZERO-LATENCY BILL NUMBER GENERATION =======
-    // Use localStorage counter + timestamp for INSTANT bill numbers (no DB query!)
-    // This runs in 0ms instead of 500-1000ms
-    const getInstantBillNumber = (): string => {
-      const continueBillFromYesterday = localStorage.getItem('hotel_pos_continue_bill_number') !== 'false';
-      const counterKey = `bill_counter_${adminId || 'default'}`;
-      const dateKey = `bill_date_${adminId || 'default'}`;
+  const handleCompletePayment = async (paymentData: {
+    paymentMethod: string;
+    paymentAmounts: Record<string, number>;
+    discount: number;
+    discountType: 'flat' | 'percentage';
+    additionalCharges: {
+      name: string;
+      amount: number;
+      enabled: boolean;
+    }[];
+    finalItems?: CartItem[];
+    customerMobile?: string;
+    sendWhatsApp?: boolean;
+  }) => {
+    setPaymentDialogOpen(false);
 
-      const today = new Date();
-      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-      const savedDate = localStorage.getItem(dateKey);
+    const finalCart = paymentData.finalItems || cart;
+    const previousCart = [...finalCart];
 
-      if (continueBillFromYesterday) {
-        // Sequential numbering - increment forever
-        const counter = parseInt(localStorage.getItem(counterKey) || '0') + 1;
-        localStorage.setItem(counterKey, counter.toString());
-        return `BILL-${String(counter).padStart(6, '0')}`;
-      } else {
-        // Daily reset numbering
-        let counter: number;
-        if (savedDate !== todayStr) {
-          // New day - reset counter
-          counter = 1;
-          localStorage.setItem(dateKey, todayStr);
-        } else {
-          counter = parseInt(localStorage.getItem(counterKey) || '0') + 1;
-        }
-        localStorage.setItem(counterKey, counter.toString());
-        const datePrefix = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getFullYear()).slice(-2)}`;
-        return `${datePrefix}-${String(counter).padStart(3, '0')}`;
+    // Clear cart immediately for better UX
+    clearCart();
+
+    try {
+      console.log('Completing payment with data:', paymentData);
+
+      const validCart = previousCart.filter(item => item.quantity > 0);
+      if (validCart.length === 0) {
+        toast({
+          title: "Error",
+          description: "Cart was empty",
+          variant: "destructive"
+        });
+        return;
       }
-    };
 
-    const billNumber = isOffline ? `BILL-OFF-${Date.now()}` : getInstantBillNumber();
+      const isOffline = !navigator.onLine;
 
-    const now = new Date();
-    const subtotal = validCart.reduce((sum, item) => {
-      const baseValue = item.base_value || 1;
-      return sum + (item.quantity / baseValue) * item.price;
-    }, 0);
-    const totalAdditionalCharges = paymentData.additionalCharges.reduce((sum, charge) => sum + charge.amount, 0);
-    const totalAmount = subtotal + totalAdditionalCharges - paymentData.discount;
+      // Get admin_id for data isolation (admin's own id if admin, or parent admin_id if sub-user)
+      const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
 
-    const mapPaymentMode = (method: string): PaymentMode => {
-      const lower = method.toLowerCase();
-      if (lower.includes('cash')) return 'cash';
-      if (lower.includes('upi')) return 'upi';
-      if (lower === 'card' || lower.includes('card')) return 'card';
-      return 'other';
-    };
-    const paymentMode = mapPaymentMode(paymentData.paymentMethod);
-    const additionalChargesArray = paymentData.additionalCharges.map(c => ({ name: c.name, amount: c.amount }));
+      // === SAVE CUSTOMER DATA (Independent of WhatsApp) ===
+      if (paymentData.customerMobile && adminId && !isOffline) {
+        // Clean phone number
+        const cleanPhone = paymentData.customerMobile.replace(/[\s\-\(\)\+]/g, '');
 
-    // adminId already defined above for bill number isolation
+        // Calculate total for this bill
+        const currentBillTotal = validCart.reduce((sum, item) => {
+          const baseValue = item.base_value || 1;
+          return sum + (item.quantity / baseValue) * item.price;
+        }, 0) +
+          paymentData.additionalCharges.reduce((sum, charge) => sum + charge.amount, 0) -
+          paymentData.discount;
 
-    const billPayload = {
-      bill_no: billNumber,
-      total_amount: totalAmount,
-      discount: paymentData.discount,
-      payment_mode: paymentMode,
-      payment_details: paymentData.paymentAmounts,
-      additional_charges: additionalChargesArray,
-      created_by: profile?.user_id,
-      admin_id: adminId || null,
-      date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
-      // Service Area & Kitchen Display status - enables realtime updates
-      service_status: 'pending',
-      kitchen_status: 'pending',
-      status_updated_at: now.toISOString(),
-      table_no: selectedTableNumber || null,
-      customer_phone: paymentData.customerMobile ? paymentData.customerMobile.replace(/[\s\-\(\)\+]/g, '') : null
-    };
+        // Async update - don't block
+        (async () => {
+          try {
+            // Check if customer exists
+            const { data: existingCustomer } = await (supabase as any)
+              .from('customers')
+              .select('id, visit_count, total_spent')
+              .eq('admin_id', adminId)
+              .eq('phone', cleanPhone)
+              .maybeSingle();
 
-    // OFFLINE MODE - Use new PendingBill system
-    if (isOffline) {
-      const { offlineManager } = await import('@/utils/offlineManager');
+            if (existingCustomer) {
+              await (supabase as any)
+                .from('customers')
+                .update({
+                  visit_count: existingCustomer.visit_count + 1,
+                  total_spent: existingCustomer.total_spent + currentBillTotal,
+                  last_visit: new Date().toISOString()
+                })
+                .eq('id', existingCustomer.id);
+            } else {
+              await (supabase as any)
+                .from('customers')
+                .insert({
+                  admin_id: adminId,
+                  phone: cleanPhone,
+                  visit_count: 1,
+                  total_spent: currentBillTotal,
+                  last_visit: new Date().toISOString(),
+                  name: null // Name not collected in billing yet
+                });
+            }
+          } catch (err) {
+            console.error('Failed to save customer data:', err);
+          }
+        })();
+      }
 
-      const pendingBillId = `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // ======= ZERO-LATENCY BILL NUMBER GENERATION =======
+      // Use localStorage counter + timestamp for INSTANT bill numbers (no DB query!)
+      // This runs in 0ms instead of 500-1000ms
+      const getInstantBillNumber = (): string => {
+        const continueBillFromYesterday = localStorage.getItem('hotel_pos_continue_bill_number') !== 'false';
+        const counterKey = `bill_counter_${adminId || 'default'}`;
+        const dateKey = `bill_date_${adminId || 'default'}`;
 
-      // Save to pending bills queue (new system)
-      await offlineManager.savePendingBill({
-        id: pendingBillId,
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const savedDate = localStorage.getItem(dateKey);
+
+        if (continueBillFromYesterday) {
+          // Sequential numbering - increment forever
+          const counter = parseInt(localStorage.getItem(counterKey) || '0') + 1;
+          localStorage.setItem(counterKey, counter.toString());
+          return `BILL-${String(counter).padStart(6, '0')}`;
+        } else {
+          // Daily reset numbering
+          let counter: number;
+          if (savedDate !== todayStr) {
+            // New day - reset counter
+            counter = 1;
+            localStorage.setItem(dateKey, todayStr);
+          } else {
+            counter = parseInt(localStorage.getItem(counterKey) || '0') + 1;
+          }
+          localStorage.setItem(counterKey, counter.toString());
+          const datePrefix = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getFullYear()).slice(-2)}`;
+          return `${datePrefix}-${String(counter).padStart(3, '0')}`;
+        }
+      };
+
+      const billNumber = isOffline ? `BILL-OFF-${Date.now()}` : getInstantBillNumber();
+
+      const now = new Date();
+      const subtotal = validCart.reduce((sum, item) => {
+        const baseValue = item.base_value || 1;
+        return sum + (item.quantity / baseValue) * item.price;
+      }, 0);
+      const totalAdditionalCharges = paymentData.additionalCharges.reduce((sum, charge) => sum + charge.amount, 0);
+      const totalAmount = subtotal + totalAdditionalCharges - paymentData.discount;
+
+      const mapPaymentMode = (method: string): PaymentMode => {
+        const lower = method.toLowerCase();
+        if (lower.includes('cash')) return 'cash';
+        if (lower.includes('upi')) return 'upi';
+        if (lower === 'card' || lower.includes('card')) return 'card';
+        return 'other';
+      };
+      const paymentMode = mapPaymentMode(paymentData.paymentMethod);
+      const additionalChargesArray = paymentData.additionalCharges.map(c => ({ name: c.name, amount: c.amount }));
+
+      // adminId already defined above for bill number isolation
+
+      const billPayload = {
         bill_no: billNumber,
         total_amount: totalAmount,
         discount: paymentData.discount,
         payment_mode: paymentMode,
         payment_details: paymentData.paymentAmounts,
         additional_charges: additionalChargesArray,
-        created_by: profile?.user_id || '',
+        created_by: profile?.user_id,
+        admin_id: adminId || null,
         date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
-        created_at: now.toISOString(),
-        items: validCart.map(item => ({
-          item_id: item.id,
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          total: (item.quantity / (item.base_value || 1)) * item.price
-        })),
-        table_no: selectedTableNumber || null
-      });
+        // Service Area & Kitchen Display status - enables realtime updates
+        service_status: 'pending',
+        kitchen_status: 'pending',
+        status_updated_at: now.toISOString(),
+        table_no: selectedTableNumber || null,
+        customer_phone: paymentData.customerMobile ? paymentData.customerMobile.replace(/[\s\-\(\)\+]/g, '') : null
+      };
+
+      // OFFLINE MODE - Use new PendingBill system
+      if (isOffline) {
+        const { offlineManager } = await import('@/utils/offlineManager');
+
+        const pendingBillId = `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        // Save to pending bills queue (new system)
+        await offlineManager.savePendingBill({
+          id: pendingBillId,
+          bill_no: billNumber,
+          total_amount: totalAmount,
+          discount: paymentData.discount,
+          payment_mode: paymentMode,
+          payment_details: paymentData.paymentAmounts,
+          additional_charges: additionalChargesArray,
+          created_by: profile?.user_id || '',
+          date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
+          created_at: now.toISOString(),
+          items: validCart.map(item => ({
+            item_id: item.id,
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            total: (item.quantity / (item.base_value || 1)) * item.price
+          })),
+          table_no: selectedTableNumber || null
+        });
+
+        toast({
+          title: "📴 Bill Saved Offline",
+          description: `${billNumber} queued. Will sync when online.`,
+          duration: 3000
+        });
+
+        // Try print in offline mode ONLY if auto-print is enabled
+        const offlineAutoPrintEnabled = localStorage.getItem('hotel_pos_auto_print') !== 'false';
+        if (offlineAutoPrintEnabled) {
+          try {
+            const offlinePrintData = {
+              billNo: billNumber,
+              date: format(now, 'MMM dd, yyyy'),
+              time: format(now, 'hh:mm a'),
+              items: validCart.map(item => ({
+                name: item.name,
+                quantity: item.quantity,
+                price: item.price,
+                total: (item.quantity / (item.base_value || 1)) * item.price
+              })),
+              subtotal,
+              discount: paymentData.discount,
+              additionalCharges: additionalChargesArray,
+              total: totalAmount,
+              paymentMethod: paymentMode.toUpperCase(),
+              paymentDetails: paymentData.paymentAmounts,
+              hotelName: profile?.hotel_name || 'ZEN POS',
+              shopName: billSettings?.shopName,
+              address: billSettings?.address,
+              contactNumber: billSettings?.contactNumber,
+              logoUrl: billSettings?.logoUrl,
+              facebook: billSettings?.showFacebook !== false ? billSettings?.facebook : undefined,
+              instagram: billSettings?.showInstagram !== false ? billSettings?.instagram : undefined,
+              instagram: billSettings?.showInstagram !== false ? billSettings?.instagram : undefined,
+              whatsapp: billSettings?.showWhatsapp !== false ? billSettings?.whatsapp : undefined,
+              tableNo: selectedTableNumber || undefined
+            };
+            await printReceipt(offlinePrintData as PrintData);
+          } catch (printError) {
+            console.log('Print skipped while offline:', printError);
+          }
+        }
+        return;
+      }
+
+      // ONLINE MODE - Use cached settings (already loaded at page mount)
+      // No blocking fetch needed - billSettings are preloaded from cache + background sync
+      const settingsToUse = billSettings;
+
+      const printData: PrintData = {
+        billNo: billNumber,
+        date: format(now, 'MMM dd, yyyy'),
+        time: format(now, 'hh:mm a'),
+        items: validCart.map(item => {
+          const baseValue = item.base_value || 1;
+          return {
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            total: (item.quantity / baseValue) * item.price
+          };
+        }),
+        subtotal: subtotal,
+        additionalCharges: additionalChargesArray,
+        discount: paymentData.discount,
+        total: totalAmount,
+        paymentMethod: paymentData.paymentMethod.toUpperCase(),
+        paymentDetails: paymentData.paymentAmounts,
+        hotelName: profile?.hotel_name || 'ZEN POS',
+        shopName: settingsToUse?.shopName,
+        address: settingsToUse?.address,
+        contactNumber: settingsToUse?.contactNumber,
+        facebook: settingsToUse?.showFacebook !== false ? settingsToUse?.facebook : undefined,
+        instagram: settingsToUse?.showInstagram !== false ? settingsToUse?.instagram : undefined,
+        whatsapp: settingsToUse?.showWhatsapp !== false ? settingsToUse?.whatsapp : undefined,
+        printerWidth: settingsToUse?.printerWidth || '58mm',
+        printerWidth: settingsToUse?.printerWidth || '58mm',
+        logoUrl: settingsToUse?.logoUrl,
+        tableNo: selectedTableNumber || undefined
+      };
+
+      // Check auto-print setting
+      const autoPrintEnabled = localStorage.getItem('hotel_pos_auto_print') !== 'false';
+
+      // =========== ZERO LATENCY: FIRE-AND-FORGET ===========
+      // Show success immediately, run all operations in background
+      // User can start next bill INSTANTLY while print+save happens behind the scenes
 
       toast({
-        title: "📴 Bill Saved Offline",
-        description: `${billNumber} queued. Will sync when online.`,
-        duration: 3000
+        title: "✓ Bill Created",
+        description: `${billNumber} - processing...`,
+        duration: 1500
       });
 
-      // Try print in offline mode ONLY if auto-print is enabled
-      const offlineAutoPrintEnabled = localStorage.getItem('hotel_pos_auto_print') !== 'false';
-      if (offlineAutoPrintEnabled) {
+      // Background operation wrapper for all async tasks
+      const backgroundOperations = async () => {
         try {
-          const offlinePrintData = {
-            billNo: billNumber,
-            date: format(now, 'MMM dd, yyyy'),
-            time: format(now, 'hh:mm a'),
-            items: validCart.map(item => ({
-              name: item.name,
-              quantity: item.quantity,
-              price: item.price,
-              total: (item.quantity / (item.base_value || 1)) * item.price
-            })),
-            subtotal,
-            discount: paymentData.discount,
-            additionalCharges: additionalChargesArray,
-            total: totalAmount,
-            paymentMethod: paymentMode.toUpperCase(),
-            paymentDetails: paymentData.paymentAmounts,
-            hotelName: profile?.hotel_name || 'ZEN POS',
-            shopName: billSettings?.shopName,
-            address: billSettings?.address,
-            contactNumber: billSettings?.contactNumber,
-            logoUrl: billSettings?.logoUrl,
-            facebook: billSettings?.showFacebook !== false ? billSettings?.facebook : undefined,
-            instagram: billSettings?.showInstagram !== false ? billSettings?.instagram : undefined,
-            instagram: billSettings?.showInstagram !== false ? billSettings?.instagram : undefined,
-            whatsapp: billSettings?.showWhatsapp !== false ? billSettings?.whatsapp : undefined,
-            tableNo: selectedTableNumber || undefined
-          };
-          await printReceipt(offlinePrintData as PrintData);
-        } catch (printError) {
-          console.log('Print skipped while offline:', printError);
-        }
-      }
-      return;
-    }
-
-    // ONLINE MODE - Use cached settings (already loaded at page mount)
-    // No blocking fetch needed - billSettings are preloaded from cache + background sync
-    const settingsToUse = billSettings;
-
-    const printData: PrintData = {
-      billNo: billNumber,
-      date: format(now, 'MMM dd, yyyy'),
-      time: format(now, 'hh:mm a'),
-      items: validCart.map(item => {
-        const baseValue = item.base_value || 1;
-        return {
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          total: (item.quantity / baseValue) * item.price
-        };
-      }),
-      subtotal: subtotal,
-      additionalCharges: additionalChargesArray,
-      discount: paymentData.discount,
-      total: totalAmount,
-      paymentMethod: paymentData.paymentMethod.toUpperCase(),
-      paymentDetails: paymentData.paymentAmounts,
-      hotelName: profile?.hotel_name || 'ZEN POS',
-      shopName: settingsToUse?.shopName,
-      address: settingsToUse?.address,
-      contactNumber: settingsToUse?.contactNumber,
-      facebook: settingsToUse?.showFacebook !== false ? settingsToUse?.facebook : undefined,
-      instagram: settingsToUse?.showInstagram !== false ? settingsToUse?.instagram : undefined,
-      whatsapp: settingsToUse?.showWhatsapp !== false ? settingsToUse?.whatsapp : undefined,
-      printerWidth: settingsToUse?.printerWidth || '58mm',
-      printerWidth: settingsToUse?.printerWidth || '58mm',
-      logoUrl: settingsToUse?.logoUrl,
-      tableNo: selectedTableNumber || undefined
-    };
-
-    // Check auto-print setting
-    const autoPrintEnabled = localStorage.getItem('hotel_pos_auto_print') !== 'false';
-
-    // =========== ZERO LATENCY: FIRE-AND-FORGET ===========
-    // Show success immediately, run all operations in background
-    // User can start next bill INSTANTLY while print+save happens behind the scenes
-
-    toast({
-      title: "✓ Bill Created",
-      description: `${billNumber} - processing...`,
-      duration: 1500
-    });
-
-    // Background operation wrapper for all async tasks
-    const backgroundOperations = async () => {
-      try {
-        // 1. Try printing (non-blocking for bill save)
-        if (autoPrintEnabled) {
-          try {
-            const printed = await printReceipt(printData);
-            if (!printed) {
-              console.warn('Print may have failed, but bill is being saved');
+          // 1. Try printing (non-blocking for bill save)
+          if (autoPrintEnabled) {
+            try {
+              const printed = await printReceipt(printData);
+              if (!printed) {
+                console.warn('Print may have failed, but bill is being saved');
+              }
+            } catch (printErr) {
+              console.error('Print failed:', printErr);
+              // Don't block - continue with save
             }
-          } catch (printErr) {
-            console.error('Print failed:', printErr);
-            // Don't block - continue with save
           }
+
+          // 2. Save bill to database
+          await saveBillToDatabase(billPayload, validCart, billNumber);
+
+          // 3. WhatsApp share (if requested)
+          if (paymentData.sendWhatsApp && paymentData.customerMobile) {
+            handleWhatsAppShare(billNumber, paymentData.customerMobile, validCart, totalAmount, paymentData.paymentMethod, adminId)
+              .catch(err => console.error('WhatsApp share failed:', err));
+          }
+        } catch (saveError: any) {
+          console.error('Background save failed:', saveError);
+          toast({
+            title: "Save Error",
+            description: `Bill ${billNumber} failed to save. Please check reports.`,
+            variant: "destructive",
+            duration: 5000
+          });
         }
+      };
 
-        // 2. Save bill to database
-        await saveBillToDatabase(billPayload, validCart, billNumber);
+      // Execute ALL operations in background - DON'T AWAIT!
+      backgroundOperations();
 
-        // 3. WhatsApp share (if requested)
-        if (paymentData.sendWhatsApp && paymentData.customerMobile) {
-          handleWhatsAppShare(billNumber, paymentData.customerMobile, validCart, totalAmount, paymentData.paymentMethod, adminId)
-            .catch(err => console.error('WhatsApp share failed:', err));
-        }
-      } catch (saveError: any) {
-        console.error('Background save failed:', saveError);
-        toast({
-          title: "Save Error",
-          description: `Bill ${billNumber} failed to save. Please check reports.`,
-          variant: "destructive",
-          duration: 5000
-        });
-      }
-    };
+    } catch (error: any) {
+      console.error('Error completing payment:', error);
+      toast({
+        title: "Payment Error",
+        description: error.message || "Failed to save bill. Check connection.",
+        variant: "destructive"
+      });
+    }
+  };
 
-    // Execute ALL operations in background - DON'T AWAIT!
-    backgroundOperations();
 
-  } catch (error: any) {
-    console.error('Error completing payment:', error);
-    toast({
-      title: "Payment Error",
-      description: error.message || "Failed to save bill. Check connection.",
-      variant: "destructive"
-    });
+
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+    </div>;
   }
-};
-
-
-
-
-if (loading) {
-  return <div className="min-h-screen flex items-center justify-center">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-  </div>;
-}
-return <div className="min-h-screen flex overflow-x-hidden max-w-[100vw]">
-  {/* Main Items Area */}
-  <div className="flex-1 p-4 overflow-hidden max-w-full">
-    {/* Header */}
-    <div className="flex items-center justify-between mb-4">
-      <div className="flex items-center gap-3">
-        <div className="flex flex-col">
-          <h1 className="text-2xl font-bold leading-none">
-            {isEditMode ? `Edit Bill - ${editingBill?.bill_no}` : 'Billing'}
-          </h1>
+  return <div className="min-h-screen flex overflow-x-hidden max-w-[100vw]">
+    {/* Main Items Area */}
+    <div className="flex-1 p-4 overflow-hidden max-w-full">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="flex flex-col">
+            <h1 className="text-2xl font-bold leading-none">
+              {isEditMode ? `Edit Bill - ${editingBill?.bill_no}` : 'Billing'}
+            </h1>
+          </div>
+          {/* Table Selector */}
+          <TableSelector
+            selectedTableId={selectedTableId}
+            onSelectTable={(tableId, tableNumber) => {
+              setSelectedTableId(tableId);
+              setSelectedTableNumber(tableNumber);
+            }}
+          />
         </div>
-        {/* Table Selector */}
-        <TableSelector
-          selectedTableId={selectedTableId}
-          onSelectTable={(tableId, tableNumber) => {
-            setSelectedTableId(tableId);
-            setSelectedTableNumber(tableNumber);
-          }}
-        />
       </div>
-    </div>
 
-    {/* Search */}
-    <div className="mb-3">
-      <div className="flex items-center relative">
-        <Search className="absolute left-3 w-4 h-4 text-muted-foreground" />
-        <Input placeholder="Search items..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-10" />
+      {/* Search */}
+      <div className="mb-3">
+        <div className="flex items-center relative">
+          <Search className="absolute left-3 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Search items..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-10" />
+        </div>
       </div>
-    </div>
 
-    {/* Category Horizontal Scroll */}
-    <CategoryScrollBar
-      categories={itemCategories}
-      selectedCategory={selectedCategory}
-      onSelectCategory={setSelectedCategory}
-      categoryOrder={displaySettings.category_order}
-      itemCounts={categoryCounts}
-    />
+      {/* Category Horizontal Scroll */}
+      <CategoryScrollBar
+        categories={itemCategories}
+        selectedCategory={selectedCategory}
+        onSelectCategory={setSelectedCategory}
+        categoryOrder={displaySettings.category_order}
+        itemCounts={categoryCounts}
+      />
 
-    {/* Items Grid - Scrollable */}
-    <div
-      className="overflow-y-auto pb-40 md:pb-4 scroll-smooth"
-      style={{
-        height: 'calc(100vh - 200px)',
-        WebkitOverflowScrolling: 'touch'  // Smooth scroll on iOS
-      }}
-    >
-      {viewMode === 'grid' ? <div className={`grid gap-2 ${displaySettings.items_per_row === 1 ? 'grid-cols-1' : displaySettings.items_per_row === 2 ? 'grid-cols-2' : displaySettings.items_per_row === 3 ? 'grid-cols-3' : displaySettings.items_per_row === 4 ? 'grid-cols-4' : displaySettings.items_per_row === 5 ? 'grid-cols-5' : 'grid-cols-6'}`}>
-        {filteredItems.map(item => {
-          const cartItem = cart.find(c => c.id === item.id);
-          const cachedImageUrl = getCachedImageUrl(item.id);
-          const imageUrl = item.image_url || cachedImageUrl;
-
-          // Cache the image URL if it exists
-          if (item.image_url && !cachedImageUrl) {
-            cacheImageUrl(item.id, item.image_url);
-          }
-          const isInCart = cartItem && cartItem.quantity > 0;
-          const unitLabel = getShortUnit(item.unit);
-          const lowStock = isLowStock(item);
-          return <div key={item.id} className={`relative bg-card rounded-xl border-2 p-1.5 flex flex-col shadow-sm transition-all duration-300 ${isInCart ? 'border-primary shadow-primary/20 shadow-md' : lowStock ? 'border-orange-500 dark:border-orange-400' : 'border-gray-200 dark:border-gray-700 hover:border-primary/30'}`}>
-            {/* Image container with quantity badge */}
-            <div className="relative aspect-[4/3] mb-1 bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-lg overflow-hidden flex-shrink-0">
-              {item.image_url ? <img src={getCachedImageUrl(item.id)} alt={item.name} className="w-full h-full object-cover" onError={e => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                target.nextElementSibling?.classList.remove('hidden');
-              }} /> : null}
-              <div className={`${item.image_url ? 'hidden' : ''} w-full h-full flex items-center justify-center text-muted-foreground`}>
-                <Package className="w-8 h-8" />
-              </div>
-
-              {/* Low stock badge - shown at top left */}
-              {lowStock && (
-                <div className="absolute top-1 left-1 bg-orange-500 text-white text-[11px] font-bold px-1.5 py-0.5 rounded shadow-sm">
-                  Low: {formatQuantityWithUnit(item.stock_quantity!, item.unit)}
-                </div>
-              )}
-
-              {/* Small rectangle quantity badge - shown when item is in cart */}
-              {isInCart && (
-                <div className="absolute bottom-1 right-1 bg-[hsl(var(--qty-badge))] text-white text-[13px] font-bold px-2 py-0.5 rounded shadow-md flex items-center gap-0.5">
-                  <span>{formatQuantityWithUnit(cartItem.quantity, item.unit)}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex-1 flex flex-col min-h-0 px-0.5">
-              <h3 className="font-semibold text-sm mb-0.5 line-clamp-1 flex-shrink-0">{item.name}</h3>
-              <p className="text-primary mb-1 flex-shrink-0 font-bold text-sm">
-                ₹{item.price.toFixed(2)} / {item.base_value && item.base_value > 1 ? `${item.base_value}${unitLabel}` : unitLabel}
-              </p>
-
-              {isInCart ? (
-                <div className="flex items-center justify-center gap-1.5 mt-auto">
-                  <Button size="sm" variant="outline" onClick={() => updateQuantity(item.id, -1)} className="h-6 w-6 p-0 rounded-full bg-[hsl(var(--btn-decrement))] text-white border-0 hover:opacity-80">
-                    <Minus className="h-3 w-3" />
-                  </Button>
-                  <span className="font-bold min-w-[1.5rem] text-center text-base">{cartItem.quantity}</span>
-                  <Button size="sm" variant="outline" onClick={() => updateQuantity(item.id, 1)} className="h-6 w-6 p-0 rounded-full bg-[hsl(var(--btn-increment))] text-white border-0 hover:opacity-80">
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-              ) : (
-                <Button onClick={() => addToCart(item)} className="w-full h-9 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-primary-foreground text-xs font-semibold mt-auto rounded-lg shadow-sm">
-                  Add
-                </Button>
-              )}
-            </div>
-          </div>;
-        })}
-      </div> :
-        // List View
-        <div className="space-y-2">
+      {/* Items Grid - Scrollable */}
+      <div
+        className="overflow-y-auto pb-40 md:pb-4 scroll-smooth"
+        style={{
+          height: 'calc(100vh - 200px)',
+          WebkitOverflowScrolling: 'touch'  // Smooth scroll on iOS
+        }}
+      >
+        {viewMode === 'grid' ? <div className={`grid gap-2 ${displaySettings.items_per_row === 1 ? 'grid-cols-1' : displaySettings.items_per_row === 2 ? 'grid-cols-2' : displaySettings.items_per_row === 3 ? 'grid-cols-3' : displaySettings.items_per_row === 4 ? 'grid-cols-4' : displaySettings.items_per_row === 5 ? 'grid-cols-5' : 'grid-cols-6'}`}>
           {filteredItems.map(item => {
             const cartItem = cart.find(c => c.id === item.id);
             const cachedImageUrl = getCachedImageUrl(item.id);
             const imageUrl = item.image_url || cachedImageUrl;
+
+            // Cache the image URL if it exists
             if (item.image_url && !cachedImageUrl) {
               cacheImageUrl(item.id, item.image_url);
             }
-            return <Card key={item.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    {/* Image */}
-                    <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                      {imageUrl ? <img src={imageUrl} alt={item.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-400">
-                        <Package className="w-6 h-6" />
-                      </div>}
-                    </div>
-
-                    {/* Name and Price */}
-                    <div>
-                      <h3 className="font-semibold text-sm">{item.name}</h3>
-                      <p className="text-lg font-bold text-primary">₹{item.price}/{item.base_value && item.base_value > 1 ? `${item.base_value}${getShortUnit(item.unit)}` : getShortUnit(item.unit)}</p>
-                    </div>
-                  </div>
-
-                  {/* Controls */}
-                  <div className="flex items-center space-x-2">
-                    {cartItem ? <div className="flex items-center space-x-2 bg-primary/10 rounded-full py-1 px-3">
-                      <Button variant="ghost" size="sm" onClick={() => updateQuantity(item.id, -1)} className="h-6 w-6 p-0 rounded-full">
-                        <Minus className="w-3 h-3" />
-                      </Button>
-                      <span className="font-semibold min-w-[20px] text-center">
-                        {cartItem.quantity}
-                      </span>
-                      <Button variant="ghost" size="sm" onClick={() => updateQuantity(item.id, 1)} className="h-6 w-6 p-0 rounded-full">
-                        <Plus className="w-3 h-3" />
-                      </Button>
-                    </div> : <Button onClick={() => addToCart(item)} className="bg-primary hover:bg-primary/90 text-white">
-                      Add
-                    </Button>}
-                  </div>
+            const isInCart = cartItem && cartItem.quantity > 0;
+            const unitLabel = getShortUnit(item.unit);
+            const lowStock = isLowStock(item);
+            return <div key={item.id} className={`relative bg-card rounded-xl border-2 p-1.5 flex flex-col shadow-sm transition-all duration-300 ${isInCart ? 'border-primary shadow-primary/20 shadow-md' : lowStock ? 'border-orange-500 dark:border-orange-400' : 'border-gray-200 dark:border-gray-700 hover:border-primary/30'}`}>
+              {/* Image container with quantity badge */}
+              <div className="relative aspect-[4/3] mb-1 bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-lg overflow-hidden flex-shrink-0">
+                {item.image_url ? <img src={getCachedImageUrl(item.id)} alt={item.name} className="w-full h-full object-cover" onError={e => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  target.nextElementSibling?.classList.remove('hidden');
+                }} /> : null}
+                <div className={`${item.image_url ? 'hidden' : ''} w-full h-full flex items-center justify-center text-muted-foreground`}>
+                  <Package className="w-8 h-8" />
                 </div>
-              </CardContent>
-            </Card>;
+
+                {/* Low stock badge - shown at top left */}
+                {lowStock && (
+                  <div className="absolute top-1 left-1 bg-orange-500 text-white text-[11px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                    Low: {formatQuantityWithUnit(item.stock_quantity!, item.unit)}
+                  </div>
+                )}
+
+                {/* Small rectangle quantity badge - shown when item is in cart */}
+                {isInCart && (
+                  <div className="absolute bottom-1 right-1 bg-[hsl(var(--qty-badge))] text-white text-[13px] font-bold px-2 py-0.5 rounded shadow-md flex items-center gap-0.5">
+                    <span>{formatQuantityWithUnit(cartItem.quantity, item.unit)}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1 flex flex-col min-h-0 px-0.5">
+                <h3 className="font-semibold text-sm mb-0.5 line-clamp-1 flex-shrink-0">{item.name}</h3>
+                <p className="text-primary mb-1 flex-shrink-0 font-bold text-sm">
+                  ₹{item.price.toFixed(2)} / {item.base_value && item.base_value > 1 ? `${item.base_value}${unitLabel}` : unitLabel}
+                </p>
+
+                {isInCart ? (
+                  <div className="flex items-center justify-center gap-1.5 mt-auto">
+                    <Button size="sm" variant="outline" onClick={() => updateQuantity(item.id, -1)} className="h-6 w-6 p-0 rounded-full bg-[hsl(var(--btn-decrement))] text-white border-0 hover:opacity-80">
+                      <Minus className="h-3 w-3" />
+                    </Button>
+                    <span className="font-bold min-w-[1.5rem] text-center text-base">{cartItem.quantity}</span>
+                    <Button size="sm" variant="outline" onClick={() => updateQuantity(item.id, 1)} className="h-6 w-6 p-0 rounded-full bg-[hsl(var(--btn-increment))] text-white border-0 hover:opacity-80">
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button onClick={() => addToCart(item)} className="w-full h-9 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-primary-foreground text-xs font-semibold mt-auto rounded-lg shadow-sm">
+                    Add
+                  </Button>
+                )}
+              </div>
+            </div>;
           })}
-        </div>}
-    </div>
-  </div>
+        </div> :
+          // List View
+          <div className="space-y-2">
+            {filteredItems.map(item => {
+              const cartItem = cart.find(c => c.id === item.id);
+              const cachedImageUrl = getCachedImageUrl(item.id);
+              const imageUrl = item.image_url || cachedImageUrl;
+              if (item.image_url && !cachedImageUrl) {
+                cacheImageUrl(item.id, item.image_url);
+              }
+              return <Card key={item.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      {/* Image */}
+                      <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                        {imageUrl ? <img src={imageUrl} alt={item.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          <Package className="w-6 h-6" />
+                        </div>}
+                      </div>
 
-  {/* Desktop Cart Section */}
-  <div className="hidden md:flex w-80 bg-card border-l flex-col">
-    <div className="p-4 border-b">
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-lg font-bold flex items-center">
-          <ShoppingCart className="w-5 h-5 mr-2" />
-          Cart ({cart.filter(i => i.quantity > 0).length})
-        </h2>
-        {cart.some(i => i.quantity > 0) && <Button variant="ghost" size="sm" onClick={clearCart} className="text-red-600 hover:text-red-700 hover:bg-red-50">
-          <Trash2 className="w-4 h-4" />
-        </Button>}
+                      {/* Name and Price */}
+                      <div>
+                        <h3 className="font-semibold text-sm">{item.name}</h3>
+                        <p className="text-lg font-bold text-primary">₹{item.price}/{item.base_value && item.base_value > 1 ? `${item.base_value}${getShortUnit(item.unit)}` : getShortUnit(item.unit)}</p>
+                      </div>
+                    </div>
+
+                    {/* Controls */}
+                    <div className="flex items-center space-x-2">
+                      {cartItem ? <div className="flex items-center space-x-2 bg-primary/10 rounded-full py-1 px-3">
+                        <Button variant="ghost" size="sm" onClick={() => updateQuantity(item.id, -1)} className="h-6 w-6 p-0 rounded-full">
+                          <Minus className="w-3 h-3" />
+                        </Button>
+                        <span className="font-semibold min-w-[20px] text-center">
+                          {cartItem.quantity}
+                        </span>
+                        <Button variant="ghost" size="sm" onClick={() => updateQuantity(item.id, 1)} className="h-6 w-6 p-0 rounded-full">
+                          <Plus className="w-3 h-3" />
+                        </Button>
+                      </div> : <Button onClick={() => addToCart(item)} className="bg-primary hover:bg-primary/90 text-white">
+                        Add
+                      </Button>}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>;
+            })}
+          </div>}
       </div>
-
-      {cart.some(i => i.quantity > 0) && <div className="flex justify-between items-center text-sm">
-        <span>Total: ₹{total.toFixed(0)}</span>
-        <Button onClick={() => setPaymentDialogOpen(true)} className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-white" size="sm">
-          Pay
-        </Button>
-      </div>}
     </div>
 
-    {/* Cart Items */}
-    <div className="flex-1 overflow-y-auto p-4">
-      {cart.length === 0 ? <div className="text-center py-12">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center">
-          <ShoppingCart className="w-8 h-8 text-gray-400" />
+    {/* Desktop Cart Section */}
+    <div className="hidden md:flex w-80 bg-card border-l flex-col">
+      <div className="p-4 border-b">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-bold flex items-center">
+            <ShoppingCart className="w-5 h-5 mr-2" />
+            Cart ({cart.filter(i => i.quantity > 0).length})
+          </h2>
+          {cart.some(i => i.quantity > 0) && <Button variant="ghost" size="sm" onClick={clearCart} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+            <Trash2 className="w-4 h-4" />
+          </Button>}
         </div>
-        <p className="text-gray-500 font-medium">Your cart is empty</p>
-        <p className="text-gray-400 text-sm mt-1">Add items to get started</p>
-      </div> : <div className="space-y-3">
-        {cart.map(item => <div key={item.id} className="bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-700 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 transition-all hover:shadow-md">
-          <div className="flex justify-between items-start mb-3">
-            <h3 className="font-bold text-sm line-clamp-2 flex-1 text-gray-800 dark:text-white">{item.name}</h3>
-            <Button variant="ghost" size="sm" onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 ml-2 rounded-full h-8 w-8 p-0">
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
 
-          <div className="flex justify-between items-center">
-            <span className="font-bold text-lg bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">₹{item.price}</span>
-
-            <div className="flex items-center space-x-2 bg-gray-100 dark:bg-gray-600 rounded-full p-1">
-              <Button variant="ghost" size="sm" onClick={() => updateQuantity(item.id, -1)} className="h-8 w-8 p-0 rounded-full bg-[hsl(var(--btn-decrement))] text-white hover:opacity-80 shadow-sm">
-                <Minus className="w-4 h-4" />
-              </Button>
-
-              {editingQuantity === item.id ? <div className="flex items-center space-x-1">
-                <Input type="number" value={tempQuantity} onChange={e => setTempQuantity(e.target.value)} className="w-12 h-8 text-center p-0 rounded-lg" autoFocus />
-                <Button variant="ghost" size="sm" onClick={() => saveQuantity(item.id)} className="h-6 w-6 p-0 rounded-full bg-[hsl(var(--btn-increment))] text-white">
-                  <Check className="w-3 h-3" />
-                </Button>
-              </div> : <span className="font-bold min-w-[40px] text-center cursor-pointer hover:bg-white dark:hover:bg-gray-500 rounded-full px-3 py-1 transition-colors" onClick={() => startEditingQuantity(item.id, item.quantity)}>
-                {item.quantity}
-              </span>}
-
-              <Button variant="ghost" size="sm" onClick={() => updateQuantity(item.id, 1)} className="h-8 w-8 p-0 rounded-full bg-[hsl(var(--btn-increment))] text-white hover:opacity-80 shadow-sm">
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex justify-end mt-3 pt-2 border-t border-gray-200 dark:border-gray-600">
-            <span className="text-sm font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-              Total: ₹{((item.quantity / (item.base_value || 1)) * item.price).toFixed(0)}
-            </span>
-          </div>
-        </div>)}
-      </div>}
-    </div>
-  </div>
-
-  {/* Mobile Cart Button - Blue gradient bar above bottom nav */}
-  {cart.some(i => i.quantity > 0) && <div className="fixed bottom-20 left-0 right-0 md:hidden z-40 px-3">
-    <div className="bg-gradient-to-r from-primary to-primary/80 rounded-xl shadow-2xl px-4 py-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 text-white">
-          <ShoppingCart className="w-5 h-5" />
-          <span className="font-bold text-lg">
-            {cart.filter(i => i.quantity > 0).length} {cart.filter(i => i.quantity > 0).length === 1 ? 'item' : 'items'}
-          </span>
-          <span className="font-bold text-xl">₹{total.toFixed(2)}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={clearCart} className="h-9 w-9 p-0 text-white hover:bg-white/20 rounded-full">
-            <Trash2 className="w-5 h-5" />
-          </Button>
-          <Button onClick={() => setPaymentDialogOpen(true)} className="h-9 px-5 bg-white text-primary hover:bg-gray-100 font-bold rounded-full shadow-md">
+        {cart.some(i => i.quantity > 0) && <div className="flex justify-between items-center text-sm">
+          <span>Total: ₹{total.toFixed(0)}</span>
+          <Button onClick={() => setPaymentDialogOpen(true)} className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-white" size="sm">
             Pay
           </Button>
-        </div>
+        </div>}
+      </div>
+
+      {/* Cart Items */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {cart.length === 0 ? <div className="text-center py-12">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center">
+            <ShoppingCart className="w-8 h-8 text-gray-400" />
+          </div>
+          <p className="text-gray-500 font-medium">Your cart is empty</p>
+          <p className="text-gray-400 text-sm mt-1">Add items to get started</p>
+        </div> : <div className="space-y-3">
+          {cart.map(item => <div key={item.id} className="bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-700 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 transition-all hover:shadow-md">
+            <div className="flex justify-between items-start mb-3">
+              <h3 className="font-bold text-sm line-clamp-2 flex-1 text-gray-800 dark:text-white">{item.name}</h3>
+              <Button variant="ghost" size="sm" onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 ml-2 rounded-full h-8 w-8 p-0">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-lg bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">₹{item.price}</span>
+
+              <div className="flex items-center space-x-2 bg-gray-100 dark:bg-gray-600 rounded-full p-1">
+                <Button variant="ghost" size="sm" onClick={() => updateQuantity(item.id, -1)} className="h-8 w-8 p-0 rounded-full bg-[hsl(var(--btn-decrement))] text-white hover:opacity-80 shadow-sm">
+                  <Minus className="w-4 h-4" />
+                </Button>
+
+                {editingQuantity === item.id ? <div className="flex items-center space-x-1">
+                  <Input type="number" value={tempQuantity} onChange={e => setTempQuantity(e.target.value)} className="w-12 h-8 text-center p-0 rounded-lg" autoFocus />
+                  <Button variant="ghost" size="sm" onClick={() => saveQuantity(item.id)} className="h-6 w-6 p-0 rounded-full bg-[hsl(var(--btn-increment))] text-white">
+                    <Check className="w-3 h-3" />
+                  </Button>
+                </div> : <span className="font-bold min-w-[40px] text-center cursor-pointer hover:bg-white dark:hover:bg-gray-500 rounded-full px-3 py-1 transition-colors" onClick={() => startEditingQuantity(item.id, item.quantity)}>
+                  {item.quantity}
+                </span>}
+
+                <Button variant="ghost" size="sm" onClick={() => updateQuantity(item.id, 1)} className="h-8 w-8 p-0 rounded-full bg-[hsl(var(--btn-increment))] text-white hover:opacity-80 shadow-sm">
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-3 pt-2 border-t border-gray-200 dark:border-gray-600">
+              <span className="text-sm font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                Total: ₹{((item.quantity / (item.base_value || 1)) * item.price).toFixed(0)}
+              </span>
+            </div>
+          </div>)}
+        </div>}
       </div>
     </div>
-  </div>}
 
-  {/* Payment Dialog */}
-  <CompletePaymentDialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen} cart={cart} paymentTypes={paymentTypes} additionalCharges={additionalCharges} onUpdateQuantity={updateQuantity} onRemoveItem={removeFromCart} onCompletePayment={handleCompletePayment} whatsappEnabled={whatsappEnabled} />
+    {/* Mobile Cart Button - Blue gradient bar above bottom nav */}
+    {cart.some(i => i.quantity > 0) && <div className="fixed bottom-20 left-0 right-0 md:hidden z-40 px-3">
+      <div className="bg-gradient-to-r from-primary to-primary/80 rounded-xl shadow-2xl px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 text-white">
+            <ShoppingCart className="w-5 h-5" />
+            <span className="font-bold text-lg">
+              {cart.filter(i => i.quantity > 0).length} {cart.filter(i => i.quantity > 0).length === 1 ? 'item' : 'items'}
+            </span>
+            <span className="font-bold text-xl">₹{total.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={clearCart} className="h-9 w-9 p-0 text-white hover:bg-white/20 rounded-full">
+              <Trash2 className="w-5 h-5" />
+            </Button>
+            <Button onClick={() => setPaymentDialogOpen(true)} className="h-9 px-5 bg-white text-primary hover:bg-gray-100 font-bold rounded-full shadow-md">
+              Pay
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>}
 
-  {/* Printer Error Dialog */}
-  <PrinterErrorDialog
-    open={printerErrorOpen}
-    onOpenChange={setPrinterErrorOpen}
-    errorMessage={printerErrorMessage}
-    onRetry={handleRetryPrint}
-    onSaveWithoutPrint={handleSaveWithoutPrint}
-    isRetrying={isRetryingPrint}
-  />
-</div>;
+    {/* Payment Dialog */}
+    <CompletePaymentDialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen} cart={cart} paymentTypes={paymentTypes} additionalCharges={additionalCharges} onUpdateQuantity={updateQuantity} onRemoveItem={removeFromCart} onCompletePayment={handleCompletePayment} whatsappEnabled={whatsappEnabled} />
+
+    {/* Printer Error Dialog */}
+    <PrinterErrorDialog
+      open={printerErrorOpen}
+      onOpenChange={setPrinterErrorOpen}
+      errorMessage={printerErrorMessage}
+      onRetry={handleRetryPrint}
+      onSaveWithoutPrint={handleSaveWithoutPrint}
+      isRetrying={isRetryingPrint}
+    />
+  </div>;
 };
 export default Billing;
