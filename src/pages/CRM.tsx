@@ -13,10 +13,9 @@ interface Customer {
   id: string;
   phone: string;
   name: string | null;
-  email: string | null;
-  total_visits: number;
+  visit_count: number;
   total_spent: number;
-  last_visit_at: string;
+  last_visit: string;
   created_at: string;
 }
 
@@ -35,7 +34,7 @@ const CRM: React.FC = () => {
       const { data, error } = await (supabase as any)
         .from('customers')
         .select('*')
-        .order('last_visit_at', { ascending: false });
+        .order('last_visit', { ascending: false });
 
       if (error) throw error;
       setCustomers(data || []);
@@ -56,8 +55,7 @@ const CRM: React.FC = () => {
     const query = searchQuery.toLowerCase();
     return (
       customer.phone.toLowerCase().includes(query) ||
-      (customer.name?.toLowerCase() || '').includes(query) ||
-      (customer.email?.toLowerCase() || '').includes(query)
+      (customer.name?.toLowerCase() || '').includes(query)
     );
   });
 
@@ -66,10 +64,9 @@ const CRM: React.FC = () => {
       const data = customers.map(c => ({
         'Phone': c.phone,
         'Name': c.name || '-',
-        'Email': c.email || '-',
-        'Total Visits': c.total_visits,
+        'Total Visits': c.visit_count,
         'Total Spent': `₹${c.total_spent.toFixed(2)}`,
-        'Last Visit': format(new Date(c.last_visit_at), 'dd/MM/yyyy hh:mm a'),
+        'Last Visit': format(new Date(c.last_visit), 'dd/MM/yyyy hh:mm a'),
         'First Visit': format(new Date(c.created_at), 'dd/MM/yyyy')
       }));
 
@@ -138,9 +135,9 @@ const CRM: React.FC = () => {
                 <tr>
                   <td>${c.phone}</td>
                   <td>${c.name || '-'}</td>
-                  <td>${c.total_visits}</td>
+                  <td>${c.visit_count}</td>
                   <td>₹${c.total_spent.toFixed(2)}</td>
-                  <td>${format(new Date(c.last_visit_at), 'dd/MM/yyyy')}</td>
+                  <td>${format(new Date(c.last_visit), 'dd/MM/yyyy')}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -173,7 +170,7 @@ const CRM: React.FC = () => {
   };
 
   const totalRevenue = customers.reduce((sum, c) => sum + c.total_spent, 0);
-  const totalVisits = customers.reduce((sum, c) => sum + c.total_visits, 0);
+  const totalVisits = customers.reduce((sum, c) => sum + c.visit_count, 0);
 
   if (loading) {
     return (
@@ -277,7 +274,7 @@ const CRM: React.FC = () => {
                       <p className="text-xs text-muted-foreground mt-0.5">{customer.name}</p>
                     )}
                     <p className="text-[10px] text-muted-foreground">
-                      {customer.total_visits} visits • Last: {format(new Date(customer.last_visit_at), 'dd MMM yyyy')}
+                      {customer.visit_count} visits • Last: {format(new Date(customer.last_visit), 'dd MMM yyyy')}
                     </p>
                   </div>
                   <div className="text-right">
