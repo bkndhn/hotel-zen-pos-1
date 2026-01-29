@@ -12,10 +12,13 @@ import { AddUserDialog } from '@/components/AddUserDialog';
 import { UserPermissions } from '@/components/UserPermissions';
 import type { UserProfile, UserStatus, UserRole } from '@/types/user';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { format } from 'date-fns';
 
 interface ExtendedUserProfile extends UserProfile {
   admin_id?: string;
   subUsers?: ExtendedUserProfile[];
+  last_login?: string | null;
+  login_count?: number | null;
 }
 
 const Users: React.FC = () => {
@@ -88,7 +91,9 @@ const Users: React.FC = () => {
         status: user.status as UserStatus,
         created_at: user.created_at,
         updated_at: user.updated_at,
-        admin_id: user.admin_id
+        admin_id: user.admin_id,
+        last_login: user.last_login,
+        login_count: user.login_count
       })) as ExtendedUserProfile[];
 
       if (isSuperAdmin) {
@@ -295,6 +300,14 @@ const Users: React.FC = () => {
                               {admin.hotel_name && (
                                 <p className="text-sm text-muted-foreground">{admin.hotel_name}</p>
                               )}
+                              {admin.last_login && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Last login: {format(new Date(admin.last_login), 'dd MMM yyyy, hh:mm a')}
+                                  {admin.login_count !== null && admin.login_count !== undefined && (
+                                    <span className="ml-2">({admin.login_count} logins)</span>
+                                  )}
+                                </p>
+                              )}
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -412,7 +425,12 @@ const Users: React.FC = () => {
 
                     <div className="text-xs text-muted-foreground">
                       <div>Created: {new Date(user.created_at).toLocaleDateString()}</div>
-                      <div>Updated: {new Date(user.updated_at).toLocaleDateString()}</div>
+                      {user.last_login && (
+                        <div>Last login: {format(new Date(user.last_login), 'dd MMM yyyy, hh:mm a')}</div>
+                      )}
+                      {user.login_count !== null && user.login_count !== undefined && (
+                        <div>Login count: {user.login_count}</div>
+                      )}
                     </div>
 
                     {isAdmin && user.user_id !== profile?.user_id && (

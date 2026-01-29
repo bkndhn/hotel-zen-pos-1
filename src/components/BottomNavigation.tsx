@@ -11,17 +11,21 @@ import {
   TrendingUp,
   Settings,
   ClipboardList,
-  LayoutGrid
+  LayoutGrid,
+  ChefHat,
+  Users
 } from 'lucide-react';
 
 const allNavItems = [
   { to: '/analytics', icon: TrendingUp, label: 'Analytics', page: 'analytics' as const },
   { to: '/billing', icon: ShoppingCart, label: 'Billing', page: 'billing' as const },
   { to: '/service-area', icon: ClipboardList, label: 'Service', page: 'serviceArea' as const },
+  { to: '/kitchen', icon: ChefHat, label: 'Kitchen', page: 'kitchen' as const },
   { to: '/tables', icon: LayoutGrid, label: 'Tables', page: 'tables' as const },
   { to: '/items', icon: Package, label: 'Items', page: 'items' as const },
   { to: '/expenses', icon: Receipt, label: 'Expenses', page: 'expenses' as const },
   { to: '/reports', icon: BarChart3, label: 'Reports', page: 'reports' as const },
+  { to: '/crm', icon: Users, label: 'CRM', page: 'customers' as const },
   { to: '/settings', icon: Settings, label: 'Settings', page: 'settings' as const },
 ];
 

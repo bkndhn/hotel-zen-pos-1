@@ -62,7 +62,8 @@ const CategoryScrollBar: React.FC<{
   selectedCategory: string;
   onSelectCategory: (category: string) => void;
   categoryOrder: string[];
-}> = ({ categories, selectedCategory, onSelectCategory, categoryOrder }) => {
+  items: Item[];
+}> = ({ categories, selectedCategory, onSelectCategory, categoryOrder, items }) => {
   // Sort categories based on saved order
   const sortedCategories = [...categories].sort((a, b) => {
     const indexA = categoryOrder.indexOf(a.name);
@@ -72,6 +73,13 @@ const CategoryScrollBar: React.FC<{
     if (indexB === -1) return -1;
     return indexA - indexB;
   });
+
+  // Calculate item counts per category
+  const getCategoryCount = (categoryName: string) => {
+    return items.filter(item => item.category === categoryName && item.is_active).length;
+  };
+  
+  const totalActiveItems = items.filter(item => item.is_active).length;
 
   return (
     <div className="mb-3 w-full overflow-hidden">
@@ -85,7 +93,7 @@ const CategoryScrollBar: React.FC<{
             : 'hover:bg-muted'
             }`}
         >
-          All Categories
+          All ({totalActiveItems})
         </Button>
         {sortedCategories.map((category) => (
           <Button
@@ -98,7 +106,7 @@ const CategoryScrollBar: React.FC<{
               : 'hover:bg-muted'
               }`}
           >
-            {category.name}
+            {category.name} ({getCategoryCount(category.name)})
           </Button>
         ))}
       </div>
@@ -1146,7 +1154,6 @@ const Billing = () => {
               logoUrl: billSettings?.logoUrl,
               facebook: billSettings?.showFacebook !== false ? billSettings?.facebook : undefined,
               instagram: billSettings?.showInstagram !== false ? billSettings?.instagram : undefined,
-              instagram: billSettings?.showInstagram !== false ? billSettings?.instagram : undefined,
               whatsapp: billSettings?.showWhatsapp !== false ? billSettings?.whatsapp : undefined,
               tableNo: selectedTableNumber || undefined
             };
@@ -1188,7 +1195,6 @@ const Billing = () => {
         facebook: settingsToUse?.showFacebook !== false ? settingsToUse?.facebook : undefined,
         instagram: settingsToUse?.showInstagram !== false ? settingsToUse?.instagram : undefined,
         whatsapp: settingsToUse?.showWhatsapp !== false ? settingsToUse?.whatsapp : undefined,
-        printerWidth: settingsToUse?.printerWidth || '58mm',
         printerWidth: settingsToUse?.printerWidth || '58mm',
         logoUrl: settingsToUse?.logoUrl,
         tableNo: selectedTableNumber || undefined
@@ -1299,6 +1305,7 @@ const Billing = () => {
         selectedCategory={selectedCategory}
         onSelectCategory={setSelectedCategory}
         categoryOrder={displaySettings.category_order}
+        items={items}
       />
 
       {/* Items Grid - Scrollable */}

@@ -117,6 +117,7 @@ export type Database = {
           created_at: string
           created_by: string
           customer_mobile: string | null
+          customer_phone: string | null
           date: string
           discount: number | null
           id: string
@@ -127,6 +128,7 @@ export type Database = {
           payment_mode: Database["public"]["Enums"]["payment_method"]
           service_status: Database["public"]["Enums"]["service_status"] | null
           status_updated_at: string | null
+          table_no: string | null
           total_amount: number
           whatsapp_sent: boolean | null
           whatsapp_sent_at: string | null
@@ -138,6 +140,7 @@ export type Database = {
           created_at?: string
           created_by: string
           customer_mobile?: string | null
+          customer_phone?: string | null
           date?: string
           discount?: number | null
           id?: string
@@ -148,6 +151,7 @@ export type Database = {
           payment_mode: Database["public"]["Enums"]["payment_method"]
           service_status?: Database["public"]["Enums"]["service_status"] | null
           status_updated_at?: string | null
+          table_no?: string | null
           total_amount: number
           whatsapp_sent?: boolean | null
           whatsapp_sent_at?: string | null
@@ -159,6 +163,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           customer_mobile?: string | null
+          customer_phone?: string | null
           date?: string
           discount?: number | null
           id?: string
@@ -169,6 +174,7 @@ export type Database = {
           payment_mode?: Database["public"]["Enums"]["payment_method"]
           service_status?: Database["public"]["Enums"]["service_status"] | null
           status_updated_at?: string | null
+          table_no?: string | null
           total_amount?: number
           whatsapp_sent?: boolean | null
           whatsapp_sent_at?: string | null
@@ -522,6 +528,8 @@ export type Database = {
           created_at: string
           hotel_name: string | null
           id: string
+          last_login: string | null
+          login_count: number | null
           name: string
           role: Database["public"]["Enums"]["app_role"]
           status: string | null
@@ -533,6 +541,8 @@ export type Database = {
           created_at?: string
           hotel_name?: string | null
           id?: string
+          last_login?: string | null
+          login_count?: number | null
           name: string
           role?: Database["public"]["Enums"]["app_role"]
           status?: string | null
@@ -544,6 +554,8 @@ export type Database = {
           created_at?: string
           hotel_name?: string | null
           id?: string
+          last_login?: string | null
+          login_count?: number | null
           name?: string
           role?: Database["public"]["Enums"]["app_role"]
           status?: string | null
@@ -576,6 +588,7 @@ export type Database = {
           show_whatsapp: boolean | null
           updated_at: string | null
           user_id: string
+          visible_nav_pages: string[] | null
           whatsapp: string | null
           whatsapp_bill_share_enabled: boolean | null
           whatsapp_business_api_enabled: boolean | null
@@ -597,6 +610,7 @@ export type Database = {
           show_whatsapp?: boolean | null
           updated_at?: string | null
           user_id: string
+          visible_nav_pages?: string[] | null
           whatsapp?: string | null
           whatsapp_bill_share_enabled?: boolean | null
           whatsapp_business_api_enabled?: boolean | null
@@ -618,6 +632,7 @@ export type Database = {
           show_whatsapp?: boolean | null
           updated_at?: string | null
           user_id?: string
+          visible_nav_pages?: string[] | null
           whatsapp?: string | null
           whatsapp_bill_share_enabled?: boolean | null
           whatsapp_business_api_enabled?: boolean | null
