@@ -61,10 +61,8 @@ const CategoryScrollBar: React.FC<{
   categories: ItemCategory[];
   selectedCategory: string;
   onSelectCategory: (category: string) => void;
-  onSelectCategory: (category: string) => void;
   categoryOrder: string[];
-  itemCounts?: Record<string, number>;
-}> = ({ categories, selectedCategory, onSelectCategory, categoryOrder, itemCounts }) => {
+}> = ({ categories, selectedCategory, onSelectCategory, categoryOrder }) => {
   // Sort categories based on saved order
   const sortedCategories = [...categories].sort((a, b) => {
     const indexA = categoryOrder.indexOf(a.name);
@@ -100,7 +98,7 @@ const CategoryScrollBar: React.FC<{
               : 'hover:bg-muted'
               }`}
           >
-            {category.name} <span className="ml-1 text-[10px] opacity-80">({itemCounts?.[category.name] || 0})</span>
+            {category.name}
           </Button>
         ))}
       </div>
@@ -141,16 +139,6 @@ const Billing = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  // Calculate category counts
-  const categoryCounts = React.useMemo(() => {
-    const counts: Record<string, number> = {};
-    items.forEach(item => {
-      const cat = item.category || 'Uncategorized';
-      counts[cat] = (counts[cat] || 0) + 1;
-    });
-    return counts;
-  }, [items]);
-
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
     return localStorage.getItem('billing-view-mode') as 'grid' | 'list' || 'grid';
   });
@@ -918,7 +906,40 @@ const Billing = () => {
         return;
       }
 
+      // Save/Update customer in CRM
+      const cleanPhone = customerMobile.replace(/[\s\-\(\)\+]/g, '');
 
+      if (adminId) {
+        const { data: existingCustomer } = await (supabase as any)
+          .from('customers')
+          .select('id, visit_count, total_spent')
+          .eq('admin_id', adminId)
+          .eq('phone', cleanPhone)
+          .maybeSingle();
+
+        if (existingCustomer) {
+          // Update existing customer
+          await (supabase as any)
+            .from('customers')
+            .update({
+              visit_count: existingCustomer.visit_count + 1,
+              total_spent: existingCustomer.total_spent + total,
+              last_visit: new Date().toISOString()
+            })
+            .eq('id', existingCustomer.id);
+        } else {
+          // Create new customer
+          await (supabase as any)
+            .from('customers')
+            .insert({
+              admin_id: adminId,
+              phone: cleanPhone,
+              visit_count: 1,
+              total_spent: total,
+              last_visit: new Date().toISOString()
+            });
+        }
+      }
 
       // Format and send WhatsApp message
       const now = new Date();
@@ -992,57 +1013,6 @@ const Billing = () => {
       // Get admin_id for data isolation (admin's own id if admin, or parent admin_id if sub-user)
       const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
 
-      // === SAVE CUSTOMER DATA (Independent of WhatsApp) ===
-      if (paymentData.customerMobile && adminId && !isOffline) {
-        // Clean phone number
-        const cleanPhone = paymentData.customerMobile.replace(/[\s\-\(\)\+]/g, '');
-
-        // Calculate total for this bill
-        const currentBillTotal = validCart.reduce((sum, item) => {
-          const baseValue = item.base_value || 1;
-          return sum + (item.quantity / baseValue) * item.price;
-        }, 0) +
-          paymentData.additionalCharges.reduce((sum, charge) => sum + charge.amount, 0) -
-          paymentData.discount;
-
-        // Async update - don't block
-        (async () => {
-          try {
-            // Check if customer exists
-            const { data: existingCustomer } = await (supabase as any)
-              .from('customers')
-              .select('id, visit_count, total_spent')
-              .eq('admin_id', adminId)
-              .eq('phone', cleanPhone)
-              .maybeSingle();
-
-            if (existingCustomer) {
-              await (supabase as any)
-                .from('customers')
-                .update({
-                  visit_count: existingCustomer.visit_count + 1,
-                  total_spent: existingCustomer.total_spent + currentBillTotal,
-                  last_visit: new Date().toISOString()
-                })
-                .eq('id', existingCustomer.id);
-            } else {
-              await (supabase as any)
-                .from('customers')
-                .insert({
-                  admin_id: adminId,
-                  phone: cleanPhone,
-                  visit_count: 1,
-                  total_spent: currentBillTotal,
-                  last_visit: new Date().toISOString(),
-                  name: null // Name not collected in billing yet
-                });
-            }
-          } catch (err) {
-            console.error('Failed to save customer data:', err);
-          }
-        })();
-      }
-
       // ======= ZERO-LATENCY BILL NUMBER GENERATION =======
       // Use localStorage counter + timestamp for INSTANT bill numbers (no DB query!)
       // This runs in 0ms instead of 500-1000ms
@@ -1112,8 +1082,7 @@ const Billing = () => {
         service_status: 'pending',
         kitchen_status: 'pending',
         status_updated_at: now.toISOString(),
-        table_no: selectedTableNumber || null,
-        customer_phone: paymentData.customerMobile ? paymentData.customerMobile.replace(/[\s\-\(\)\+]/g, '') : null
+        table_no: selectedTableNumber || null
       };
 
       // OFFLINE MODE - Use new PendingBill system
@@ -1330,7 +1299,6 @@ const Billing = () => {
         selectedCategory={selectedCategory}
         onSelectCategory={setSelectedCategory}
         categoryOrder={displaySettings.category_order}
-        itemCounts={categoryCounts}
       />
 
       {/* Items Grid - Scrollable */}

@@ -5,12 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
-import { Users, Search, Phone, Calendar, DollarSign, Download, FileSpreadsheet, Trash2, Edit2, X } from 'lucide-react';
+import { Users, Search, Phone, Calendar, DollarSign, Download, FileSpreadsheet } from 'lucide-react';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Label } from '@/components/ui/label';
 
 interface Customer {
   id: string;
@@ -27,16 +24,6 @@ const CRM: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-
-  // Edit State
-  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editPhone, setEditPhone] = useState('');
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-
-  // Delete State
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchCustomers();
@@ -72,68 +59,6 @@ const CRM: React.FC = () => {
     );
   });
 
-  // Handle Edit
-  const handleEditClick = (customer: Customer) => {
-    setEditingCustomer(customer);
-    setEditName(customer.name || '');
-    setEditPhone(customer.phone);
-    setIsEditDialogOpen(true);
-  };
-
-  const saveEdit = async () => {
-    if (!editingCustomer) return;
-
-    try {
-      const { error } = await (supabase as any)
-        .from('customers')
-        .update({
-          name: editName,
-          phone: editPhone
-        })
-        .eq('id', editingCustomer.id);
-
-      if (error) throw error;
-
-      setCustomers(prev => prev.map(c =>
-        c.id === editingCustomer.id
-          ? { ...c, name: editName, phone: editPhone }
-          : c
-      ));
-
-      toast({ title: "Success", description: "Customer updated successfully" });
-      setIsEditDialogOpen(false);
-    } catch (error) {
-      console.error('Update error:', error);
-      toast({ title: "Error", description: "Failed to update customer", variant: "destructive" });
-    }
-  };
-
-  // Handle Delete
-  const confirmDelete = (id: string) => {
-    setDeleteId(id);
-    setIsDeleteDialogOpen(true);
-  };
-
-  const executeDelete = async () => {
-    if (!deleteId) return;
-
-    try {
-      const { error } = await (supabase as any)
-        .from('customers')
-        .delete()
-        .eq('id', deleteId);
-
-      if (error) throw error;
-
-      setCustomers(prev => prev.filter(c => c.id !== deleteId));
-      toast({ title: "Success", description: "Customer deleted" });
-      setIsDeleteDialogOpen(false);
-    } catch (error) {
-      console.error('Delete error:', error);
-      toast({ title: "Error", description: "Failed to delete customer", variant: "destructive" });
-    }
-  };
-
   const exportToExcel = () => {
     try {
       const data = customers.map(c => ({
@@ -146,7 +71,7 @@ const CRM: React.FC = () => {
       }));
 
       const ws = XLSX.utils.json_to_sheet(data);
-
+      
       // Auto-fit column widths
       const colWidths = Object.keys(data[0] || {}).map(key => ({
         wch: Math.max(key.length, ...data.map(row => String((row as any)[key]).length)) + 2
@@ -354,14 +279,7 @@ const CRM: React.FC = () => {
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-sm text-primary">₹{customer.total_spent.toFixed(0)}</p>
-                    <div className="flex items-center justify-end gap-2 mt-2">
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleEditClick(customer)}>
-                        <Edit2 className="w-3.5 h-3.5 text-blue-500" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => confirmDelete(customer.id)}>
-                        <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                      </Button>
-                    </div>
+                    <p className="text-[10px] text-muted-foreground">total spent</p>
                   </div>
                 </div>
               ))}
@@ -369,47 +287,6 @@ const CRM: React.FC = () => {
           )}
         </CardContent>
       </Card>
-
-      {/* Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-xs">
-          <DialogHeader>
-            <DialogTitle>Edit Customer</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1">
-              <Label>Name</Label>
-              <Input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Customer Name" />
-            </div>
-            <div className="space-y-1">
-              <Label>Phone</Label>
-              <Input value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="Phone Number" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-            <Button size="sm" onClick={saveEdit}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Customer?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete this customer record.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={executeDelete} className="bg-destructive hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };

@@ -279,8 +279,8 @@ const Users: React.FC = () => {
                     {/* Admin Header */}
                     <CollapsibleTrigger asChild>
                       <div className="p-4 cursor-pointer hover:bg-muted/50 transition-colors">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="flex items-start sm:items-center gap-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
                             {admin.subUsers && admin.subUsers.length > 0 ? (
                               expandedAdmins.has(admin.id) ? (
                                 <ChevronDown className="w-5 h-5 text-muted-foreground" />
@@ -297,8 +297,7 @@ const Users: React.FC = () => {
                               )}
                             </div>
                           </div>
-
-                          <div className="flex flex-wrap items-center gap-2 ml-8 sm:ml-0">
+                          <div className="flex items-center gap-2">
                             {admin.subUsers && admin.subUsers.length > 0 && (
                               <Badge variant="outline" className="text-xs">
                                 {admin.subUsers.length} sub-user{admin.subUsers.length !== 1 ? 's' : ''}
@@ -445,7 +444,7 @@ const Users: React.FC = () => {
           )}
         </CardContent>
       </Card>
-    </div >
+    </div>
   );
 };
 

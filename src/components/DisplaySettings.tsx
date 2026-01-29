@@ -16,7 +16,6 @@ interface DisplaySettingsProps {
 export const DisplaySettings: React.FC<DisplaySettingsProps> = ({ userId }) => {
   const [settings, setSettings] = useState({
     items_per_row: 3,
-    items_items_per_row: 4, // Default to 4 for items page
     category_order: [] as string[]
   });
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
@@ -33,12 +32,6 @@ export const DisplaySettings: React.FC<DisplaySettingsProps> = ({ userId }) => {
     if (savedAod !== null) {
       setAlwaysOnDisplay(savedAod === 'true');
     }
-
-    // Load Items Page Grid
-    const savedItemsGrid = localStorage.getItem('hotel_pos_items_grid');
-    if (savedItemsGrid) {
-      setSettings(prev => ({ ...prev, items_items_per_row: parseInt(savedItemsGrid) }));
-    }
   }, [userId]);
 
   const fetchSettings = async () => {
@@ -54,8 +47,6 @@ export const DisplaySettings: React.FC<DisplaySettingsProps> = ({ userId }) => {
       if (data) {
         setSettings({
           items_per_row: data.items_per_row,
-          // If DB doesn't have this col yet, keep existing or default (handled by effect above)
-          items_items_per_row: (settings.items_items_per_row),
           category_order: data.category_order || []
         });
       }
@@ -93,11 +84,6 @@ export const DisplaySettings: React.FC<DisplaySettingsProps> = ({ userId }) => {
         }, {
           onConflict: 'user_id'
         });
-
-      // Save independent setting to localStorage
-      localStorage.setItem('hotel_pos_items_grid', settings.items_items_per_row.toString());
-      // Dispatch event
-      window.dispatchEvent(new CustomEvent('items-grid-updated', { detail: settings.items_items_per_row }));
 
       if (error) throw error;
 
@@ -232,33 +218,6 @@ export const DisplaySettings: React.FC<DisplaySettingsProps> = ({ userId }) => {
               Fewer items per row = larger cards and images.
             </p>
           </div>
-
-          {/* Items per Row Setting (Items Page) */}
-          <div>
-            <Label htmlFor="items_items_per_row">Items per Row in Items Page</Label>
-            <Select
-              value={settings.items_items_per_row.toString()}
-              onValueChange={(value) => setSettings(prev => ({
-                ...prev,
-                items_items_per_row: parseInt(value)
-              }))}
-            >
-              <SelectTrigger className="mt-2">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="2">2 Items per Row</SelectItem>
-                <SelectItem value="3">3 Items per Row</SelectItem>
-                <SelectItem value="4">4 Items per Row (Default)</SelectItem>
-                <SelectItem value="5">5 Items per Row</SelectItem>
-                <SelectItem value="6">6 Items per Row</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-muted-foreground mt-1">
-              Independent layout setting for the Items management page.
-            </p>
-          </div>
-
 
           {/* Category Display Order */}
           <div>

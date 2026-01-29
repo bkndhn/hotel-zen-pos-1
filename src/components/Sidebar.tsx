@@ -27,9 +27,7 @@ const allNavItems = [
   { to: '/items', icon: Package, label: 'Items', page: 'items' as const },
   { to: '/expenses', icon: Receipt, label: 'Expenses', page: 'expenses' as const },
   { to: '/reports', icon: BarChart3, label: 'Reports', page: 'reports' as const },
-  { to: '/reports', icon: BarChart3, label: 'Reports', page: 'reports' as const },
   { to: '/users', icon: Users, label: 'Users', page: 'users' as const },
-  { to: '/crm', icon: Users, label: 'CRM', page: 'settings' as const },
   { to: '/settings', icon: Settings, label: 'Settings', page: 'settings' as const },
 ];
 

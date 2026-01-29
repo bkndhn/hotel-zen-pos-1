@@ -33,7 +33,7 @@ export const ShopSettingsForm = () => {
     const [showWhatsapp, setShowWhatsapp] = useState(true);
 
     // Nav Settings
-    const [visiblePages, setVisiblePages] = useState<string[]>(['dashboard', 'billing', 'service', 'kitchen', 'items', 'reports', 'settings', 'customers', 'expenses', 'crm']);
+    const [visiblePages, setVisiblePages] = useState<string[]>(['dashboard', 'billing', 'service', 'kitchen', 'items', 'reports', 'settings', 'customers', 'expenses']);
 
     useEffect(() => {
         // 1. Instant load from localStorage cache (no loading state)
@@ -103,8 +103,10 @@ export const ShopSettingsForm = () => {
                     instagram: data.instagram || '',
                     showInstagram: data.show_instagram !== false,
                     whatsapp: data.whatsapp || '',
+                    showInstagram: data.show_instagram !== false,
+                    whatsapp: data.whatsapp || '',
                     showWhatsapp: data.show_whatsapp !== false,
-                    visiblePages: data.visible_nav_pages || ['dashboard', 'billing', 'service', 'kitchen', 'items', 'reports', 'settings', 'customers', 'expenses', 'crm']
+                    visiblePages: data.visible_nav_pages || ['dashboard', 'billing', 'service', 'kitchen', 'items', 'reports', 'settings', 'customers', 'expenses']
                 };
                 localStorage.setItem('hotel_pos_bill_header', JSON.stringify(cacheData));
             }
@@ -204,6 +206,7 @@ export const ShopSettingsForm = () => {
 
             // Update Local Cache
             const cacheData = {
+                shopName, address, contactNumber, logoUrl, printerWidth,
                 shopName, address, contactNumber, logoUrl, printerWidth,
                 facebook, showFacebook, instagram, showInstagram, whatsapp, showWhatsapp, visiblePages
             };
@@ -396,9 +399,6 @@ export const ShopSettingsForm = () => {
                             { id: 'items', label: 'Items' },
                             { id: 'expenses', label: 'Expenses' },
                             { id: 'reports', label: 'Reports' },
-                            { id: 'expenses', label: 'Expenses' },
-                            { id: 'reports', label: 'Reports' },
-                            { id: 'crm', label: 'CRM' },
                             { id: 'settings', label: 'Settings' }
                         ].map((page) => (
                             <div key={page.id} className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-muted/50 transition-colors">

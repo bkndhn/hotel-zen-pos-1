@@ -247,12 +247,12 @@ const Expenses: React.FC = () => {
         <div className="flex flex-col gap-2">
           {profile?.role === 'admin' && (
             <>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleExportExcel}
-                  className="text-xs h-8 rounded-lg flex-1 sm:flex-none"
+                  className="text-xs h-8 rounded-lg"
                 >
                   <FileSpreadsheet className="w-4 h-4 mr-1" />
                   Excel
@@ -261,13 +261,13 @@ const Expenses: React.FC = () => {
                   variant="outline"
                   size="sm"
                   onClick={handleExportPDF}
-                  className="text-xs h-8 rounded-lg flex-1 sm:flex-none"
+                  className="text-xs h-8 rounded-lg"
                 >
                   <Download className="w-4 h-4 mr-1" />
                   PDF
                 </Button>
               </div>
-              <div className="flex flex-wrap sm:flex-nowrap gap-2">
+              <div className="flex gap-2">
                 <CategorySelector onCategoriesUpdated={handleCategoriesUpdated} />
                 <AddExpenseDialog onExpenseAdded={fetchExpenses} />
               </div>

@@ -10,7 +10,6 @@ import { toast } from '@/hooks/use-toast';
 import { Package, Search, Plus, GripVertical } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { EditItemDialog } from '@/components/EditItemDialog';
-import { AddItemDialog } from '@/components/AddItemDialog';
 import { ItemCategoryManagement } from '@/components/ItemCategoryManagement';
 import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
 import { getShortUnit, formatQuantityWithUnit } from '@/utils/timeUtils';
@@ -43,7 +42,6 @@ const Items: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categories, setCategories] = useState<string[]>([]);
   const [isReordering, setIsReordering] = useState(false);
-  const [gridCols, setGridCols] = useState(4); // Default 4
 
   // Permanent delete state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -58,14 +56,6 @@ const Items: React.FC = () => {
   useEffect(() => {
     fetchItems();
     fetchCategories();
-
-    // Load Grid Setting
-    const savedGrid = localStorage.getItem('hotel_pos_items_grid');
-    if (savedGrid) setGridCols(parseInt(savedGrid));
-
-    const handleGridUpdate = (e: any) => setGridCols(e.detail);
-    window.addEventListener('items-grid-updated', handleGridUpdate);
-    return () => window.removeEventListener('items-grid-updated', handleGridUpdate);
   }, []);
 
   // Listen for real-time update events
@@ -394,12 +384,7 @@ const Items: React.FC = () => {
                   </p>
                 </div>
               ) : (
-                <div className={`grid gap-2 sm:gap-4 ${gridCols === 2 ? 'grid-cols-2' :
-                    gridCols === 3 ? 'grid-cols-2 md:grid-cols-3' :
-                      gridCols === 4 ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4' :
-                        gridCols === 5 ? 'grid-cols-2 md:grid-cols-4 lg:grid-cols-5' :
-                          'grid-cols-2 md:grid-cols-4 lg:grid-cols-6'
-                  }`}>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4">
                   {activeItems.map((item, index) => (
                     <Card
                       key={item.id}
