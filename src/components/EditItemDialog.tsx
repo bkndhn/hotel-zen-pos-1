@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,8 +10,13 @@ import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Edit, Plus } from 'lucide-react';
+import { Edit } from 'lucide-react';
 import { ImageUpload } from '@/components/ImageUpload';
+
+interface Category {
+  id: string;
+  name: string;
+}
 
 interface Item {
   id: string;
@@ -37,6 +42,7 @@ interface EditItemDialogProps {
 
 export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpdated }) => {
   const [open, setOpen] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [formData, setFormData] = useState({
     name: item.name,
     description: item.description || '',
@@ -53,6 +59,27 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
     unlimited_stock: item.unlimited_stock || false
   });
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      fetchCategories();
+    }
+  }, [open]);
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('item_categories')
+        .select('id, name')
+        .eq('is_deleted', false)
+        .order('name');
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -263,12 +290,22 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
             
             <div>
               <Label htmlFor="category">Category</Label>
-              <Input
-                id="category"
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                placeholder="Enter category (optional)"
-              />
+              <Select 
+                value={formData.category || 'none'} 
+                onValueChange={(value) => setFormData({ ...formData, category: value === 'none' ? '' : value })}
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent className="bg-background border shadow-lg z-50">
+                  <SelectItem value="none">No Category</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.name}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>

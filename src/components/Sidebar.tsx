@@ -14,7 +14,8 @@ import {
   Settings,
   ClipboardList,
   ChefHat,
-  LayoutGrid
+  LayoutGrid,
+  UserCircle
 } from 'lucide-react';
 
 const allNavItems = [
@@ -27,6 +28,7 @@ const allNavItems = [
   { to: '/items', icon: Package, label: 'Items', page: 'items' as const },
   { to: '/expenses', icon: Receipt, label: 'Expenses', page: 'expenses' as const },
   { to: '/reports', icon: BarChart3, label: 'Reports', page: 'reports' as const },
+  { to: '/crm', icon: UserCircle, label: 'CRM', page: 'customers' as const },
   { to: '/users', icon: Users, label: 'Users', page: 'users' as const },
   { to: '/settings', icon: Settings, label: 'Settings', page: 'settings' as const },
 ];

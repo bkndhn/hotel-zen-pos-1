@@ -259,6 +259,7 @@ interface PrintData {
   logoUrl?: string;
   totalItemsCount?: number;
   smartQtyCount?: number;
+  tableNo?: string;
 }
 
 const textToBytes = (text: string): Uint8Array => {

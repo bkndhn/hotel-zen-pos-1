@@ -87,8 +87,8 @@ export const ShopSettingsForm = () => {
                 setShowInstagram(data.show_instagram !== false);
                 setWhatsapp(data.whatsapp || '');
                 setShowWhatsapp(data.show_whatsapp !== false);
-                if (data.visible_nav_pages && Array.isArray(data.visible_nav_pages)) {
-                    setVisiblePages(data.visible_nav_pages);
+                if ((data as any).visible_nav_pages && Array.isArray((data as any).visible_nav_pages)) {
+                    setVisiblePages((data as any).visible_nav_pages);
                 }
 
                 // Update cache with fresh data from Supabase
@@ -103,10 +103,8 @@ export const ShopSettingsForm = () => {
                     instagram: data.instagram || '',
                     showInstagram: data.show_instagram !== false,
                     whatsapp: data.whatsapp || '',
-                    showInstagram: data.show_instagram !== false,
-                    whatsapp: data.whatsapp || '',
                     showWhatsapp: data.show_whatsapp !== false,
-                    visiblePages: data.visible_nav_pages || ['dashboard', 'billing', 'service', 'kitchen', 'items', 'reports', 'settings', 'customers', 'expenses']
+                    visiblePages: (data as any).visible_nav_pages || ['dashboard', 'billing', 'service', 'kitchen', 'items', 'reports', 'settings', 'customers', 'expenses']
                 };
                 localStorage.setItem('hotel_pos_bill_header', JSON.stringify(cacheData));
             }
@@ -180,7 +178,7 @@ export const ShopSettingsForm = () => {
         setSaving(true);
 
         try {
-            const settingsData = {
+            const settingsData: any = {
                 user_id: profile.user_id,
                 shop_name: shopName || null,
                 address: address || null,
@@ -192,7 +190,6 @@ export const ShopSettingsForm = () => {
                 instagram: cleanUrl(instagram),
                 show_instagram: showInstagram,
                 whatsapp: cleanUrl(whatsapp),
-                show_whatsapp: showWhatsapp,
                 show_whatsapp: showWhatsapp,
                 visible_nav_pages: visiblePages,
                 updated_at: new Date().toISOString()
@@ -206,7 +203,6 @@ export const ShopSettingsForm = () => {
 
             // Update Local Cache
             const cacheData = {
-                shopName, address, contactNumber, logoUrl, printerWidth,
                 shopName, address, contactNumber, logoUrl, printerWidth,
                 facebook, showFacebook, instagram, showInstagram, whatsapp, showWhatsapp, visiblePages
             };
@@ -394,23 +390,23 @@ export const ShopSettingsForm = () => {
                             { id: 'analytics', label: 'Analytics' },
                             { id: 'billing', label: 'Billing' },
                             { id: 'serviceArea', label: 'Service' },
-                            { id: 'kitchen', label: 'Kitchen' }, // internal check will map to 'kitchen'
+                            { id: 'kitchen', label: 'Kitchen' },
                             { id: 'tables', label: 'Tables' },
                             { id: 'items', label: 'Items' },
                             { id: 'expenses', label: 'Expenses' },
                             { id: 'reports', label: 'Reports' },
+                            { id: 'customers', label: 'CRM' },
                             { id: 'settings', label: 'Settings' }
                         ].map((page) => (
                             <div key={page.id} className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-muted/50 transition-colors">
                                 <Checkbox
                                     id={`nav-${page.id}`}
-                                    checked={visiblePages.includes(page.id === 'kitchen' ? 'kitchen' : page.id)}
+                                    checked={visiblePages.includes(page.id)}
                                     onCheckedChange={(checked) => {
-                                        const pageId = page.id === 'kitchen' ? 'kitchen' : page.id;
                                         if (checked) {
-                                            setVisiblePages([...visiblePages, pageId]);
+                                            setVisiblePages([...visiblePages, page.id]);
                                         } else {
-                                            setVisiblePages(visiblePages.filter(p => p !== pageId));
+                                            setVisiblePages(visiblePages.filter(p => p !== page.id));
                                         }
                                     }}
                                 />

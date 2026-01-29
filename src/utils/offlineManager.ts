@@ -39,6 +39,7 @@ export interface PendingBill {
         price: number;
         total: number;
     }>;
+    table_no?: string | null;
     synced: boolean;
     syncError?: string;
     retries: number;
