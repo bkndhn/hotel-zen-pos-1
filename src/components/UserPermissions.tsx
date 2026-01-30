@@ -25,6 +25,7 @@ const AVAILABLE_PAGES = [
   { name: 'items', label: 'Items', description: 'Manage menu items' },
   { name: 'expenses', label: 'Expenses', description: 'Track expenses' },
   { name: 'reports', label: 'Reports', description: 'View bill reports' },
+  { name: 'customers', label: 'CRM', description: 'Customer relationship management' },
   { name: 'settings', label: 'Settings', description: 'App settings' },
 ];
 

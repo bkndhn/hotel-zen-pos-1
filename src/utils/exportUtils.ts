@@ -38,23 +38,51 @@ interface ItemForExport {
   unit?: string;
 }
 
+// Get short unit format (pc, g, kg, ml, L)
+const getShortUnitFormat = (unit?: string): string => {
+  if (!unit) return 'pc';
+  
+  const unitLower = unit.toLowerCase().trim();
+  
+  // Check for common unit patterns and return short form
+  if (unitLower.includes('kilogram') || unitLower === 'kg' || unitLower.includes('(kg)')) return 'kg';
+  if (unitLower.includes('milliliter') || unitLower === 'ml' || unitLower.includes('(ml)')) return 'ml';
+  if (unitLower.includes('gram') || unitLower === 'g' || unitLower.includes('(g)')) return 'g';
+  if (unitLower.includes('liter') || unitLower === 'l' || unitLower.includes('(l)')) return 'L';
+  if (unitLower.includes('piece') || unitLower === 'pc' || unitLower.includes('(pc)')) return 'pc';
+  if (unitLower.includes('plate') || unitLower.includes('(plate)')) return 'plate';
+  if (unitLower.includes('box') || unitLower.includes('(box)')) return 'box';
+  if (unitLower.includes('pack') || unitLower.includes('(pack)')) return 'pack';
+  if (unitLower.includes('dozen') || unitLower.includes('(dz)')) return 'dz';
+  
+  // If unit contains parentheses with short form, extract it
+  const match = unit.match(/\(([^)]+)\)/);
+  if (match) return match[1];
+  
+  // Default: return first 2-3 characters as short form
+  return unit.substring(0, 3).toLowerCase();
+};
+
 // Format quantity with unit and smart conversion (g→kg, ml→L)
 const formatQtyWithUnit = (qty: number, unit?: string): string => {
-  if (!unit) return qty.toString();
-
-  const unitLower = unit.toLowerCase();
+  const shortUnit = getShortUnitFormat(unit);
 
   // Convert g to kg if >= 1000
-  if (unitLower === 'g' && qty >= 1000) {
+  if (shortUnit === 'g' && qty >= 1000) {
     return `${(qty / 1000).toFixed(2)} kg`;
   }
 
   // Convert ml to L if >= 1000
-  if (unitLower === 'ml' && qty >= 1000) {
+  if (shortUnit === 'ml' && qty >= 1000) {
     return `${(qty / 1000).toFixed(2)} L`;
   }
 
-  return `${qty} ${unit}`;
+  // For whole numbers, don't show decimal
+  if (Number.isInteger(qty)) {
+    return `${qty} ${shortUnit}`;
+  }
+
+  return `${qty.toFixed(1)} ${shortUnit}`;
 };
 
 interface PaymentForExport {
