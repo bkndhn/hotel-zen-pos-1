@@ -137,12 +137,12 @@ export const formatQuantityWithUnit = (quantity: number, unit?: string): string 
 
   // Convert grams to kg if >= 1000
   if (shortUnit === 'g' && quantity >= 1000) {
-    return `${(quantity / 1000).toFixed(1)}kg`;
+    return `${(quantity / 1000).toFixed(1)} kg`;
   }
 
   // Convert ml to L if >= 1000
   if (shortUnit === 'ml' && quantity >= 1000) {
-    return `${(quantity / 1000).toFixed(1)}L`;
+    return `${(quantity / 1000).toFixed(1)} L`;
   }
 
   // For whole numbers, don't show decimal
@@ -150,7 +150,7 @@ export const formatQuantityWithUnit = (quantity: number, unit?: string): string 
     return `${quantity} ${shortUnit}`;
   }
 
-  return `${quantity.toFixed(1)}${shortUnit}`;
+  return `${quantity.toFixed(1)} ${shortUnit}`;
 };
 
 /**

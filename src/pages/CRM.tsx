@@ -4,8 +4,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { Users, Search, Phone, Calendar, DollarSign, Download, FileSpreadsheet } from 'lucide-react';
+import { Users, Search, Phone, Calendar, DollarSign, Download, FileSpreadsheet, Edit, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 
@@ -24,6 +27,17 @@ const CRM: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Edit dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [saving, setSaving] = useState(false);
+  
+  // Delete dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
 
   useEffect(() => {
     fetchCustomers();
@@ -31,13 +45,18 @@ const CRM: React.FC = () => {
 
   const fetchCustomers = async () => {
     try {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('customers')
         .select('*')
         .order('last_visit', { ascending: false });
 
       if (error) throw error;
-      setCustomers(data || []);
+      setCustomers((data || []).map(c => ({
+        ...c,
+        visit_count: c.visit_count ?? 0,
+        total_spent: c.total_spent ?? 0,
+        last_visit: c.last_visit ?? c.created_at
+      })));
     } catch (error) {
       console.error('Error fetching customers:', error);
       toast({
@@ -58,6 +77,74 @@ const CRM: React.FC = () => {
       (customer.name?.toLowerCase() || '').includes(query)
     );
   });
+
+  // Handle Edit
+  const handleEditClick = (customer: Customer) => {
+    setEditingCustomer(customer);
+    setEditName(customer.name || '');
+    setEditPhone(customer.phone);
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingCustomer) return;
+    
+    if (!editPhone.trim()) {
+      toast({ title: "Error", description: "Phone number is required", variant: "destructive" });
+      return;
+    }
+    
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .update({
+          name: editName.trim() || null,
+          phone: editPhone.trim(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingCustomer.id);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Customer updated successfully" });
+      setEditDialogOpen(false);
+      setEditingCustomer(null);
+      fetchCustomers();
+    } catch (error) {
+      console.error('Error updating customer:', error);
+      toast({ title: "Error", description: "Failed to update customer", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Handle Delete
+  const handleDeleteClick = (customer: Customer) => {
+    setCustomerToDelete(customer);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!customerToDelete) return;
+
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .delete()
+        .eq('id', customerToDelete.id);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Customer deleted successfully" });
+      setDeleteDialogOpen(false);
+      setCustomerToDelete(null);
+      fetchCustomers();
+    } catch (error) {
+      console.error('Error deleting customer:', error);
+      toast({ title: "Error", description: "Failed to delete customer", variant: "destructive" });
+    }
+  };
 
   const exportToExcel = () => {
     try {
@@ -241,7 +328,7 @@ const CRM: React.FC = () => {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
-          placeholder="Search by phone, name, or email..."
+          placeholder="Search by phone or name..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-9 h-9 text-sm"
@@ -277,9 +364,27 @@ const CRM: React.FC = () => {
                       {customer.visit_count} visits • Last: {format(new Date(customer.last_visit), 'dd MMM yyyy')}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-sm text-primary">₹{customer.total_spent.toFixed(0)}</p>
-                    <p className="text-[10px] text-muted-foreground">total spent</p>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right mr-2">
+                      <p className="font-bold text-sm text-primary">₹{customer.total_spent.toFixed(0)}</p>
+                      <p className="text-[10px] text-muted-foreground">total spent</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 w-7 p-0"
+                      onClick={() => handleEditClick(customer)}
+                    >
+                      <Edit className="w-3 h-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                      onClick={() => handleDeleteClick(customer)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -287,6 +392,66 @@ const CRM: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Edit Customer</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Phone Number</Label>
+              <Input
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="Enter phone number"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Name (Optional)</Label>
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Enter customer name"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={saving}>
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Customer</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this customer record? This action cannot be undone.
+              <br /><br />
+              <strong>Phone:</strong> {customerToDelete?.phone}
+              <br />
+              <strong>Name:</strong> {customerToDelete?.name || 'N/A'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

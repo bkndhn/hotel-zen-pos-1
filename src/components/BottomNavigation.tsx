@@ -36,8 +36,9 @@ export const BottomNavigation: React.FC = () => {
   const [visiblePages, setVisiblePages] = useState<string[]>([]);
 
   useEffect(() => {
-    // Initial load
-    const loadSettings = () => {
+    // Load from Supabase as primary source, with localStorage as fallback
+    const loadSettings = async () => {
+      // First, load from localStorage for instant display
       const saved = localStorage.getItem('hotel_pos_bill_header');
       if (saved) {
         try {
@@ -45,15 +46,44 @@ export const BottomNavigation: React.FC = () => {
           if (parsed.visiblePages && Array.isArray(parsed.visiblePages)) {
             setVisiblePages(parsed.visiblePages);
           } else {
-            // Default: all pages visible
-            setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen']);
+            setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'customers']);
           }
         } catch {
-          setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen']);
+          setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'customers']);
         }
       } else {
-        // If no settings, show all by default
-        setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen']);
+        setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'customers']);
+      }
+
+      // Then sync from Supabase for latest data
+      if (profile?.user_id) {
+        try {
+          const { createClient } = await import('@supabase/supabase-js');
+          const supabase = createClient(
+            "https://ivleyttlqlqawghvfyjz.supabase.co",
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2bGV5dHRscWxxYXdnaHZmeWp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkyMTc1NjAsImV4cCI6MjA4NDc5MzU2MH0.2LpChU5d2awwu_Wu9XckGT6kGPFHqBA0fyhqvNMne3M"
+          );
+          const { data } = await supabase
+            .from('shop_settings')
+            .select('visible_nav_pages')
+            .eq('user_id', profile.user_id)
+            .maybeSingle();
+
+          if (data?.visible_nav_pages && Array.isArray(data.visible_nav_pages)) {
+            setVisiblePages(data.visible_nav_pages);
+            // Update localStorage cache
+            const cached = localStorage.getItem('hotel_pos_bill_header');
+            if (cached) {
+              try {
+                const parsed = JSON.parse(cached);
+                parsed.visiblePages = data.visible_nav_pages;
+                localStorage.setItem('hotel_pos_bill_header', JSON.stringify(parsed));
+              } catch {}
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching nav settings from Supabase:', err);
+        }
       }
     };
 
@@ -78,7 +108,7 @@ export const BottomNavigation: React.FC = () => {
       window.removeEventListener('nav-settings-updated', handleUpdate as EventListener);
       window.removeEventListener('shop-settings-updated', handleShopUpdate);
     };
-  }, []);
+  }, [profile?.user_id]);
 
   if (!profile || loading) return null;
 
