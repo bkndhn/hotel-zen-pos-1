@@ -213,6 +213,19 @@ const QRCodeSettings = () => {
         }
     }, [slugStatus]);
 
+    // Auto-save appearance settings when changed (after initial load)
+    const [isAppearanceLoaded, setIsAppearanceLoaded] = useState(false);
+    useEffect(() => {
+        // Skip first render (initial load)
+        if (!isAppearanceLoaded) {
+            // Set loaded after a delay to ensure initial load completes
+            const timer = setTimeout(() => setIsAppearanceLoaded(true), 1000);
+            return () => clearTimeout(timer);
+        }
+        // Save when any appearance setting changes
+        saveSettings();
+    }, [menuPrimaryColor, menuSecondaryColor, menuBackgroundColor, menuTextColor, menuItemsPerRow]);
+
     // Copy link to clipboard
     const handleCopyLink = async () => {
         try {

@@ -5,7 +5,7 @@ import { X, Upload, Image as ImageIcon, Film, Loader2, Camera, AlertCircle } fro
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { uploadItemImage } from '@/utils/imageUtils';
+import { uploadItemImage, compressGifToImage, compressVideo } from '@/utils/imageUtils';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -167,25 +167,48 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
             return;
         }
 
-        // Size limit: 1MB for GIF/video to keep menu fast
-        if (file.size > 1 * 1024 * 1024) {
-            toast({
-                title: "File too large",
-                description: "GIF/Video must be smaller than 1MB for fast loading",
-                variant: "destructive"
-            });
-            return;
-        }
-
         try {
             setIsUploading(true);
 
-            const fileExt = isGif ? 'gif' : file.name.split('.').pop() || 'mp4';
+            let uploadBlob: Blob = file;
+            let finalType = file.type;
+            const maxSizeKB = 1024; // 1MB limit for items
+
+            // Compress if file is too large
+            if (file.size > maxSizeKB * 1024) {
+                toast({
+                    title: "Compressing...",
+                    description: `${isGif ? 'GIF' : 'Video'} is ${(file.size / 1024 / 1024).toFixed(1)}MB, compressing to 1MB`,
+                });
+
+                if (isGif) {
+                    // Convert GIF to compressed JPEG (loses animation but much smaller)
+                    uploadBlob = await compressGifToImage(file, maxSizeKB);
+                    finalType = 'image/jpeg';
+                    toast({
+                        title: "GIF Compressed",
+                        description: `Converted to image: ${(uploadBlob.size / 1024).toFixed(0)}KB`,
+                    });
+                } else {
+                    // Compress video
+                    uploadBlob = await compressVideo(file, maxSizeKB);
+                    finalType = 'video/webm';
+                    toast({
+                        title: "Video Compressed",
+                        description: `Reduced to ${(uploadBlob.size / 1024).toFixed(0)}KB`,
+                    });
+                }
+            }
+
+            const fileExt = isGif && file.size > maxSizeKB * 1024 ? 'jpg' :
+                isGif ? 'gif' :
+                    isVideo && uploadBlob.type === 'video/webm' ? 'webm' :
+                        file.name.split('.').pop() || 'mp4';
             const fileName = `${adminId}/${itemId || Date.now()}_media.${fileExt}`;
 
             const { error: uploadError } = await supabase.storage
                 .from('item-images')
-                .upload(fileName, file, { upsert: true });
+                .upload(fileName, uploadBlob, { upsert: true });
 
             if (uploadError) throw uploadError;
 
@@ -193,10 +216,21 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
                 .from('item-images')
                 .getPublicUrl(fileName);
 
-            // For GIF/video, store in video_url field
-            onVideoChange(publicUrl);
-            onImageChange('');
-            onMediaTypeChange(isGif ? 'gif' : 'video');
+            // Determine final media type
+            // If we converted GIF to JPEG, treat as image
+            const compressedGif = isGif && file.size > maxSizeKB * 1024;
+            const mediaType = compressedGif ? 'image' : (isGif ? 'gif' : 'video');
+
+            if (mediaType === 'image') {
+                // Compressed GIF goes to image_url
+                onImageChange(publicUrl);
+                onVideoChange('');
+            } else {
+                // GIF/video goes to video_url
+                onVideoChange(publicUrl);
+                onImageChange('');
+            }
+            onMediaTypeChange(mediaType as 'image' | 'gif' | 'video');
 
             toast({
                 title: isGif ? "GIF uploaded" : "Video uploaded",

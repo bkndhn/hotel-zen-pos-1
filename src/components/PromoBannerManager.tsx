@@ -9,6 +9,7 @@ import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Plus, Trash2, GripVertical, Image, Loader2, Calendar, X } from 'lucide-react';
+import { compressImage, compressGifToImage } from '@/utils/imageUtils';
 
 interface Banner {
     id: string;
@@ -70,16 +71,6 @@ export const PromoBannerManager = () => {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        // Validate file size (max 500KB)
-        if (file.size > 500 * 1024) {
-            toast({
-                title: "File too large",
-                description: "Banner image must be smaller than 500KB",
-                variant: "destructive"
-            });
-            return;
-        }
-
         if (!file.type.startsWith('image/')) {
             toast({
                 title: "Invalid file type",
@@ -91,12 +82,39 @@ export const PromoBannerManager = () => {
 
         try {
             setSaving(true);
-            const fileExt = file.name.split('.').pop();
+            const maxSizeKB = 500; // 500KB limit for banners
+            const isGif = file.type === 'image/gif';
+            let uploadBlob: Blob = file;
+            let fileExt = file.name.split('.').pop() || 'jpg';
+
+            // Compress if file is too large
+            if (file.size > maxSizeKB * 1024) {
+                toast({
+                    title: "Compressing...",
+                    description: `Image is ${(file.size / 1024).toFixed(0)}KB, compressing to 500KB`,
+                });
+
+                if (isGif) {
+                    // Convert GIF to compressed JPEG
+                    uploadBlob = await compressGifToImage(file, maxSizeKB);
+                    fileExt = 'jpg';
+                } else {
+                    // Compress regular image
+                    uploadBlob = await compressImage(file, maxSizeKB);
+                    fileExt = 'jpg';
+                }
+
+                toast({
+                    title: "Image Compressed",
+                    description: `Reduced to ${(uploadBlob.size / 1024).toFixed(0)}KB`,
+                });
+            }
+
             const fileName = `${adminId}/banner-${Date.now()}.${fileExt}`;
 
             const { error } = await supabase.storage
                 .from('promo-banners')
-                .upload(fileName, file, { cacheControl: '3600', upsert: true });
+                .upload(fileName, uploadBlob, { cacheControl: '3600', upsert: true });
 
             if (error) throw error;
 

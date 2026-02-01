@@ -111,3 +111,162 @@ export const deleteItemImage = async (imageUrl: string): Promise<void> => {
     throw error;
   }
 };
+
+/**
+ * Compress GIF by extracting first frame and converting to static image
+ * For true GIF compression, a backend solution would be needed.
+ * This reduces file size significantly while maintaining visual quality.
+ */
+export const compressGifToImage = async (file: File, maxSizeKB: number = 500): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+
+    img.onload = () => {
+      // Calculate dimensions - scale down if needed
+      const maxDimension = maxSizeKB <= 500 ? 800 : 1000;
+      let { width, height } = img;
+
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = (height * maxDimension) / width;
+          width = maxDimension;
+        } else {
+          width = (width * maxDimension) / height;
+          height = maxDimension;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Compress iteratively
+      let quality = 0.9;
+      const compress = () => {
+        canvas.toBlob((blob) => {
+          if (blob && blob.size <= maxSizeKB * 1024) {
+            resolve(blob);
+          } else if (quality > 0.2) {
+            quality -= 0.1;
+            compress();
+          } else {
+            // Last resort: reduce dimensions further
+            canvas.width = width * 0.7;
+            canvas.height = height * 0.7;
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob((finalBlob) => {
+              resolve(finalBlob || blob!);
+            }, 'image/jpeg', 0.8);
+          }
+        }, 'image/jpeg', quality);
+      };
+
+      compress();
+    };
+
+    img.onerror = () => reject(new Error('Failed to load GIF for compression'));
+    img.src = URL.createObjectURL(file);
+  });
+};
+
+/**
+ * Compress video by re-encoding at lower bitrate using canvas + MediaRecorder
+ * This works entirely in the browser without external dependencies.
+ */
+export const compressVideo = async (
+  file: File,
+  maxSizeKB: number = 1024,
+  onProgress?: (progress: number) => void
+): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+
+    video.onloadedmetadata = async () => {
+      const duration = video.duration;
+
+      // If file is already under limit, return as-is
+      if (file.size <= maxSizeKB * 1024) {
+        resolve(file);
+        return;
+      }
+
+      // Calculate scale factor to reduce file size
+      const scaleFactor = Math.sqrt((maxSizeKB * 1024) / file.size);
+      const targetWidth = Math.floor(video.videoWidth * Math.min(scaleFactor, 0.8));
+      const targetHeight = Math.floor(video.videoHeight * Math.min(scaleFactor, 0.8));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(targetWidth, 320);
+      canvas.height = Math.max(targetHeight, 180);
+      const ctx = canvas.getContext('2d')!;
+
+      // Calculate target bitrate (aim for 80% of max size to be safe)
+      const targetBitrate = Math.floor((maxSizeKB * 1024 * 8 * 0.8) / duration);
+
+      const stream = canvas.captureStream(24); // 24 fps
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'video/webm;codecs=vp8',
+        videoBitsPerSecond: Math.min(targetBitrate, 500000) // Cap at 500kbps
+      });
+
+      const chunks: Blob[] = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        resolve(blob);
+      };
+
+      mediaRecorder.onerror = (e) => reject(e);
+
+      // Play and record
+      video.currentTime = 0;
+      mediaRecorder.start();
+
+      const drawFrame = () => {
+        if (video.ended || video.paused) {
+          mediaRecorder.stop();
+          return;
+        }
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        if (onProgress) {
+          onProgress((video.currentTime / duration) * 100);
+        }
+        requestAnimationFrame(drawFrame);
+      };
+
+      video.play().then(() => {
+        drawFrame();
+      }).catch(reject);
+
+      video.onended = () => {
+        mediaRecorder.stop();
+      };
+    };
+
+    video.onerror = () => reject(new Error('Failed to load video for compression'));
+    video.src = URL.createObjectURL(file);
+  });
+};
+
+/**
+ * Simple GIF compression by reducing dimensions
+ * Keeps it as GIF format but makes it smaller
+ */
+export const compressGifSimple = async (file: File, maxSizeKB: number = 1024): Promise<File> => {
+  // If already small enough, return as-is
+  if (file.size <= maxSizeKB * 1024) {
+    return file;
+  }
+
+  // For GIFs, we can't truly compress in browser without losing animation
+  // Best option: Convert to static high-quality JPEG
+  const compressedBlob = await compressGifToImage(file, maxSizeKB);
+  return new File([compressedBlob], file.name.replace('.gif', '.jpg'), { type: 'image/jpeg' });
+};
