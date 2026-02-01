@@ -13,9 +13,19 @@ interface MenuItem {
     name: string;
     price: number;
     image_url?: string;
+    video_url?: string;
+    media_type?: 'image' | 'gif' | 'video';
     category?: string;
     unit?: string;
     is_active: boolean;
+}
+
+interface PromoBanner {
+    id: string;
+    title: string;
+    description?: string;
+    image_url: string;
+    link_url?: string;
 }
 
 interface ShopSettings {
@@ -57,6 +67,8 @@ const PublicMenu = () => {
     const [items, setItems] = useState<MenuItem[]>([]);
     const [categories, setCategories] = useState<ItemCategory[]>([]);
     const [shopSettings, setShopSettings] = useState<ShopSettings | null>(null);
+    const [banners, setBanners] = useState<PromoBanner[]>([]);
+    const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [showSearch, setShowSearch] = useState(false);
@@ -146,14 +158,22 @@ const PublicMenu = () => {
 
         const fetchMenuData = async () => {
             try {
-                // Fetch items for this admin
+                // Fetch items for this admin (including video/media fields)
                 const { data: itemsData, error: itemsError } = await supabase
                     .from('items')
-                    .select('id, name, price, image_url, category, unit, is_active')
+                    .select('id, name, price, image_url, video_url, media_type, category, unit, is_active')
                     .eq('admin_id', adminId)
                     .eq('is_active', true)
                     .order('category')
                     .order('name');
+
+                // Fetch promotional banners
+                const { data: bannersData } = await supabase
+                    .from('promo_banners')
+                    .select('id, title, description, image_url, link_url')
+                    .eq('admin_id', adminId)
+                    .eq('is_active', true)
+                    .order('display_order');
 
                 if (itemsError) {
                     console.error('Items fetch error:', itemsError);
@@ -198,6 +218,7 @@ const PublicMenu = () => {
                 setItems(itemsData || []);
                 setShopSettings(settingsData as ShopSettings | null);
                 setCategories(categoriesData || []);
+                setBanners(bannersData || []);
 
                 if (!itemsData?.length && itemsError) {
                     setError('Failed to load menu. Please try again.');
@@ -262,6 +283,51 @@ const PublicMenu = () => {
             supabase.removeChannel(channel);
         };
     }, [adminId]);
+
+    // Auto-swipe banners every 4 seconds
+    useEffect(() => {
+        if (banners.length <= 1) return;
+        const interval = setInterval(() => {
+            setCurrentBannerIndex(prev => (prev + 1) % banners.length);
+        }, 4000);
+        return () => clearInterval(interval);
+    }, [banners.length]);
+
+    // Item Media component with download protection
+    const ItemMedia = ({ item }: { item: MenuItem }) => {
+        const mediaUrl = item.media_type === 'video' || item.media_type === 'gif'
+            ? item.video_url
+            : item.image_url;
+
+        if (!mediaUrl) return null;
+
+        if (item.media_type === 'video') {
+            return (
+                <video
+                    src={mediaUrl}
+                    className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    controlsList="nodownload nofullscreen noremoteplayback"
+                    disablePictureInPicture
+                    onContextMenu={(e) => e.preventDefault()}
+                />
+            );
+        }
+
+        return (
+            <img
+                src={mediaUrl}
+                alt={item.name}
+                className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                loading="lazy"
+                onContextMenu={(e) => e.preventDefault()}
+                draggable={false}
+            />
+        );
+    };
 
     // Get unique categories from items
     const itemCategories = useMemo(() => {
@@ -490,6 +556,58 @@ const PublicMenu = () => {
                 </div>
             )}
 
+            {/* Promotional Banners Carousel */}
+            {banners.length > 0 && (
+                <div className="max-w-2xl mx-auto px-4 pt-4">
+                    <div className="relative rounded-xl overflow-hidden shadow-lg">
+                        <div
+                            className="flex transition-transform duration-500 ease-in-out"
+                            style={{ transform: `translateX(-${currentBannerIndex * 100}%)` }}
+                        >
+                            {banners.map((banner) => (
+                                <div
+                                    key={banner.id}
+                                    className="w-full flex-shrink-0"
+                                    onContextMenu={(e) => e.preventDefault()}
+                                >
+                                    <div className="relative aspect-[16/7] bg-gradient-to-r from-orange-400 to-amber-400">
+                                        <img
+                                            src={banner.image_url}
+                                            alt={banner.title}
+                                            className="w-full h-full object-cover"
+                                            draggable={false}
+                                        />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                                        <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
+                                            <h3 className="font-bold text-sm drop-shadow-lg">{banner.title}</h3>
+                                            {banner.description && (
+                                                <p className="text-xs opacity-90 line-clamp-1">{banner.description}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        {banners.length > 1 && (
+                            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                {banners.map((_, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => setCurrentBannerIndex(idx)}
+                                        className={cn(
+                                            "w-2 h-2 rounded-full transition-all",
+                                            idx === currentBannerIndex
+                                                ? "bg-white w-4"
+                                                : "bg-white/50 hover:bg-white/70"
+                                        )}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Menu Items */}
             <main className="max-w-2xl mx-auto px-4 py-4 pb-28">
                 {filteredItems.length === 0 ? (
@@ -518,14 +636,7 @@ const PublicMenu = () => {
                                         className="bg-white rounded-xl p-3 shadow-sm border border-orange-100 hover:shadow-md transition-all duration-200"
                                     >
                                         <div className="flex gap-3">
-                                            {item.image_url && (
-                                                <img
-                                                    src={item.image_url}
-                                                    alt={item.name}
-                                                    className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
-                                                    loading="lazy"
-                                                />
-                                            )}
+                                            <ItemMedia item={item} />
                                             <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
                                                 <h3 className="font-semibold text-gray-900 text-sm leading-tight">
                                                     {item.name}

@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus } from 'lucide-react';
-import { ImageUpload } from '@/components/ImageUpload';
+import { MediaUpload } from '@/components/MediaUpload';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Item {
   id: string;
@@ -39,8 +40,10 @@ interface AddItemDialogProps {
 }
 
 export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, existingItems }) => {
+  const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [hasPremiumAccess, setHasPremiumAccess] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -53,10 +56,30 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
     quantity_step: '1',
     category: '',
     image_url: '',
+    video_url: '',
+    media_type: 'image' as 'image' | 'gif' | 'video',
     is_active: true,
     unlimited_stock: false
   });
   const [loading, setLoading] = useState(false);
+
+  // Check premium access
+  useEffect(() => {
+    const checkPremiumAccess = async () => {
+      if (!profile) return;
+      const adminId = profile.role === 'admin' ? profile.id : profile.admin_id;
+      if (!adminId) return;
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('has_qr_menu_access')
+        .eq('id', adminId)
+        .single();
+
+      setHasPremiumAccess(data?.has_qr_menu_access || false);
+    };
+    checkPremiumAccess();
+  }, [profile]);
 
   useEffect(() => {
     fetchCategories();
@@ -82,7 +105,7 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
     if (!formData.name || !formData.price || !formData.purchase_rate || (!formData.unlimited_stock && !formData.stock_quantity)) {
       toast({
         title: "Error",
-        description: formData.unlimited_stock 
+        description: formData.unlimited_stock
           ? "Name, selling price, and purchase rate are required"
           : "Name, selling price, purchase rate, and stock quantity are required",
         variant: "destructive",
@@ -91,7 +114,7 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
     }
 
     // Check for duplicate items (case-insensitive)
-    const isDuplicate = existingItems.some(item => 
+    const isDuplicate = existingItems.some(item =>
       item.name.toLowerCase().trim() === formData.name.toLowerCase().trim() && item.is_active
     );
 
@@ -109,7 +132,7 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
       // Get admin_id from the session for data isolation
       const { data: { session } } = await supabase.auth.getSession();
       const userId = session?.user?.id;
-      
+
       // Fetch user's profile to get admin_id
       let adminId = null;
       if (userId) {
@@ -118,7 +141,7 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
           .select('id, role, admin_id')
           .eq('user_id', userId)
           .single();
-        
+
         if (profileData) {
           adminId = profileData.role === 'admin' ? profileData.id : profileData.admin_id;
         }
@@ -136,6 +159,8 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
         quantity_step: parseFloat(formData.quantity_step),
         category: formData.category === 'none' ? null : formData.category.trim(),
         image_url: formData.image_url.trim() || null,
+        video_url: formData.video_url.trim() || null,
+        media_type: formData.media_type,
         is_active: formData.is_active,
         unlimited_stock: formData.unlimited_stock,
         admin_id: adminId
@@ -148,18 +173,20 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
         description: "Item added successfully",
       });
 
-      setFormData({ 
-        name: '', 
+      setFormData({
+        name: '',
         description: '',
-        price: '', 
+        price: '',
         purchase_rate: '',
         unit: 'Piece (pc)',
         base_value: '1',
         stock_quantity: '',
         minimum_stock_alert: '',
         quantity_step: '1',
-        category: '', 
+        category: '',
         image_url: '',
+        video_url: '',
+        media_type: 'image',
         is_active: true,
         unlimited_stock: false
       });
@@ -201,17 +228,17 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
             />
           </div>
 
-            <div>
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Enter item description"
-                rows={3}
-              />
-            </div>
-          
+          <div>
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Enter item description"
+              rows={3}
+            />
+          </div>
+
           <div>
             <Label htmlFor="price">Selling Price *</Label>
             <Input
@@ -242,8 +269,8 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
 
           <div>
             <Label htmlFor="unit">Unit *</Label>
-            <Select 
-              value={formData.unit} 
+            <Select
+              value={formData.unit}
               onValueChange={(value) => setFormData({ ...formData, unit: value })}
             >
               <SelectTrigger className="bg-background">
@@ -329,11 +356,11 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
               Amount to +/- when clicking buttons in the billing page.
             </p>
           </div>
-          
+
           <div>
             <Label htmlFor="category">Category *</Label>
-            <Select 
-              value={formData.category} 
+            <Select
+              value={formData.category}
               onValueChange={(value) => setFormData({ ...formData, category: value })}
             >
               <SelectTrigger className="bg-background">
@@ -351,14 +378,24 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
           </div>
 
           <div>
-            <Label htmlFor="image_url">Item Image</Label>
-            <ImageUpload
-              value={formData.image_url}
-              onChange={(url) => setFormData({ ...formData, image_url: url })}
+            <Label>
+              Item Media
+              {hasPremiumAccess && (
+                <span className="text-xs text-purple-600 ml-1">(Premium: GIF/Video enabled)</span>
+              )}
+            </Label>
+            <MediaUpload
+              imageUrl={formData.image_url}
+              videoUrl={formData.video_url}
+              mediaType={formData.media_type}
+              onImageChange={(url) => setFormData({ ...formData, image_url: url })}
+              onVideoChange={(url) => setFormData({ ...formData, video_url: url })}
+              onMediaTypeChange={(type) => setFormData({ ...formData, media_type: type })}
               itemId={`new-item-${Date.now()}`}
+              hasPremiumAccess={hasPremiumAccess}
             />
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <Checkbox
               id="is_active"
@@ -367,13 +404,13 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
             />
             <Label htmlFor="is_active">Item is available for sale</Label>
           </div>
-          
+
           <div className="flex justify-end space-x-2 pt-4">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={loading}
               className="bg-orange-500 hover:bg-orange-600 text-white"
             >

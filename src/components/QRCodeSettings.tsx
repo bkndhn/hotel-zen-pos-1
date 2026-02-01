@@ -24,6 +24,7 @@ import {
     MapPin,
     Phone
 } from 'lucide-react';
+import { PromoBannerManager } from '@/components/PromoBannerManager';
 
 // Simple QR Code generator using a public API
 const generateQRCodeUrl = (text: string, size: number = 300): string => {
@@ -599,6 +600,9 @@ const QRCodeSettings = () => {
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Promotional Banners Section */}
+            <PromoBannerManager />
         </div>
     );
 };

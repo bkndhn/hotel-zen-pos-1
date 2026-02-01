@@ -11,7 +11,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Edit } from 'lucide-react';
-import { ImageUpload } from '@/components/ImageUpload';
+import { MediaUpload } from '@/components/MediaUpload';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Category {
   id: string;
@@ -32,6 +33,8 @@ interface Item {
   minimum_stock_alert?: number;
   quantity_step?: number;
   image_url?: string;
+  video_url?: string;
+  media_type?: string;
   unlimited_stock?: boolean;
 }
 
@@ -41,8 +44,10 @@ interface EditItemDialogProps {
 }
 
 export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpdated }) => {
+  const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [hasPremiumAccess, setHasPremiumAccess] = useState(false);
   const [formData, setFormData] = useState({
     name: item.name,
     description: item.description || '',
@@ -55,6 +60,8 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
     quantity_step: item.quantity_step?.toString() || '1',
     category: item.category || '',
     image_url: item.image_url || '',
+    video_url: item.video_url || '',
+    media_type: (item.media_type || 'image') as 'image' | 'gif' | 'video',
     is_active: item.is_active,
     unlimited_stock: item.unlimited_stock || false
   });
@@ -63,6 +70,7 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
   useEffect(() => {
     if (open) {
       fetchCategories();
+      checkPremiumAccess();
     }
   }, [open]);
 
@@ -81,12 +89,44 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
     }
   };
 
+  const checkPremiumAccess = async () => {
+    // Check if current user's admin has QR Menu access
+    const adminId = profile?.role === 'admin' ? profile.user_id : profile?.admin_id;
+    if (!adminId) return;
+
+    try {
+      // For admin, check their own profile
+      const targetUserId = profile?.role === 'admin' ? profile.user_id : null;
+
+      if (targetUserId) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('has_qr_menu_access')
+          .eq('user_id', targetUserId)
+          .maybeSingle();
+
+        setHasPremiumAccess(data?.has_qr_menu_access ?? false);
+      } else {
+        // For sub-users, check parent admin's access
+        const { data } = await supabase
+          .from('profiles')
+          .select('has_qr_menu_access')
+          .eq('id', profile?.admin_id)
+          .maybeSingle();
+
+        setHasPremiumAccess(data?.has_qr_menu_access ?? false);
+      }
+    } catch (error) {
+      console.error('Error checking premium access:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.price || !formData.purchase_rate || (!formData.unlimited_stock && !formData.stock_quantity)) {
       toast({
         title: "Error",
-        description: formData.unlimited_stock 
+        description: formData.unlimited_stock
           ? "Name, selling price, and purchase rate are required"
           : "Name, selling price, purchase rate, and stock quantity are required",
         variant: "destructive",
@@ -110,6 +150,8 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
           quantity_step: parseFloat(formData.quantity_step),
           category: formData.category || null,
           image_url: formData.image_url || null,
+          video_url: formData.video_url || null,
+          media_type: formData.media_type,
           is_active: formData.is_active,
           unlimited_stock: formData.unlimited_stock
         } as any)
@@ -141,7 +183,7 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
       <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
         <Edit className="w-4 h-4" />
       </Button>
-      
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
@@ -169,7 +211,7 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
                 rows={3}
               />
             </div>
-            
+
             <div>
               <Label htmlFor="price">Selling Price *</Label>
               <Input
@@ -200,8 +242,8 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
 
             <div>
               <Label htmlFor="unit">Unit *</Label>
-              <Select 
-                value={formData.unit} 
+              <Select
+                value={formData.unit}
                 onValueChange={(value) => setFormData({ ...formData, unit: value })}
               >
                 <SelectTrigger className="bg-background">
@@ -287,11 +329,11 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
                 Amount to +/- when clicking buttons in the billing page.
               </p>
             </div>
-            
+
             <div>
               <Label htmlFor="category">Category</Label>
-              <Select 
-                value={formData.category || 'none'} 
+              <Select
+                value={formData.category || 'none'}
                 onValueChange={(value) => setFormData({ ...formData, category: value === 'none' ? '' : value })}
               >
                 <SelectTrigger className="bg-background">
@@ -309,14 +351,19 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
             </div>
 
             <div>
-              <Label htmlFor="image_url">Item Image</Label>
-              <ImageUpload
-                value={formData.image_url}
-                onChange={(url) => setFormData({ ...formData, image_url: url })}
+              <Label>Item Media {hasPremiumAccess && <span className="text-purple-600 text-xs">(Premium: GIF/Video enabled)</span>}</Label>
+              <MediaUpload
+                imageUrl={formData.image_url}
+                videoUrl={formData.video_url}
+                mediaType={formData.media_type}
+                onImageChange={(url) => setFormData({ ...formData, image_url: url })}
+                onVideoChange={(url) => setFormData({ ...formData, video_url: url })}
+                onMediaTypeChange={(type) => setFormData({ ...formData, media_type: type })}
                 itemId={item.id}
+                hasPremiumAccess={hasPremiumAccess}
               />
             </div>
-            
+
             <div className="flex items-center space-x-2">
               <Switch
                 id="is_active"
@@ -325,7 +372,7 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
               />
               <Label htmlFor="is_active">Item is available for sale</Label>
             </div>
-            
+
             <div className="flex justify-end space-x-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
@@ -340,3 +387,4 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
     </>
   );
 };
+
