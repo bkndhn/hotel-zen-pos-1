@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Utensils, Phone, MapPin, Wifi, WifiOff, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getShortUnit } from '@/utils/timeUtils';
 
 // Types
 interface MenuItem {
@@ -17,6 +18,7 @@ interface MenuItem {
     media_type?: 'image' | 'gif' | 'video';
     category?: string;
     unit?: string;
+    base_value?: number;
     is_active: boolean;
 }
 
@@ -36,6 +38,12 @@ interface ShopSettings {
     menu_show_shop_name?: boolean;
     menu_show_address?: boolean;
     menu_show_phone?: boolean;
+    // Appearance settings
+    menu_primary_color?: string;
+    menu_secondary_color?: string;
+    menu_background_color?: string;
+    menu_text_color?: string;
+    menu_items_per_row?: number;
 }
 
 
@@ -161,7 +169,7 @@ const PublicMenu = () => {
                 // Fetch items for this admin (including video/media fields)
                 const { data: itemsData, error: itemsError } = await supabase
                     .from('items')
-                    .select('id, name, price, image_url, video_url, media_type, category, unit, is_active')
+                    .select('id, name, price, image_url, video_url, media_type, category, unit, base_value, is_active')
                     .eq('admin_id', adminId)
                     .eq('is_active', true)
                     .order('category')
@@ -192,10 +200,10 @@ const PublicMenu = () => {
 
                 const userId = profileData?.user_id || adminId;
 
-                // Fetch shop settings including display preferences
+                // Fetch shop settings including display preferences and appearance
                 const { data: settingsData, error: settingsError } = await supabase
                     .from('shop_settings')
-                    .select('shop_name, address, contact_number, logo_url, menu_show_shop_name, menu_show_address, menu_show_phone')
+                    .select('shop_name, address, contact_number, logo_url, menu_show_shop_name, menu_show_address, menu_show_phone, menu_primary_color, menu_secondary_color, menu_background_color, menu_text_color, menu_items_per_row')
                     .eq('user_id', userId)
                     .maybeSingle();
 
@@ -418,9 +426,23 @@ const PublicMenu = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50">
+        <div
+            className="min-h-screen"
+            style={{
+                background: shopSettings?.menu_background_color
+                    ? `linear-gradient(to bottom right, ${shopSettings.menu_background_color}, ${shopSettings.menu_background_color}dd)`
+                    : 'linear-gradient(to bottom right, #fffbeb, #fef3c7, #fef9c3)'
+            }}
+        >
             {/* Header with Shop Name */}
-            <header className="sticky top-0 z-50 bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-lg">
+            <header
+                className="sticky top-0 z-50 text-white shadow-lg"
+                style={{
+                    background: shopSettings?.menu_primary_color
+                        ? `linear-gradient(to right, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})`
+                        : 'linear-gradient(to right, #ea580c, #d97706)'
+                }}
+            >
                 <div className="max-w-2xl mx-auto px-4 py-3">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -629,7 +651,13 @@ const PublicMenu = () => {
                                 {category}
                                 <span className="text-xs font-normal text-orange-500">({categoryItems.length})</span>
                             </h2>
-                            <div className="grid gap-2">
+                            <div
+                                className={cn(
+                                    "grid gap-2",
+                                    (shopSettings?.menu_items_per_row === 2) && "grid-cols-2",
+                                    (shopSettings?.menu_items_per_row === 3) && "grid-cols-3"
+                                )}
+                            >
                                 {categoryItems.map(item => (
                                     <div
                                         key={item.id}
@@ -644,12 +672,10 @@ const PublicMenu = () => {
                                                 <div className="flex-shrink-0 text-right">
                                                     <span className="text-base font-bold text-orange-600">
                                                         ₹{item.price}
-                                                    </span>
-                                                    {item.unit && (
-                                                        <span className="block text-[10px] text-gray-500">
-                                                            /{item.unit}
+                                                        <span className="text-xs font-medium text-gray-500">
+                                                            /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
                                                         </span>
-                                                    )}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>

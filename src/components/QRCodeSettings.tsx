@@ -22,7 +22,9 @@ import {
     AlertCircle,
     Store,
     MapPin,
-    Phone
+    Phone,
+    Palette,
+    LayoutGrid
 } from 'lucide-react';
 import { PromoBannerManager } from '@/components/PromoBannerManager';
 
@@ -48,6 +50,13 @@ const QRCodeSettings = () => {
     const [menuShowShopName, setMenuShowShopName] = useState(true);
     const [menuShowAddress, setMenuShowAddress] = useState(true);
     const [menuShowPhone, setMenuShowPhone] = useState(true);
+
+    // Menu Appearance Options
+    const [menuPrimaryColor, setMenuPrimaryColor] = useState('#f97316');
+    const [menuSecondaryColor, setMenuSecondaryColor] = useState('#ea580c');
+    const [menuBackgroundColor, setMenuBackgroundColor] = useState('#fffbeb');
+    const [menuTextColor, setMenuTextColor] = useState('#1c1917');
+    const [menuItemsPerRow, setMenuItemsPerRow] = useState(1);
 
     // Determine the admin ID to use for the menu URL
     const adminId = profile?.role === 'admin' ? profile.id : profile?.admin_id;
@@ -81,7 +90,7 @@ const QRCodeSettings = () => {
             if (profile?.user_id) {
                 const { data } = await supabase
                     .from('shop_settings')
-                    .select('menu_slug, menu_show_shop_name, menu_show_address, menu_show_phone')
+                    .select('menu_slug, menu_show_shop_name, menu_show_address, menu_show_phone, menu_primary_color, menu_secondary_color, menu_background_color, menu_text_color, menu_items_per_row')
                     .eq('user_id', profile.user_id)
                     .maybeSingle();
 
@@ -90,6 +99,12 @@ const QRCodeSettings = () => {
                     if (data.menu_show_shop_name !== undefined) setMenuShowShopName(data.menu_show_shop_name);
                     if (data.menu_show_address !== undefined) setMenuShowAddress(data.menu_show_address);
                     if (data.menu_show_phone !== undefined) setMenuShowPhone(data.menu_show_phone);
+                    // Appearance settings
+                    if (data.menu_primary_color) setMenuPrimaryColor(data.menu_primary_color);
+                    if (data.menu_secondary_color) setMenuSecondaryColor(data.menu_secondary_color);
+                    if (data.menu_background_color) setMenuBackgroundColor(data.menu_background_color);
+                    if (data.menu_text_color) setMenuTextColor(data.menu_text_color);
+                    if (data.menu_items_per_row) setMenuItemsPerRow(data.menu_items_per_row);
                 }
             }
         };
@@ -117,6 +132,11 @@ const QRCodeSettings = () => {
                     menu_show_shop_name: menuShowShopName,
                     menu_show_address: menuShowAddress,
                     menu_show_phone: menuShowPhone,
+                    menu_primary_color: menuPrimaryColor,
+                    menu_secondary_color: menuSecondaryColor,
+                    menu_background_color: menuBackgroundColor,
+                    menu_text_color: menuTextColor,
+                    menu_items_per_row: menuItemsPerRow,
                 }, { onConflict: 'user_id' });
         }
     };
@@ -552,7 +572,18 @@ const QRCodeSettings = () => {
                                         min={1}
                                         max={100}
                                         value={tableCount}
-                                        onChange={(e) => setTableCount(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            const num = parseInt(val);
+                                            if (!isNaN(num)) {
+                                                setTableCount(Math.max(1, Math.min(100, num)));
+                                            }
+                                        }}
+                                        onBlur={(e) => {
+                                            if (!e.target.value || parseInt(e.target.value) < 1) {
+                                                setTableCount(1);
+                                            }
+                                        }}
                                         className="w-20"
                                     />
                                 </div>
@@ -586,6 +617,118 @@ const QRCodeSettings = () => {
                                 </Button>
                             </div>
                         )}
+                    </div>
+
+                    {/* Menu Appearance Settings */}
+                    <div className="border-t pt-4 space-y-4">
+                        <div className="flex items-center gap-2 mb-3">
+                            <Palette className="w-4 h-4 text-purple-600" />
+                            <Label className="text-sm font-medium">Menu Appearance</Label>
+                            <Badge variant="secondary" className="text-[10px]">Per Admin</Badge>
+                        </div>
+
+                        {/* Color Pickers */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">Header Color</Label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="color"
+                                        value={menuPrimaryColor}
+                                        onChange={(e) => setMenuPrimaryColor(e.target.value)}
+                                        onBlur={saveSettings}
+                                        className="w-8 h-8 rounded border cursor-pointer"
+                                    />
+                                    <Input
+                                        value={menuPrimaryColor}
+                                        onChange={(e) => setMenuPrimaryColor(e.target.value)}
+                                        onBlur={saveSettings}
+                                        className="h-8 text-xs font-mono flex-1"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">Category Pills</Label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="color"
+                                        value={menuSecondaryColor}
+                                        onChange={(e) => setMenuSecondaryColor(e.target.value)}
+                                        onBlur={saveSettings}
+                                        className="w-8 h-8 rounded border cursor-pointer"
+                                    />
+                                    <Input
+                                        value={menuSecondaryColor}
+                                        onChange={(e) => setMenuSecondaryColor(e.target.value)}
+                                        onBlur={saveSettings}
+                                        className="h-8 text-xs font-mono flex-1"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">Background</Label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="color"
+                                        value={menuBackgroundColor}
+                                        onChange={(e) => setMenuBackgroundColor(e.target.value)}
+                                        onBlur={saveSettings}
+                                        className="w-8 h-8 rounded border cursor-pointer"
+                                    />
+                                    <Input
+                                        value={menuBackgroundColor}
+                                        onChange={(e) => setMenuBackgroundColor(e.target.value)}
+                                        onBlur={saveSettings}
+                                        className="h-8 text-xs font-mono flex-1"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">Text Color</Label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="color"
+                                        value={menuTextColor}
+                                        onChange={(e) => setMenuTextColor(e.target.value)}
+                                        onBlur={saveSettings}
+                                        className="w-8 h-8 rounded border cursor-pointer"
+                                    />
+                                    <Input
+                                        value={menuTextColor}
+                                        onChange={(e) => setMenuTextColor(e.target.value)}
+                                        onBlur={saveSettings}
+                                        className="h-8 text-xs font-mono flex-1"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Items Per Row */}
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <LayoutGrid className="w-4 h-4 text-blue-600" />
+                                <Label className="text-xs text-muted-foreground">Items Per Row</Label>
+                            </div>
+                            <div className="flex gap-2">
+                                {[1, 2, 3].map(num => (
+                                    <Button
+                                        key={num}
+                                        variant={menuItemsPerRow === num ? 'default' : 'outline'}
+                                        size="sm"
+                                        className="flex-1"
+                                        onClick={() => {
+                                            setMenuItemsPerRow(num);
+                                            setTimeout(saveSettings, 100);
+                                        }}
+                                    >
+                                        {num} {num === 1 ? 'Item' : 'Items'}
+                                    </Button>
+                                ))}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">
+                                Changes apply instantly to your public menu
+                            </p>
+                        </div>
                     </div>
 
                     {/* Usage Instructions */}
