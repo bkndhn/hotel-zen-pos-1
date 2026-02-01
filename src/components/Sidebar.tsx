@@ -15,7 +15,8 @@ import {
   ClipboardList,
   ChefHat,
   LayoutGrid,
-  UserCircle
+  UserCircle,
+  QrCode
 } from 'lucide-react';
 
 const allNavItems = [
@@ -29,9 +30,11 @@ const allNavItems = [
   { to: '/expenses', icon: Receipt, label: 'Expenses', page: 'expenses' as const },
   { to: '/reports', icon: BarChart3, label: 'Reports', page: 'reports' as const },
   { to: '/crm', icon: UserCircle, label: 'CRM', page: 'customers' as const },
+  { to: '/qr-menu', icon: QrCode, label: 'QR Menu', page: 'qrMenu' as const },
   { to: '/users', icon: Users, label: 'Users', page: 'users' as const },
   { to: '/settings', icon: Settings, label: 'Settings', page: 'settings' as const },
 ];
+
 
 export const Sidebar: React.FC = () => {
   const { profile } = useAuth();

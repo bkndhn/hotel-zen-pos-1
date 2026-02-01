@@ -6,8 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
-import { Users as UsersIcon, Search, User, Shield, ChevronDown, ChevronRight, Crown } from 'lucide-react';
+import { Users as UsersIcon, Search, User, Shield, ChevronDown, ChevronRight, Crown, QrCode } from 'lucide-react';
 import { AddUserDialog } from '@/components/AddUserDialog';
+import { Switch } from '@/components/ui/switch';
 
 import { UserPermissions } from '@/components/UserPermissions';
 import type { UserProfile, UserStatus, UserRole } from '@/types/user';
@@ -19,6 +20,7 @@ interface ExtendedUserProfile extends UserProfile {
   subUsers?: ExtendedUserProfile[];
   last_login?: string | null;
   login_count?: number | null;
+  has_qr_menu_access?: boolean;
 }
 
 const Users: React.FC = () => {
@@ -93,7 +95,8 @@ const Users: React.FC = () => {
         updated_at: user.updated_at,
         admin_id: user.admin_id,
         last_login: user.last_login,
-        login_count: user.login_count
+        login_count: user.login_count,
+        has_qr_menu_access: user.has_qr_menu_access ?? false
       })) as ExtendedUserProfile[];
 
       if (isSuperAdmin) {
@@ -159,6 +162,40 @@ const Users: React.FC = () => {
       });
     }
   };
+
+  const toggleQRMenuAccess = async (userId: string, currentValue: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ has_qr_menu_access: !currentValue })
+        .eq('id', userId);
+
+      if (error) throw error;
+
+      // Update local state immediately
+      setUsers(prev => prev.map(user =>
+        user.id === userId ? { ...user, has_qr_menu_access: !currentValue } : user
+      ));
+      setFilteredUsers(prev => prev.map(user =>
+        user.id === userId ? { ...user, has_qr_menu_access: !currentValue } : user
+      ));
+
+      toast({
+        title: !currentValue ? "QR Menu Enabled" : "QR Menu Disabled",
+        description: !currentValue
+          ? "Client can now access QR Menu features"
+          : "QR Menu access has been revoked",
+      });
+    } catch (error) {
+      console.error('Error toggling QR Menu access:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update QR Menu access",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   const getRoleIcon = (role: string) => {
     switch (role) {
@@ -330,7 +367,21 @@ const Users: React.FC = () => {
                         </div>
 
                         {/* Admin Actions */}
-                        <div className="flex flex-wrap gap-2 mt-3 ml-8">
+                        <div className="flex flex-wrap items-center gap-2 mt-3 ml-8">
+                          {/* QR Menu Access Toggle */}
+                          <div
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-muted/30"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <QrCode className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-xs font-medium">QR Menu</span>
+                            <Switch
+                              checked={admin.has_qr_menu_access ?? false}
+                              onCheckedChange={() => toggleQRMenuAccess(admin.id, admin.has_qr_menu_access ?? false)}
+                              className="scale-90"
+                            />
+                          </div>
+
                           <Button
                             size="sm"
                             variant={admin.status === 'active' ? 'outline' : 'default'}

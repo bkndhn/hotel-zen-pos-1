@@ -26,8 +26,10 @@ const AVAILABLE_PAGES = [
   { name: 'expenses', label: 'Expenses', description: 'Track expenses' },
   { name: 'reports', label: 'Reports', description: 'View bill reports' },
   { name: 'customers', label: 'CRM', description: 'Customer relationship management' },
+  { name: 'qrMenu', label: 'QR Menu', description: 'QR code menu settings' },
   { name: 'settings', label: 'Settings', description: 'App settings' },
 ];
+
 
 interface UserPermissionsProps {
   users: UserProfile[];

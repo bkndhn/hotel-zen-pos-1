@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Package, Search, Plus, GripVertical } from 'lucide-react';
+import { Package, Search, Plus, GripVertical, Eye, EyeOff } from 'lucide-react';
 import { AddItemDialog } from '@/components/AddItemDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { EditItemDialog } from '@/components/EditItemDialog';
@@ -47,6 +47,11 @@ const Items: React.FC = () => {
   // Permanent delete state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
+
+  // Toggle availability state
+  const [toggleDialogOpen, setToggleDialogOpen] = useState(false);
+  const [itemToToggle, setItemToToggle] = useState<Item | null>(null);
+  const [isToggling, setIsToggling] = useState(false);
 
   // Drag and drop refs
   const dragItem = useRef<number | null>(null);
@@ -276,6 +281,49 @@ const Items: React.FC = () => {
     }
   };
 
+  // Quick toggle availability
+  const confirmToggle = (item: Item, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setItemToToggle(item);
+    setToggleDialogOpen(true);
+  };
+
+  const handleToggleAvailability = async () => {
+    if (!itemToToggle) return;
+
+    setIsToggling(true);
+    try {
+      const newStatus = !itemToToggle.is_active;
+      const { error } = await supabase
+        .from('items')
+        .update({ is_active: newStatus })
+        .eq('id', itemToToggle.id);
+
+      if (error) throw error;
+
+      toast({
+        title: newStatus ? "Item Available" : "Item Unavailable",
+        description: `${itemToToggle.name} is now ${newStatus ? 'available' : 'unavailable'} on menu.`,
+      });
+
+      // Update local state immediately for instant feedback
+      setItems(prev => prev.map(item =>
+        item.id === itemToToggle.id ? { ...item, is_active: newStatus } : item
+      ));
+    } catch (error) {
+      console.error("Toggle error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update item availability",
+        variant: "destructive"
+      });
+    } finally {
+      setIsToggling(false);
+      setToggleDialogOpen(false);
+      setItemToToggle(null);
+    }
+  };
+
   const activeItems = filteredItems.filter(item => item.is_active);
   const inactiveItems = filteredItems.filter(item => !item.is_active);
 
@@ -300,6 +348,113 @@ const Items: React.FC = () => {
     if (item.minimum_stock_alert === null || item.minimum_stock_alert === undefined) return false;
     return item.stock_quantity <= item.minimum_stock_alert;
   };
+
+  // Render item card with quick toggle button
+  const renderItemCard = (item: Item, index: number, isInactive = false) => (
+    <Card
+      key={item.id}
+      draggable={profile?.role === 'admin' && !isInactive}
+      onDragStart={() => handleDragStart(index)}
+      onDragEnter={() => handleDragEnter(index)}
+      onDragEnd={handleDragEnd}
+      onDragOver={(e) => e.preventDefault()}
+      className={`overflow-hidden hover:shadow-md transition-all ${isLowStock(item) ? 'border-2 border-orange-500 dark:border-orange-400' : 'border-muted'} ${profile?.role === 'admin' && !isInactive ? 'cursor-grab active:cursor-grabbing' : ''} ${isReordering ? 'opacity-50' : ''} ${isInactive ? 'bg-muted/30' : ''}`}
+    >
+      <div className={`flex flex-col h-full ${isInactive ? 'opacity-75' : ''}`}>
+        {/* Quick Toggle Button - Always visible at top */}
+        {profile?.role === 'admin' && (
+          <div className="bg-muted/50 py-1.5 px-2 flex items-center justify-between gap-1">
+            {!isInactive && (
+              <div className="flex items-center gap-1 text-muted-foreground text-[10px]">
+                <GripVertical className="w-3 h-3" />
+                <span>Drag</span>
+              </div>
+            )}
+            {isInactive && <div />}
+            <Button
+              variant={item.is_active ? "outline" : "default"}
+              size="sm"
+              className={`h-6 px-2 text-[10px] ${item.is_active ? 'hover:bg-red-50 hover:text-red-600 hover:border-red-200' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+              onClick={(e) => confirmToggle(item, e)}
+            >
+              {item.is_active ? (
+                <>
+                  <EyeOff className="w-3 h-3 mr-1" />
+                  Hide
+                </>
+              ) : (
+                <>
+                  <Eye className="w-3 h-3 mr-1" />
+                  Show
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+
+        {item.image_url && (
+          <div className={`w-full aspect-[4/3] overflow-hidden bg-muted/20 relative ${isInactive ? 'grayscale' : ''}`}>
+            <img
+              src={item.image_url}
+              alt={item.name}
+              className="w-full h-full object-cover pointer-events-none"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            {isLowStock(item) && !isInactive && (
+              <Badge className="absolute top-1 right-1 bg-orange-500 text-white text-[9px] px-1.5 py-0.5">
+                Low Stock
+              </Badge>
+            )}
+          </div>
+        )}
+
+        <div className="p-2 sm:p-3 flex flex-col flex-1 gap-1.5">
+          <div>
+            <h4 className="font-semibold text-sm leading-tight line-clamp-1" title={item.name}>{item.name}</h4>
+            <div className="flex justify-between items-start mt-0.5">
+              <Badge variant="outline" className="text-[10px] h-4 px-1 rounded bg-muted/50 font-normal">
+                {item.category || 'No Cat'}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="mt-auto pt-1 flex items-end justify-between">
+            <div>
+              <span className={`font-bold text-base block leading-none ${isInactive ? 'text-muted-foreground' : 'text-primary'}`}>
+                ₹{item.price.toFixed(0)}
+                <span className={`text-base ${isInactive ? '' : 'text-primary'}`}>
+                  /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
+                </span>
+              </span>
+              {item.stock_quantity !== null && item.stock_quantity !== undefined && (
+                <span className={`text-[10px] ${isLowStock(item) ? 'text-orange-500 font-semibold' : 'text-muted-foreground'}`}>
+                  Stk: {formatQuantityWithUnit(item.stock_quantity, item.unit)}
+                </span>
+              )}
+            </div>
+
+            {profile?.role === 'admin' && (
+              <div className="flex gap-1">
+                {isInactive && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-7 px-2 text-[10px]"
+                    onClick={() => confirmDelete(item)}
+                  >
+                    Delete
+                  </Button>
+                )}
+                <EditItemDialog item={item} onItemUpdated={handleItemAdded} />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
 
   return (
     <div className="p-3 sm:p-4 max-w-full">
@@ -386,74 +541,7 @@ const Items: React.FC = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4">
-                  {activeItems.map((item, index) => (
-                    <Card
-                      key={item.id}
-                      draggable={profile?.role === 'admin'}
-                      onDragStart={() => handleDragStart(index)}
-                      onDragEnter={() => handleDragEnter(index)}
-                      onDragEnd={handleDragEnd}
-                      onDragOver={(e) => e.preventDefault()}
-                      className={`overflow-hidden hover:shadow-md transition-all ${isLowStock(item) ? 'border-2 border-orange-500 dark:border-orange-400' : 'border-muted'} ${profile?.role === 'admin' ? 'cursor-grab active:cursor-grabbing' : ''} ${isReordering ? 'opacity-50' : ''}`}
-                    >
-                      <div className="flex flex-col h-full">
-                        {profile?.role === 'admin' && (
-                          <div className="bg-muted/50 py-1 px-2 flex items-center justify-center gap-1 text-muted-foreground text-[10px]">
-                            <GripVertical className="w-3 h-3" />
-                            <span>Drag to reorder</span>
-                          </div>
-                        )}
-                        {item.image_url && (
-                          <div className="w-full aspect-[4/3] overflow-hidden bg-muted/20 relative">
-                            <img
-                              src={item.image_url}
-                              alt={item.name}
-                              className="w-full h-full object-cover pointer-events-none"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
-                            />
-                            {isLowStock(item) && (
-                              <Badge className="absolute top-1 right-1 bg-orange-500 text-white text-[9px] px-1.5 py-0.5">
-                                Low Stock
-                              </Badge>
-                            )}
-                          </div>
-                        )}
-
-                        <div className="p-2 sm:p-3 flex flex-col flex-1 gap-1.5">
-                          <div>
-                            <h4 className="font-semibold text-sm leading-tight line-clamp-1" title={item.name}>{item.name}</h4>
-                            <div className="flex justify-between items-start mt-0.5">
-                              <Badge variant="outline" className="text-[10px] h-4 px-1 rounded bg-muted/50 font-normal">
-                                {item.category || 'No Cat'}
-                              </Badge>
-                            </div>
-                          </div>
-
-                          <div className="mt-auto pt-1 flex items-end justify-between">
-                            <div>
-                              <span className="font-bold text-base text-primary block leading-none">
-                                ₹{item.price.toFixed(0)}
-                                <span className="text-base text-primary">
-                                  /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
-                                </span>
-                              </span>
-                              {item.stock_quantity !== null && item.stock_quantity !== undefined && (
-                                <span className={`text-[10px] ${isLowStock(item) ? 'text-orange-500 font-semibold' : 'text-muted-foreground'}`}>
-                                  Stk: {formatQuantityWithUnit(item.stock_quantity, item.unit)}
-                                </span>
-                              )}
-                            </div>
-
-                            {profile?.role === 'admin' && (
-                              <EditItemDialog item={item} onItemUpdated={handleItemAdded} />
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
+                  {activeItems.map((item, index) => renderItemCard(item, index, false))}
                 </div>
               )}
             </CardContent>
@@ -470,75 +558,56 @@ const Items: React.FC = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4">
-                  {inactiveItems.map((item) => (
-                    <Card key={item.id} className="overflow-hidden hover:shadow-md transition-shadow border-muted bg-muted/30">
-                      <div className="flex flex-col h-full opacity-75">
-                        {item.image_url && (
-                          <div className="w-full aspect-[4/3] overflow-hidden bg-muted/20 grayscale">
-                            <img
-                              src={item.image_url}
-                              alt={item.name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                            />
-                          </div>
-                        )}
-
-                        <div className="p-2 sm:p-3 flex flex-col flex-1 gap-1.5">
-                          <div>
-                            <h4 className="font-semibold text-sm leading-tight line-clamp-1">{item.name}</h4>
-                            <Badge variant="outline" className="text-[10px] h-4 px-1 rounded bg-muted/50 font-normal mt-1">
-                              {item.category || 'No Cat'}
-                            </Badge>
-                          </div>
-
-                          <div className="mt-auto pt-1 flex items-end justify-between">
-                            <span className="font-bold text-base text-muted-foreground block leading-none">
-                              ₹{item.price.toFixed(0)}
-                              <span className="text-base">
-                                /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
-                              </span>
-                            </span>
-                            {profile?.role === 'admin' && (
-                              <div className="flex gap-1">
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  className="h-8 px-2 text-xs"
-                                  onClick={() => confirmDelete(item)}
-                                >
-                                  Delete
-                                </Button>
-                                <EditItemDialog item={item} onItemUpdated={handleItemAdded} />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
+                  {inactiveItems.map((item, index) => renderItemCard(item, index, true))}
                 </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
-      <div className="fixed">
-        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Permanently?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete "{itemToDelete?.name}"? This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handlePermanentDelete} className="bg-red-600 hover:bg-red-700">Delete Permanently</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Permanently?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{itemToDelete?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePermanentDelete} className="bg-red-600 hover:bg-red-700">Delete Permanently</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Toggle Availability Confirmation Dialog */}
+      <AlertDialog open={toggleDialogOpen} onOpenChange={setToggleDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {itemToToggle?.is_active ? 'Make Item Unavailable?' : 'Make Item Available?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {itemToToggle?.is_active
+                ? `"${itemToToggle?.name}" will be hidden from the public menu. Customers won't see this item.`
+                : `"${itemToToggle?.name}" will be shown on the public menu. Customers will be able to see this item.`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isToggling}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleToggleAvailability}
+              disabled={isToggling}
+              className={itemToToggle?.is_active ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}
+            >
+              {isToggling ? 'Updating...' : (itemToToggle?.is_active ? 'Yes, Hide Item' : 'Yes, Show Item')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

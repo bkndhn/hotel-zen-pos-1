@@ -13,7 +13,8 @@ import {
   ClipboardList,
   LayoutGrid,
   ChefHat,
-  Users
+  Users,
+  QrCode
 } from 'lucide-react';
 
 const allNavItems = [
@@ -26,8 +27,10 @@ const allNavItems = [
   { to: '/expenses', icon: Receipt, label: 'Expenses', page: 'expenses' as const },
   { to: '/reports', icon: BarChart3, label: 'Reports', page: 'reports' as const },
   { to: '/crm', icon: Users, label: 'CRM', page: 'customers' as const },
+  { to: '/qr-menu', icon: QrCode, label: 'QR Menu', page: 'qrMenu' as const },
   { to: '/settings', icon: Settings, label: 'Settings', page: 'settings' as const },
 ];
+
 
 export const BottomNavigation: React.FC = () => {
   const { profile } = useAuth();
@@ -78,7 +81,7 @@ export const BottomNavigation: React.FC = () => {
                 const parsed = JSON.parse(cached);
                 parsed.visiblePages = data.visible_nav_pages;
                 localStorage.setItem('hotel_pos_bill_header', JSON.stringify(parsed));
-              } catch {}
+              } catch { }
             }
           }
         } catch (err) {

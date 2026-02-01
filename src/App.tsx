@@ -26,6 +26,8 @@ import KitchenDisplay from "./pages/KitchenDisplay";
 import CustomerDisplay from "./pages/CustomerDisplay";
 import TableManagement from "./pages/TableManagement";
 import CRM from "./pages/CRM";
+import PublicMenu from "./pages/PublicMenu";
+import QRMenu from "./pages/QRMenu";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PendingBillsQueue } from "./components/PendingBillsQueue";
@@ -235,7 +237,9 @@ const App = () => {
                   <Route path="/kitchen" element={<Layout><ProtectedRoute requiredPermission="kitchen"><KitchenDisplay /></ProtectedRoute></Layout>} />
                   <Route path="/tables" element={<Layout><ProtectedRoute requiredPermission="tables"><TableManagement /></ProtectedRoute></Layout>} />
                   <Route path="/crm" element={<Layout><ProtectedRoute requiredPermission="settings"><CRM /></ProtectedRoute></Layout>} />
+                  <Route path="/qr-menu" element={<Layout><ProtectedRoute requiredPermission="qrMenu"><QRMenu /></ProtectedRoute></Layout>} />
                   <Route path="/display" element={<CustomerDisplay />} />
+                  <Route path="/menu/:adminId" element={<PublicMenu />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </PermissionsProvider>

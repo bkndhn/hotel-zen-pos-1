@@ -1,18 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserPermissions } from '@/hooks/useUserPermissions';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { toast } from '@/hooks/use-toast';
-import { Store, Upload, X, Facebook, Instagram, Phone, Navigation } from 'lucide-react';
+import { Store, Upload, X, Facebook, Instagram, Phone, Navigation, Link2, Eye, EyeOff, Check, AlertCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 
 export const ShopSettingsForm = () => {
     const { profile } = useAuth();
+    const { hasAccess } = useUserPermissions();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -23,6 +25,15 @@ export const ShopSettingsForm = () => {
     const [contactNumber, setContactNumber] = useState('');
     const [logoUrl, setLogoUrl] = useState('');
     const [printerWidth, setPrinterWidth] = useState<'58mm' | '80mm'>('58mm');
+
+    // Menu Slug State
+    const [menuSlug, setMenuSlug] = useState('');
+    const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+
+    // Menu Display Options
+    const [menuShowShopName, setMenuShowShopName] = useState(true);
+    const [menuShowAddress, setMenuShowAddress] = useState(true);
+    const [menuShowPhone, setMenuShowPhone] = useState(true);
 
     // Social Media State
     const [facebook, setFacebook] = useState('');
@@ -53,6 +64,10 @@ export const ShopSettingsForm = () => {
                 setWhatsapp(parsed.whatsapp || '');
                 setShowWhatsapp(parsed.showWhatsapp !== false);
                 if (parsed.visiblePages) setVisiblePages(parsed.visiblePages);
+                if (parsed.menuSlug) setMenuSlug(parsed.menuSlug);
+                if (parsed.menuShowShopName !== undefined) setMenuShowShopName(parsed.menuShowShopName);
+                if (parsed.menuShowAddress !== undefined) setMenuShowAddress(parsed.menuShowAddress);
+                if (parsed.menuShowPhone !== undefined) setMenuShowPhone(parsed.menuShowPhone);
             } catch (e) { /* ignore parse errors */ }
         }
         // Always show the form (with cached or empty values)
@@ -91,6 +106,12 @@ export const ShopSettingsForm = () => {
                     setVisiblePages((data as any).visible_nav_pages);
                 }
 
+                // Menu settings
+                if ((data as any).menu_slug) setMenuSlug((data as any).menu_slug);
+                if ((data as any).menu_show_shop_name !== undefined) setMenuShowShopName((data as any).menu_show_shop_name);
+                if ((data as any).menu_show_address !== undefined) setMenuShowAddress((data as any).menu_show_address);
+                if ((data as any).menu_show_phone !== undefined) setMenuShowPhone((data as any).menu_show_phone);
+
                 // Update cache with fresh data from Supabase
                 const cacheData = {
                     shopName: data.shop_name || '',
@@ -104,7 +125,11 @@ export const ShopSettingsForm = () => {
                     showInstagram: data.show_instagram !== false,
                     whatsapp: data.whatsapp || '',
                     showWhatsapp: data.show_whatsapp !== false,
-                    visiblePages: (data as any).visible_nav_pages || ['dashboard', 'billing', 'service', 'kitchen', 'items', 'reports', 'settings', 'customers', 'expenses']
+                    visiblePages: (data as any).visible_nav_pages || ['dashboard', 'billing', 'service', 'kitchen', 'items', 'reports', 'settings', 'customers', 'expenses'],
+                    menuSlug: (data as any).menu_slug || '',
+                    menuShowShopName: (data as any).menu_show_shop_name !== false,
+                    menuShowAddress: (data as any).menu_show_address !== false,
+                    menuShowPhone: (data as any).menu_show_phone !== false,
                 };
                 localStorage.setItem('hotel_pos_bill_header', JSON.stringify(cacheData));
             }
@@ -113,6 +138,65 @@ export const ShopSettingsForm = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    // Generate slug from shop name
+    const generateSlugFromName = () => {
+        if (!shopName) return;
+        const slug = shopName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '')
+            .substring(0, 50);
+        setMenuSlug(slug);
+        checkSlugAvailability(slug);
+    };
+
+    // Check if slug is available
+    const checkSlugAvailability = async (slug: string) => {
+        if (!slug || slug.length < 3) {
+            setSlugStatus('idle');
+            return;
+        }
+
+        setSlugStatus('checking');
+        try {
+            const { data, error } = await supabase
+                .from('shop_settings')
+                .select('user_id')
+                .eq('menu_slug', slug)
+                .maybeSingle();
+
+            if (error && error.code !== 'PGRST116') throw error;
+
+            // Available if no data OR it's our own slug
+            if (!data || data.user_id === profile?.user_id) {
+                setSlugStatus('available');
+            } else {
+                setSlugStatus('taken');
+            }
+        } catch (error) {
+            console.error('Error checking slug:', error);
+            setSlugStatus('idle');
+        }
+    };
+
+    // Debounced slug check
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (menuSlug && menuSlug.length >= 3) {
+                checkSlugAvailability(menuSlug);
+            } else {
+                setSlugStatus('idle');
+            }
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [menuSlug]);
+
+    const handleSlugChange = (value: string) => {
+        // Only allow lowercase letters, numbers, and hyphens
+        const sanitized = value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+        setMenuSlug(sanitized);
     };
 
     const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -175,6 +259,17 @@ export const ShopSettingsForm = () => {
 
     const handleSave = async () => {
         if (!profile?.user_id) return;
+
+        // Validate slug if provided
+        if (menuSlug && slugStatus === 'taken') {
+            toast({
+                title: "Slug Not Available",
+                description: "Please choose a different custom URL",
+                variant: "destructive"
+            });
+            return;
+        }
+
         setSaving(true);
 
         try {
@@ -192,6 +287,10 @@ export const ShopSettingsForm = () => {
                 whatsapp: cleanUrl(whatsapp),
                 show_whatsapp: showWhatsapp,
                 visible_nav_pages: visiblePages,
+                menu_slug: menuSlug || null,
+                menu_show_shop_name: menuShowShopName,
+                menu_show_address: menuShowAddress,
+                menu_show_phone: menuShowPhone,
                 updated_at: new Date().toISOString()
             };
 
@@ -204,7 +303,8 @@ export const ShopSettingsForm = () => {
             // Update Local Cache
             const cacheData = {
                 shopName, address, contactNumber, logoUrl, printerWidth,
-                facebook, showFacebook, instagram, showInstagram, whatsapp, showWhatsapp, visiblePages
+                facebook, showFacebook, instagram, showInstagram, whatsapp, showWhatsapp, visiblePages,
+                menuSlug, menuShowShopName, menuShowAddress, menuShowPhone
             };
             localStorage.setItem('hotel_pos_bill_header', JSON.stringify(cacheData));
             localStorage.setItem('hotel_pos_printer_width', printerWidth);
@@ -230,6 +330,12 @@ export const ShopSettingsForm = () => {
     };
 
     if (loading) return <div>Loading settings...</div>;
+
+    // Get the admin ID for menu URL
+    const adminId = profile?.role === 'admin' ? profile.id : profile?.admin_id;
+    const menuUrl = menuSlug
+        ? `${window.location.origin}/menu/${menuSlug}`
+        : `${window.location.origin}/menu/${adminId}`;
 
     return (
         <Card>
@@ -396,25 +502,28 @@ export const ShopSettingsForm = () => {
                             { id: 'expenses', label: 'Expenses' },
                             { id: 'reports', label: 'Reports' },
                             { id: 'customers', label: 'CRM' },
+                            { id: 'qrMenu', label: 'QR Menu' },
                             { id: 'settings', label: 'Settings' }
-                        ].map((page) => (
-                            <div key={page.id} className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-muted/50 transition-colors">
-                                <Checkbox
-                                    id={`nav-${page.id}`}
-                                    checked={visiblePages.includes(page.id)}
-                                    onCheckedChange={(checked) => {
-                                        if (checked) {
-                                            setVisiblePages([...visiblePages, page.id]);
-                                        } else {
-                                            setVisiblePages(visiblePages.filter(p => p !== page.id));
-                                        }
-                                    }}
-                                />
-                                <Label htmlFor={`nav-${page.id}`} className="cursor-pointer flex-1">
-                                    {page.label}
-                                </Label>
-                            </div>
-                        ))}
+                        ]
+                            .filter(page => hasAccess(page.id as any))
+                            .map((page) => (
+                                <div key={page.id} className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                                    <Checkbox
+                                        id={`nav-${page.id}`}
+                                        checked={visiblePages.includes(page.id)}
+                                        onCheckedChange={(checked) => {
+                                            if (checked) {
+                                                setVisiblePages([...visiblePages, page.id]);
+                                            } else {
+                                                setVisiblePages(visiblePages.filter(p => p !== page.id));
+                                            }
+                                        }}
+                                    />
+                                    <Label htmlFor={`nav-${page.id}`} className="cursor-pointer flex-1">
+                                        {page.label}
+                                    </Label>
+                                </div>
+                            ))}
                     </div>
                 </div>
 

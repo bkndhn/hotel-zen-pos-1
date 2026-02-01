@@ -16,6 +16,7 @@ interface UserPermissions {
     customerDisplay: boolean;
     tables: boolean;
     customers: boolean;
+    qrMenu: boolean;
 }
 
 const DEFAULT_PERMISSIONS: UserPermissions = {
@@ -32,6 +33,7 @@ const DEFAULT_PERMISSIONS: UserPermissions = {
     customerDisplay: false,
     tables: false,
     customers: false,
+    qrMenu: false,
 };
 
 const ADMIN_PERMISSIONS: UserPermissions = {
@@ -48,6 +50,7 @@ const ADMIN_PERMISSIONS: UserPermissions = {
     customerDisplay: true,
     tables: true,
     customers: true,
+    qrMenu: true,
 };
 
 interface PermissionsContextType {
@@ -107,8 +110,20 @@ export const PermissionsProvider: React.FC<{ children: ReactNode }> = ({ childre
                     }
                 }
 
+                // Check if admin has QR Menu access (premium feature)
+                const { data: profileData } = await supabase
+                    .from('profiles')
+                    .select('has_qr_menu_access')
+                    .eq('user_id', profile.user_id)
+                    .maybeSingle();
+
+                const hasQrMenuAccess = profileData?.has_qr_menu_access ?? false;
+
                 // Build permissions - admin has access unless Super Admin disabled it
                 const perms = { ...ADMIN_PERMISSIONS };
+
+                // Apply QR Menu premium feature check
+                perms.qrMenu = hasQrMenuAccess;
 
                 for (const [page, allowed] of Object.entries(adminPermissions)) {
                     if (page in perms && allowed === false) {
@@ -122,16 +137,21 @@ export const PermissionsProvider: React.FC<{ children: ReactNode }> = ({ childre
                 return;
             }
 
+
             // For child users: need to check BOTH their own permissions AND parent admin's
             if (profile.role === 'user' && profile.admin_id) {
-                // First, get parent admin's permissions (set by Super Admin)
+                // First, get parent admin's user_id and has_qr_menu_access
                 const { data: adminData } = await supabase
                     .from('profiles')
-                    .select('user_id')
+                    .select('user_id, has_qr_menu_access')
                     .eq('id', profile.admin_id)
                     .single();
 
+                let adminHasQrMenuAccess = false;
+
                 if (adminData?.user_id) {
+                    adminHasQrMenuAccess = (adminData as any).has_qr_menu_access ?? false;
+
                     const { data: adminPermsData } = await supabase
                         .from('user_permissions')
                         .select('page_name, has_access')
@@ -179,11 +199,15 @@ export const PermissionsProvider: React.FC<{ children: ReactNode }> = ({ childre
                     (perms as any)[pageName] = !adminBlocked && childHasAccess;
                 }
 
+                // QR Menu: child can only have access if parent admin has premium access
+                perms.qrMenu = adminHasQrMenuAccess && (userPermissions['qrMenu'] === true);
+
                 setPermissions(perms);
                 fetchedForUserRef.current = profile.user_id;
                 setLoading(false);
                 return;
             }
+
 
             // Default: no permissions for unlinked users
             setPermissions(DEFAULT_PERMISSIONS);
@@ -227,7 +251,8 @@ export const PermissionsProvider: React.FC<{ children: ReactNode }> = ({ childre
             kitchen: '/kitchen',
             customerDisplay: '/customer-display',
             tables: '/tables',
-            customers: '/crm'
+            customers: '/crm',
+            qrMenu: '/qr-menu'
         };
 
         const handlePermissionChange = (userId: string, pageName: string, hasAccess: boolean) => {
