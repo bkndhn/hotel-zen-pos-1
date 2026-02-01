@@ -231,64 +231,124 @@ const QRCodeSettings = () => {
         }
     };
 
-    // Download QR code
+    // Download QR code using canvas to avoid CORS
     const handleDownloadQR = async () => {
         try {
-            const response = await fetch(generateQRCodeUrl(currentQrUrl, 500));
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = selectedTable
-                ? `menu-qr-table-${selectedTable}.png`
-                : 'menu-qr-code.png';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            const qrUrl = generateQRCodeUrl(currentQrUrl, 500);
 
-            toast({
-                title: "Downloaded!",
-                description: `QR code saved as ${a.download}`,
+            // Create a new image element
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+                img.src = qrUrl;
             });
+
+            // Create canvas and draw image
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error('Canvas not supported');
+            ctx.drawImage(img, 0, 0);
+
+            // Convert to blob and download
+            canvas.toBlob((blob) => {
+                if (!blob) {
+                    throw new Error('Could not create blob');
+                }
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = selectedTable
+                    ? `menu-qr-table-${selectedTable}.png`
+                    : 'menu-qr-code.png';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                toast({
+                    title: "Downloaded!",
+                    description: `QR code saved as ${a.download}`,
+                });
+            }, 'image/png');
         } catch (err) {
+            console.error('QR download error:', err);
+            // Fallback: open in new tab for manual save
+            window.open(generateQRCodeUrl(currentQrUrl, 500), '_blank');
             toast({
-                title: "Download failed",
-                description: "Could not download QR code",
-                variant: "destructive"
+                title: "Manual Download",
+                description: "Right-click the image and save it",
             });
         }
     };
 
-    // Download all table QR codes
+    // Download all table QR codes using canvas to avoid CORS
     const handleDownloadAllTableQRs = async () => {
         toast({
             title: "Downloading...",
             description: `Generating ${tableCount} QR codes`,
         });
 
+        let successCount = 0;
+
         for (let i = 1; i <= tableCount; i++) {
             const tableUrl = `${baseUrl}?table=${i}`;
             try {
-                const response = await fetch(generateQRCodeUrl(tableUrl, 400));
-                const blob = await response.blob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `menu-qr-table-${i}.png`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                await new Promise(r => setTimeout(r, 200));
+                const qrUrl = generateQRCodeUrl(tableUrl, 400);
+
+                // Create image and load with CORS
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = qrUrl;
+                });
+
+                // Create canvas and draw
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) continue;
+                ctx.drawImage(img, 0, 0);
+
+                // Convert to blob and download
+                await new Promise<void>((resolve) => {
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `menu-qr-table-${i}.png`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                            successCount++;
+                        }
+                        resolve();
+                    }, 'image/png');
+                });
+
+                // Small delay between downloads
+                await new Promise(r => setTimeout(r, 300));
             } catch (err) {
                 console.error(`Failed to download QR for table ${i}`, err);
             }
         }
 
         toast({
-            title: "All QR Codes Downloaded!",
-            description: `${tableCount} table QR codes saved`,
+            title: successCount > 0 ? "Download Complete!" : "Download Failed",
+            description: successCount > 0
+                ? `${successCount} of ${tableCount} QR codes saved`
+                : "Could not download QR codes. Try downloading individually.",
+            variant: successCount > 0 ? "default" : "destructive"
         });
     };
 
@@ -574,14 +634,20 @@ const QRCodeSettings = () => {
                                         value={tableCount}
                                         onChange={(e) => {
                                             const val = e.target.value;
+                                            // Allow empty input during typing
+                                            if (val === '') return;
                                             const num = parseInt(val);
-                                            if (!isNaN(num)) {
-                                                setTableCount(Math.max(1, Math.min(100, num)));
+                                            if (!isNaN(num) && num >= 1 && num <= 100) {
+                                                setTableCount(num);
                                             }
                                         }}
                                         onBlur={(e) => {
-                                            if (!e.target.value || parseInt(e.target.value) < 1) {
+                                            const val = e.target.value;
+                                            const num = parseInt(val);
+                                            if (!val || isNaN(num) || num < 1) {
                                                 setTableCount(1);
+                                            } else if (num > 100) {
+                                                setTableCount(100);
                                             }
                                         }}
                                         className="w-20"

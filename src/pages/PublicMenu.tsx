@@ -301,6 +301,28 @@ const PublicMenu = () => {
         return () => clearInterval(interval);
     }, [banners.length]);
 
+    // Update status bar color to match public menu theme
+    useEffect(() => {
+        const originalColor = document.querySelector('meta[name="theme-color"]')?.getAttribute('content') || '#db2777';
+        const menuColor = shopSettings?.menu_primary_color || '#f97316';
+
+        // Update theme-color meta tag for status bar
+        let metaThemeColor = document.querySelector('meta[name="theme-color"]');
+        if (!metaThemeColor) {
+            metaThemeColor = document.createElement('meta');
+            metaThemeColor.setAttribute('name', 'theme-color');
+            document.head.appendChild(metaThemeColor);
+        }
+        metaThemeColor.setAttribute('content', menuColor);
+
+        // Restore original color on unmount
+        return () => {
+            if (metaThemeColor) {
+                metaThemeColor.setAttribute('content', originalColor);
+            }
+        };
+    }, [shopSettings?.menu_primary_color]);
+
     // Item Media component with download protection
     const ItemMedia = ({ item }: { item: MenuItem }) => {
         const mediaUrl = item.media_type === 'video' || item.media_type === 'gif'

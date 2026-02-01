@@ -71,8 +71,26 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
     if (open) {
       fetchCategories();
       checkPremiumAccess();
+      // Reset form data with current item values when dialog opens
+      setFormData({
+        name: item.name,
+        description: item.description || '',
+        price: item.price.toString(),
+        purchase_rate: item.purchase_rate?.toString() || '',
+        unit: item.unit || 'Piece (pc)',
+        base_value: item.base_value?.toString() || '1',
+        stock_quantity: item.stock_quantity?.toString() || '',
+        minimum_stock_alert: item.minimum_stock_alert?.toString() || '',
+        quantity_step: item.quantity_step?.toString() || '1',
+        category: item.category || '',
+        image_url: item.image_url || '',
+        video_url: item.video_url || '',
+        media_type: (item.media_type || 'image') as 'image' | 'gif' | 'video',
+        is_active: item.is_active,
+        unlimited_stock: item.unlimited_stock || false
+      });
     }
-  }, [open]);
+  }, [open, item]);
 
   const fetchCategories = async () => {
     try {

@@ -1,11 +1,21 @@
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { X, Upload, Image as ImageIcon, Film, Loader2 } from 'lucide-react';
+import { X, Upload, Image as ImageIcon, Film, Loader2, Camera, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { uploadItemImage } from '@/utils/imageUtils';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface MediaUploadProps {
     imageUrl?: string;
@@ -29,12 +39,68 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
     hasPremiumAccess
 }) => {
     const [isUploading, setIsUploading] = useState(false);
+    const [showPermissionDialog, setShowPermissionDialog] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
     const videoInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
     const { profile } = useAuth();
 
     const adminId = profile?.role === 'admin' ? profile.id : profile?.admin_id;
+
+    // Request camera permission and handle denial
+    const handleCameraClick = async () => {
+        try {
+            // Check if camera permission is already granted
+            const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
+
+            if (permissionStatus.state === 'denied') {
+                // Show dialog to inform user they need to enable camera
+                setShowPermissionDialog(true);
+                return;
+            }
+
+            if (permissionStatus.state === 'prompt') {
+                // Request camera access to trigger browser permission prompt
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    // Close stream immediately - we just needed to trigger permission
+                    stream.getTracks().forEach(track => track.stop());
+                } catch (err) {
+                    // Permission denied via browser prompt
+                    setShowPermissionDialog(true);
+                    return;
+                }
+            }
+
+            // Permission granted - trigger camera input
+            cameraInputRef.current?.click();
+        } catch (err) {
+            // Fallback: just try to open camera directly (older browsers)
+            cameraInputRef.current?.click();
+        }
+    };
+
+    // Re-request camera permission
+    const handleRequestPermission = async () => {
+        setShowPermissionDialog(false);
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            stream.getTracks().forEach(track => track.stop());
+            toast({
+                title: "Camera Enabled",
+                description: "You can now capture photos",
+            });
+            // Now trigger camera input
+            cameraInputRef.current?.click();
+        } catch (err) {
+            toast({
+                title: "Camera Access Denied",
+                description: "Please enable camera access in your device settings",
+                variant: "destructive"
+            });
+        }
+    };
 
     const handleImageSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -80,6 +146,7 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
         } finally {
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
+            if (cameraInputRef.current) cameraInputRef.current.value = '';
         }
     };
 
@@ -100,11 +167,11 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
             return;
         }
 
-        // Validate file size (max 1MB for video/GIF)
+        // Size limit: 1MB for GIF/video to keep menu fast
         if (file.size > 1 * 1024 * 1024) {
             toast({
                 title: "File too large",
-                description: "GIF/Video must be smaller than 1MB",
+                description: "GIF/Video must be smaller than 1MB for fast loading",
                 variant: "destructive"
             });
             return;
@@ -113,39 +180,33 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
         try {
             setIsUploading(true);
 
-            // Upload to Supabase storage
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${adminId}/${itemId || Date.now()}-media.${fileExt}`;
+            const fileExt = isGif ? 'gif' : file.name.split('.').pop() || 'mp4';
+            const fileName = `${adminId}/${itemId || Date.now()}_media.${fileExt}`;
 
-            const { data, error } = await supabase.storage
-                .from('item-media')
-                .upload(fileName, file, {
-                    cacheControl: '3600',
-                    upsert: true
-                });
+            const { error: uploadError } = await supabase.storage
+                .from('item-images')
+                .upload(fileName, file, { upsert: true });
 
-            if (error) throw error;
+            if (uploadError) throw uploadError;
 
-            // Get public URL
-            const { data: publicData } = supabase.storage
-                .from('item-media')
+            const { data: { publicUrl } } = supabase.storage
+                .from('item-images')
                 .getPublicUrl(fileName);
 
-            const url = publicData.publicUrl;
-
-            onVideoChange(url);
+            // For GIF/video, store in video_url field
+            onVideoChange(publicUrl);
             onImageChange('');
             onMediaTypeChange(isGif ? 'gif' : 'video');
 
             toast({
                 title: isGif ? "GIF uploaded" : "Video uploaded",
-                description: "Media has been uploaded successfully"
+                description: `${isGif ? 'GIF' : 'Video'} has been uploaded successfully`
             });
         } catch (error) {
             console.error('Upload error:', error);
             toast({
                 title: "Upload failed",
-                description: "Failed to upload media. Make sure storage bucket exists.",
+                description: "Failed to upload media",
                 variant: "destructive"
             });
         } finally {
@@ -165,10 +226,19 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
 
     return (
         <div className="space-y-3">
+            {/* Hidden file inputs */}
             <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
+                onChange={handleImageSelect}
+                className="hidden"
+            />
+            <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
                 onChange={handleImageSelect}
                 className="hidden"
             />
@@ -179,6 +249,29 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
                 onChange={handleVideoSelect}
                 className="hidden"
             />
+
+            {/* Permission Dialog */}
+            <AlertDialog open={showPermissionDialog} onOpenChange={setShowPermissionDialog}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2">
+                            <Camera className="w-5 h-5" />
+                            Camera Access Required
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Camera access was denied. To capture photos, please grant camera permission.
+                            <br /><br />
+                            Click "Enable Camera" to try again, or go to your device settings to manually enable camera access for this app.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleRequestPermission}>
+                            Enable Camera
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             {currentUrl ? (
                 <div className="relative">
@@ -222,42 +315,62 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
                     </div>
                 </div>
             ) : (
-                <div className="flex gap-2">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isUploading}
-                        className="flex-1 h-20 border-2 border-dashed"
-                    >
-                        <div className="flex flex-col items-center space-y-1">
-                            {isUploading ? (
-                                <Loader2 className="h-5 w-5 animate-spin" />
-                            ) : (
-                                <ImageIcon className="h-5 w-5" />
-                            )}
-                            <span className="text-xs">Image</span>
-                        </div>
-                    </Button>
-
-                    {hasPremiumAccess && (
+                <div className="space-y-2">
+                    {/* Image Options Row */}
+                    <div className="flex gap-2">
                         <Button
                             type="button"
                             variant="outline"
-                            onClick={() => videoInputRef.current?.click()}
+                            onClick={() => fileInputRef.current?.click()}
                             disabled={isUploading}
-                            className="flex-1 h-20 border-2 border-dashed border-purple-300 bg-purple-50/50"
+                            className="flex-1 h-16 border-2 border-dashed"
                         >
                             <div className="flex flex-col items-center space-y-1">
                                 {isUploading ? (
-                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                    <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
-                                    <Film className="h-5 w-5 text-purple-600" />
+                                    <ImageIcon className="h-4 w-4" />
                                 )}
-                                <span className="text-xs text-purple-600">GIF/Video</span>
+                                <span className="text-xs">Gallery</span>
                             </div>
                         </Button>
-                    )}
+
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleCameraClick}
+                            disabled={isUploading}
+                            className="flex-1 h-16 border-2 border-dashed border-blue-300 bg-blue-50/50"
+                        >
+                            <div className="flex flex-col items-center space-y-1">
+                                {isUploading ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Camera className="h-4 w-4 text-blue-600" />
+                                )}
+                                <span className="text-xs text-blue-600">Camera</span>
+                            </div>
+                        </Button>
+
+                        {hasPremiumAccess && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => videoInputRef.current?.click()}
+                                disabled={isUploading}
+                                className="flex-1 h-16 border-2 border-dashed border-purple-300 bg-purple-50/50"
+                            >
+                                <div className="flex flex-col items-center space-y-1">
+                                    {isUploading ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <Film className="h-4 w-4 text-purple-600" />
+                                    )}
+                                    <span className="text-xs text-purple-600">GIF/Video</span>
+                                </div>
+                            </Button>
+                        )}
+                    </div>
                 </div>
             )}
 
