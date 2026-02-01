@@ -38,6 +38,7 @@ const QRCodeSettings = () => {
     const [copied, setCopied] = useState(false);
     const [tableMode, setTableMode] = useState(false);
     const [tableCount, setTableCount] = useState(10);
+    const [tableCountInput, setTableCountInput] = useState('10');
     const [selectedTable, setSelectedTable] = useState<number | null>(null);
     const qrRef = useRef<HTMLImageElement>(null);
 
@@ -286,11 +287,11 @@ const QRCodeSettings = () => {
         }
     };
 
-    // Download all table QR codes using canvas to avoid CORS
+    // Download all table QR codes with table number label
     const handleDownloadAllTableQRs = async () => {
         toast({
             title: "Downloading...",
-            description: `Generating ${tableCount} QR codes`,
+            description: `Generating ${tableCount} QR codes with table numbers`,
         });
 
         let successCount = 0;
@@ -310,13 +311,26 @@ const QRCodeSettings = () => {
                     img.src = qrUrl;
                 });
 
-                // Create canvas and draw
+                // Create canvas with extra space for table number header
+                const headerHeight = 50;
                 const canvas = document.createElement('canvas');
                 canvas.width = img.width;
-                canvas.height = img.height;
+                canvas.height = img.height + headerHeight;
                 const ctx = canvas.getContext('2d');
                 if (!ctx) continue;
-                ctx.drawImage(img, 0, 0);
+
+                // Fill white background
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Draw table number header
+                ctx.fillStyle = '#1e293b';
+                ctx.font = 'bold 28px Arial, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`Table ${i}`, canvas.width / 2, 35);
+
+                // Draw QR code below header
+                ctx.drawImage(img, 0, headerHeight);
 
                 // Convert to blob and download
                 await new Promise<void>((resolve) => {
@@ -346,7 +360,7 @@ const QRCodeSettings = () => {
         toast({
             title: successCount > 0 ? "Download Complete!" : "Download Failed",
             description: successCount > 0
-                ? `${successCount} of ${tableCount} QR codes saved`
+                ? `${successCount} of ${tableCount} QR codes saved with table numbers`
                 : "Could not download QR codes. Try downloading individually.",
             variant: successCount > 0 ? "default" : "destructive"
         });
@@ -631,23 +645,22 @@ const QRCodeSettings = () => {
                                         type="number"
                                         min={1}
                                         max={100}
-                                        value={tableCount}
+                                        value={tableCountInput}
                                         onChange={(e) => {
-                                            const val = e.target.value;
-                                            // Allow empty input during typing
-                                            if (val === '') return;
-                                            const num = parseInt(val);
-                                            if (!isNaN(num) && num >= 1 && num <= 100) {
-                                                setTableCount(num);
-                                            }
+                                            setTableCountInput(e.target.value);
                                         }}
                                         onBlur={(e) => {
                                             const val = e.target.value;
                                             const num = parseInt(val);
                                             if (!val || isNaN(num) || num < 1) {
                                                 setTableCount(1);
+                                                setTableCountInput('1');
                                             } else if (num > 100) {
                                                 setTableCount(100);
+                                                setTableCountInput('100');
+                                            } else {
+                                                setTableCount(num);
+                                                setTableCountInput(num.toString());
                                             }
                                         }}
                                         className="w-20"

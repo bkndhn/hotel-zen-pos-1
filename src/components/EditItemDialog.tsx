@@ -374,9 +374,9 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
                 imageUrl={formData.image_url}
                 videoUrl={formData.video_url}
                 mediaType={formData.media_type}
-                onImageChange={(url) => setFormData({ ...formData, image_url: url })}
-                onVideoChange={(url) => setFormData({ ...formData, video_url: url })}
-                onMediaTypeChange={(type) => setFormData({ ...formData, media_type: type })}
+                onImageChange={(url) => setFormData(prev => ({ ...prev, image_url: url }))}
+                onVideoChange={(url) => setFormData(prev => ({ ...prev, video_url: url }))}
+                onMediaTypeChange={(type) => setFormData(prev => ({ ...prev, media_type: type }))}
                 itemId={item.id}
                 hasPremiumAccess={hasPremiumAccess}
               />

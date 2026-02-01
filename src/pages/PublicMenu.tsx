@@ -676,8 +676,9 @@ const PublicMenu = () => {
                             <div
                                 className={cn(
                                     "grid gap-2",
-                                    (shopSettings?.menu_items_per_row === 2) && "grid-cols-2",
-                                    (shopSettings?.menu_items_per_row === 3) && "grid-cols-3"
+                                    shopSettings?.menu_items_per_row === 3 ? "grid-cols-3" :
+                                        shopSettings?.menu_items_per_row === 2 ? "grid-cols-2" :
+                                            "grid-cols-1"
                                 )}
                             >
                                 {categoryItems.map(item => (
