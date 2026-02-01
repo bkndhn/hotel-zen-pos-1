@@ -260,13 +260,27 @@ const QRCodeSettings = () => {
                 img.src = qrUrl;
             });
 
-            // Create canvas and draw image
+            // Create canvas with extra space for footer text
+            const footerHeight = 45;
             const canvas = document.createElement('canvas');
             canvas.width = img.width;
-            canvas.height = img.height;
+            canvas.height = img.height + footerHeight;
             const ctx = canvas.getContext('2d');
             if (!ctx) throw new Error('Canvas not supported');
+
+            // Fill white background
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw QR code
             ctx.drawImage(img, 0, 0);
+
+            // Draw instruction text at bottom
+            ctx.fillStyle = '#64748b';
+            ctx.font = '12px Arial, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Scan with Camera or Google Lens', canvas.width / 2, img.height + 18);
+            ctx.fillText('to view menu items', canvas.width / 2, img.height + 35);
 
             // Convert to blob and download
             canvas.toBlob((blob) => {
@@ -324,11 +338,12 @@ const QRCodeSettings = () => {
                     img.src = qrUrl;
                 });
 
-                // Create canvas with extra space for table number header
+                // Create canvas with extra space for table number header and instruction footer
                 const headerHeight = 50;
+                const footerHeight = 45;
                 const canvas = document.createElement('canvas');
                 canvas.width = img.width;
-                canvas.height = img.height + headerHeight;
+                canvas.height = img.height + headerHeight + footerHeight;
                 const ctx = canvas.getContext('2d');
                 if (!ctx) continue;
 
@@ -344,6 +359,13 @@ const QRCodeSettings = () => {
 
                 // Draw QR code below header
                 ctx.drawImage(img, 0, headerHeight);
+
+                // Draw instruction footer below QR
+                ctx.fillStyle = '#64748b';
+                ctx.font = '12px Arial, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('Scan with Camera or Google Lens', canvas.width / 2, headerHeight + img.height + 18);
+                ctx.fillText('to view menu items', canvas.width / 2, headerHeight + img.height + 35);
 
                 // Convert to blob and download
                 await new Promise<void>((resolve) => {
