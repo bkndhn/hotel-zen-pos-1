@@ -181,21 +181,32 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
                     description: `${isGif ? 'GIF' : 'Video'} is ${(file.size / 1024 / 1024).toFixed(1)}MB, compressing to 1MB`,
                 });
 
-                if (isGif) {
-                    // Convert GIF to compressed JPEG (loses animation but much smaller)
-                    uploadBlob = await compressGifToImage(file, maxSizeKB);
-                    finalType = 'image/jpeg';
+                try {
+                    if (isGif) {
+                        // Convert GIF to compressed JPEG (loses animation but much smaller)
+                        uploadBlob = await compressGifToImage(file, maxSizeKB);
+                        finalType = 'image/jpeg';
+                        toast({
+                            title: "GIF Compressed",
+                            description: `Converted to image: ${(uploadBlob.size / 1024).toFixed(0)}KB`,
+                        });
+                    } else {
+                        // Compress video
+                        uploadBlob = await compressVideo(file, maxSizeKB);
+                        finalType = 'video/webm';
+                        toast({
+                            title: "Video Compressed",
+                            description: `Reduced to ${(uploadBlob.size / 1024).toFixed(0)}KB`,
+                        });
+                    }
+                } catch (compressionError) {
+                    console.warn('Compression failed, uploading original:', compressionError);
+                    // Fallback: upload original file if compression fails
+                    uploadBlob = file;
+                    finalType = file.type;
                     toast({
-                        title: "GIF Compressed",
-                        description: `Converted to image: ${(uploadBlob.size / 1024).toFixed(0)}KB`,
-                    });
-                } else {
-                    // Compress video
-                    uploadBlob = await compressVideo(file, maxSizeKB);
-                    finalType = 'video/webm';
-                    toast({
-                        title: "Video Compressed",
-                        description: `Reduced to ${(uploadBlob.size / 1024).toFixed(0)}KB`,
+                        title: "Uploading original",
+                        description: "Compression failed, uploading original file",
                     });
                 }
             }

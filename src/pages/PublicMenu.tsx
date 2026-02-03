@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Utensils, Phone, MapPin, Wifi, WifiOff, Search, X } from 'lucide-react';
+import { Utensils, Phone, MapPin, Wifi, WifiOff, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getShortUnit } from '@/utils/timeUtils';
 
@@ -28,6 +28,9 @@ interface PromoBanner {
     description?: string;
     image_url: string;
     link_url?: string;
+    is_text_only?: boolean;
+    text_color?: string;
+    bg_color?: string;
 }
 
 interface ShopSettings {
@@ -44,6 +47,9 @@ interface ShopSettings {
     menu_background_color?: string;
     menu_text_color?: string;
     menu_items_per_row?: number;
+    // Location settings
+    shop_latitude?: number;
+    shop_longitude?: number;
 }
 
 
@@ -83,6 +89,11 @@ const PublicMenu = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    // Banner swipe state
+    const [touchStart, setTouchStart] = useState<number | null>(null);
+    const [touchEnd, setTouchEnd] = useState<number | null>(null);
+    const [isPaused, setIsPaused] = useState(false);
 
     // Online/Offline detection
     useEffect(() => {
@@ -178,7 +189,7 @@ const PublicMenu = () => {
                 // Fetch promotional banners
                 const { data: bannersData } = await supabase
                     .from('promo_banners')
-                    .select('id, title, description, image_url, link_url')
+                    .select('id, title, description, image_url, link_url, is_text_only, text_color, bg_color')
                     .eq('admin_id', adminId)
                     .eq('is_active', true)
                     .order('display_order');
@@ -203,7 +214,7 @@ const PublicMenu = () => {
                 // Fetch shop settings including display preferences and appearance
                 const { data: settingsData, error: settingsError } = await supabase
                     .from('shop_settings')
-                    .select('shop_name, address, contact_number, logo_url, menu_show_shop_name, menu_show_address, menu_show_phone, menu_primary_color, menu_secondary_color, menu_background_color, menu_text_color, menu_items_per_row')
+                    .select('shop_name, address, contact_number, logo_url, menu_show_shop_name, menu_show_address, menu_show_phone, menu_primary_color, menu_secondary_color, menu_background_color, menu_text_color, menu_items_per_row, shop_latitude, shop_longitude')
                     .eq('user_id', userId)
                     .maybeSingle();
 
@@ -292,14 +303,52 @@ const PublicMenu = () => {
         };
     }, [adminId]);
 
-    // Auto-swipe banners every 4 seconds
+    // Auto-swipe banners every 4 seconds (pauses when user interacts)
     useEffect(() => {
-        if (banners.length <= 1) return;
+        if (banners.length <= 1 || isPaused) return;
         const interval = setInterval(() => {
             setCurrentBannerIndex(prev => (prev + 1) % banners.length);
         }, 4000);
         return () => clearInterval(interval);
-    }, [banners.length]);
+    }, [banners.length, isPaused]);
+
+    // Resume auto-swipe after 8 seconds of no interaction
+    useEffect(() => {
+        if (!isPaused) return;
+        const resumeTimer = setTimeout(() => setIsPaused(false), 8000);
+        return () => clearTimeout(resumeTimer);
+    }, [isPaused]);
+
+    // Touch swipe handlers
+    const minSwipeDistance = 50;
+    const handleTouchStart = (e: React.TouchEvent) => {
+        setTouchEnd(null);
+        setTouchStart(e.targetTouches[0].clientX);
+    };
+    const handleTouchMove = (e: React.TouchEvent) => {
+        setTouchEnd(e.targetTouches[0].clientX);
+    };
+    const handleTouchEnd = () => {
+        if (!touchStart || !touchEnd) return;
+        const distance = touchStart - touchEnd;
+        const isLeftSwipe = distance > minSwipeDistance;
+        const isRightSwipe = distance < -minSwipeDistance;
+        if (isLeftSwipe) {
+            setCurrentBannerIndex(prev => (prev + 1) % banners.length);
+            setIsPaused(true);
+        } else if (isRightSwipe) {
+            setCurrentBannerIndex(prev => (prev - 1 + banners.length) % banners.length);
+            setIsPaused(true);
+        }
+    };
+    const goToPrevBanner = () => {
+        setCurrentBannerIndex(prev => (prev - 1 + banners.length) % banners.length);
+        setIsPaused(true);
+    };
+    const goToNextBanner = () => {
+        setCurrentBannerIndex(prev => (prev + 1) % banners.length);
+        setIsPaused(true);
+    };
 
     // Update status bar color to match public menu theme
     useEffect(() => {
@@ -600,13 +649,32 @@ const PublicMenu = () => {
                 </div>
             )}
 
+            {/* Get Directions Bar - Shows when shop location is set */}
+            {shopSettings?.shop_latitude && shopSettings?.shop_longitude && (
+                <div className="max-w-2xl mx-auto px-4 pt-3">
+                    <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${shopSettings.shop_latitude},${shopSettings.shop_longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-green-500 text-white py-2.5 px-4 rounded-xl shadow-md hover:shadow-lg transition-all text-sm font-medium"
+                    >
+                        <MapPin className="w-4 h-4" />
+                        <span>Get Directions to Our Shop</span>
+                        <ChevronRight className="w-4 h-4" />
+                    </a>
+                </div>
+            )}
+
             {/* Promotional Banners Carousel */}
             {banners.length > 0 && (
                 <div className="max-w-2xl mx-auto px-4 pt-4">
                     <div className="relative rounded-xl overflow-hidden shadow-lg">
                         <div
-                            className="flex transition-transform duration-500 ease-in-out"
+                            className="flex transition-transform duration-500 ease-in-out touch-pan-y"
                             style={{ transform: `translateX(-${currentBannerIndex * 100}%)` }}
+                            onTouchStart={handleTouchStart}
+                            onTouchMove={handleTouchMove}
+                            onTouchEnd={handleTouchEnd}
                         >
                             {banners.map((banner) => (
                                 <div
@@ -614,39 +682,83 @@ const PublicMenu = () => {
                                     className="w-full flex-shrink-0"
                                     onContextMenu={(e) => e.preventDefault()}
                                 >
-                                    <div className="relative aspect-[16/7] bg-gradient-to-r from-orange-400 to-amber-400">
-                                        <img
-                                            src={banner.image_url}
-                                            alt={banner.title}
-                                            className="w-full h-full object-cover"
-                                            draggable={false}
-                                        />
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                                        <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-                                            <h3 className="font-bold text-sm drop-shadow-lg">{banner.title}</h3>
-                                            {banner.description && (
-                                                <p className="text-xs opacity-90 line-clamp-1">{banner.description}</p>
-                                            )}
+                                    {banner.is_text_only ? (
+                                        // Text-only banner with solid color background
+                                        <div
+                                            className="relative aspect-[16/7] flex items-center justify-center"
+                                            style={{ backgroundColor: banner.bg_color || '#22c55e' }}
+                                        >
+                                            <div className="text-center px-6">
+                                                <h3
+                                                    className="font-bold text-xl md:text-2xl drop-shadow-lg"
+                                                    style={{ color: banner.text_color || '#ffffff' }}
+                                                >
+                                                    {banner.title}
+                                                </h3>
+                                                {banner.description && (
+                                                    <p
+                                                        className="text-sm md:text-base mt-1 opacity-90"
+                                                        style={{ color: banner.text_color || '#ffffff' }}
+                                                    >
+                                                        {banner.description}
+                                                    </p>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
+                                    ) : (
+                                        // Image banner
+                                        <div className="relative aspect-[16/7] bg-gradient-to-r from-orange-400 to-amber-400">
+                                            <img
+                                                src={banner.image_url}
+                                                alt={banner.title}
+                                                className="w-full h-full object-cover"
+                                                draggable={false}
+                                            />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                                            <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
+                                                <h3 className="font-bold text-sm drop-shadow-lg">{banner.title}</h3>
+                                                {banner.description && (
+                                                    <p className="text-xs opacity-90 line-clamp-1">{banner.description}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
                         {banners.length > 1 && (
-                            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
-                                {banners.map((_, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => setCurrentBannerIndex(idx)}
-                                        className={cn(
-                                            "w-2 h-2 rounded-full transition-all",
-                                            idx === currentBannerIndex
-                                                ? "bg-white w-4"
-                                                : "bg-white/50 hover:bg-white/70"
-                                        )}
-                                    />
-                                ))}
-                            </div>
+                            <>
+                                {/* Arrow Navigation */}
+                                <button
+                                    onClick={goToPrevBanner}
+                                    className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center text-white transition-colors"
+                                    aria-label="Previous banner"
+                                >
+                                    <ChevronLeft className="w-5 h-5" />
+                                </button>
+                                <button
+                                    onClick={goToNextBanner}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center text-white transition-colors"
+                                    aria-label="Next banner"
+                                >
+                                    <ChevronRight className="w-5 h-5" />
+                                </button>
+                                {/* Dot Indicators */}
+                                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                    {banners.map((_, idx) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => { setCurrentBannerIndex(idx); setIsPaused(true); }}
+                                            className={cn(
+                                                "w-2 h-2 rounded-full transition-all",
+                                                idx === currentBannerIndex
+                                                    ? "bg-white w-4"
+                                                    : "bg-white/50 hover:bg-white/70"
+                                            )}
+                                        />
+                                    ))}
+                                </div>
+                            </>
                         )}
                     </div>
                 </div>
@@ -675,7 +787,7 @@ const PublicMenu = () => {
                             </h2>
                             <div
                                 className={cn(
-                                    "grid gap-2",
+                                    "grid gap-3",
                                     shopSettings?.menu_items_per_row === 3 ? "grid-cols-3" :
                                         shopSettings?.menu_items_per_row === 2 ? "grid-cols-2" :
                                             "grid-cols-1"
@@ -684,24 +796,90 @@ const PublicMenu = () => {
                                 {categoryItems.map(item => (
                                     <div
                                         key={item.id}
-                                        className="bg-white rounded-xl p-3 shadow-sm border border-orange-100 hover:shadow-md transition-all duration-200"
+                                        className={cn(
+                                            "bg-white rounded-xl shadow-sm border border-orange-100 hover:shadow-md transition-all duration-200 overflow-hidden",
+                                            shopSettings?.menu_items_per_row === 1 ? "flex items-center p-3 gap-3" : "flex flex-col"
+                                        )}
                                     >
-                                        <div className="flex gap-3">
-                                            <ItemMedia item={item} />
-                                            <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                                                <h3 className="font-semibold text-gray-900 text-sm leading-tight">
-                                                    {item.name}
-                                                </h3>
-                                                <div className="flex-shrink-0 text-right">
-                                                    <span className="text-base font-bold text-orange-600">
-                                                        ₹{item.price}
-                                                        <span className="text-xs font-medium text-gray-500">
-                                                            /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
+                                        {/* Image - larger for multi-column, side for single */}
+                                        {shopSettings?.menu_items_per_row === 1 ? (
+                                            // Single column: horizontal layout (original style)
+                                            <>
+                                                <ItemMedia item={item} />
+                                                <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                                                    <h3 className="font-semibold text-gray-900 text-sm leading-tight">
+                                                        {item.name}
+                                                    </h3>
+                                                    <div className="flex-shrink-0 text-right">
+                                                        <span className="text-base font-bold text-orange-600">
+                                                            ₹{item.price}
+                                                            <span className="text-xs font-medium text-gray-500">
+                                                                /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
+                                                            </span>
                                                         </span>
-                                                    </span>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </div>
+                                            </>
+                                        ) : (
+                                            // Multi-column: vertical card with large image on top
+                                            <>
+                                                <div className="aspect-square bg-orange-50 relative overflow-hidden">
+                                                    {item.video_url || item.media_type === 'gif' || item.media_type === 'video' ? (
+                                                        item.media_type === 'gif' ? (
+                                                            <img
+                                                                src={item.video_url || item.image_url}
+                                                                alt={item.name}
+                                                                className="w-full h-full object-cover"
+                                                                loading="lazy"
+                                                                draggable={false}
+                                                                onContextMenu={(e) => e.preventDefault()}
+                                                            />
+                                                        ) : (
+                                                            <video
+                                                                src={item.video_url}
+                                                                className="w-full h-full object-cover"
+                                                                autoPlay
+                                                                loop
+                                                                muted
+                                                                playsInline
+                                                            />
+                                                        )
+                                                    ) : item.image_url ? (
+                                                        <img
+                                                            src={item.image_url}
+                                                            alt={item.name}
+                                                            className="w-full h-full object-cover"
+                                                            loading="lazy"
+                                                            draggable={false}
+                                                            onContextMenu={(e) => e.preventDefault()}
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-orange-300">
+                                                            <Utensils className="w-12 h-12" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="p-2.5 text-center">
+                                                    <h3 className={cn(
+                                                        "font-semibold text-gray-900 leading-tight line-clamp-2",
+                                                        shopSettings?.menu_items_per_row === 3 ? "text-xs" : "text-sm"
+                                                    )}>
+                                                        {item.name}
+                                                    </h3>
+                                                    <div className="mt-1">
+                                                        <span className={cn(
+                                                            "font-bold text-orange-600",
+                                                            shopSettings?.menu_items_per_row === 3 ? "text-sm" : "text-base"
+                                                        )}>
+                                                            ₹{item.price}
+                                                            <span className="text-[10px] font-medium text-gray-500 ml-0.5">
+                                                                /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
+                                                            </span>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 ))}
                             </div>

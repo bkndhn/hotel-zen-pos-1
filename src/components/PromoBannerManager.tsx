@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, Trash2, GripVertical, Image, Loader2, Calendar, X } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Image, Loader2, Calendar, X, Type, Palette } from 'lucide-react';
 import { compressImage, compressGifToImage } from '@/utils/imageUtils';
 
 interface Banner {
@@ -21,6 +21,10 @@ interface Banner {
     display_order: number;
     start_date?: string;
     end_date?: string;
+    // Text-only banner fields
+    is_text_only?: boolean;
+    text_color?: string;
+    bg_color?: string;
 }
 
 export const PromoBannerManager = () => {
@@ -39,7 +43,10 @@ export const PromoBannerManager = () => {
         link_url: '',
         is_active: true,
         start_date: '',
-        end_date: ''
+        end_date: '',
+        is_text_only: false,
+        text_color: '#ffffff',
+        bg_color: '#22c55e'
     });
 
     const adminId = profile?.role === 'admin' ? profile.id : profile?.admin_id;
@@ -138,10 +145,11 @@ export const PromoBannerManager = () => {
     };
 
     const handleSave = async () => {
-        if (!formData.title || !formData.image_url) {
+        // Text-only banners don't require image
+        if (!formData.title || (!formData.is_text_only && !formData.image_url)) {
             toast({
                 title: "Error",
-                description: "Title and image are required",
+                description: formData.is_text_only ? "Title is required" : "Title and image are required",
                 variant: "destructive"
             });
             return;
@@ -149,19 +157,24 @@ export const PromoBannerManager = () => {
 
         setSaving(true);
         try {
+            const bannerData = {
+                title: formData.title,
+                description: formData.description || null,
+                image_url: formData.is_text_only ? '' : formData.image_url,
+                link_url: formData.link_url || null,
+                is_active: formData.is_active,
+                start_date: formData.start_date || null,
+                end_date: formData.end_date || null,
+                is_text_only: formData.is_text_only,
+                text_color: formData.text_color,
+                bg_color: formData.bg_color
+            };
+
             if (editingBanner) {
                 // Update existing banner
                 const { error } = await supabase
                     .from('promo_banners')
-                    .update({
-                        title: formData.title,
-                        description: formData.description || null,
-                        image_url: formData.image_url,
-                        link_url: formData.link_url || null,
-                        is_active: formData.is_active,
-                        start_date: formData.start_date || null,
-                        end_date: formData.end_date || null
-                    })
+                    .update(bannerData)
                     .eq('id', editingBanner.id);
 
                 if (error) throw error;
@@ -172,14 +185,8 @@ export const PromoBannerManager = () => {
                     .from('promo_banners')
                     .insert({
                         admin_id: adminId,
-                        title: formData.title,
-                        description: formData.description || null,
-                        image_url: formData.image_url,
-                        link_url: formData.link_url || null,
-                        is_active: formData.is_active,
-                        display_order: banners.length,
-                        start_date: formData.start_date || null,
-                        end_date: formData.end_date || null
+                        ...bannerData,
+                        display_order: banners.length
                     });
 
                 if (error) throw error;
@@ -247,7 +254,10 @@ export const PromoBannerManager = () => {
             link_url: banner.link_url || '',
             is_active: banner.is_active,
             start_date: banner.start_date?.split('T')[0] || '',
-            end_date: banner.end_date?.split('T')[0] || ''
+            end_date: banner.end_date?.split('T')[0] || '',
+            is_text_only: banner.is_text_only || false,
+            text_color: banner.text_color || '#ffffff',
+            bg_color: banner.bg_color || '#22c55e'
         });
         setShowAddDialog(true);
     };
@@ -260,7 +270,10 @@ export const PromoBannerManager = () => {
             link_url: '',
             is_active: true,
             start_date: '',
-            end_date: ''
+            end_date: '',
+            is_text_only: false,
+            text_color: '#ffffff',
+            bg_color: '#22c55e'
         });
     };
 
@@ -385,58 +398,115 @@ export const PromoBannerManager = () => {
                             />
                         </div>
 
-                        <div>
-                            <Label>Banner Image/GIF *</Label>
-                            <p className="text-xs text-muted-foreground mb-2">
-                                Upload an image or animated GIF (max 500KB). GIFs will auto-animate on the menu!
-                            </p>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/*,.gif"
-                                onChange={handleImageUpload}
-                                className="hidden"
-                            />
-                            {formData.image_url ? (
-                                <div className="relative">
-                                    <img
-                                        src={formData.image_url}
-                                        alt="Banner preview"
-                                        className="w-full h-32 object-cover rounded-lg border"
-                                    />
-                                    <Button
-                                        type="button"
-                                        variant="destructive"
-                                        size="sm"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            setFormData({ ...formData, image_url: '' });
-                                        }}
-                                        className="absolute top-2 right-2 h-6 w-6 p-0"
-                                    >
-                                        <X className="h-3 w-3" />
-                                    </Button>
+                        {/* Text-Only Banner Toggle */}
+                        <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Type className="w-4 h-4 text-muted-foreground" />
+                                    <Label className="text-sm font-medium">Text-Only Banner</Label>
                                 </div>
-                            ) : (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={saving}
-                                    className="w-full h-24 border-2 border-dashed"
-                                >
-                                    {saving ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                    ) : (
-                                        <div className="text-center">
-                                            <Image className="w-6 h-6 mx-auto mb-1" />
-                                            <span className="text-xs">Upload Image or GIF (max 500KB)</span>
+                                <Switch
+                                    checked={formData.is_text_only}
+                                    onCheckedChange={(v) => setFormData({ ...formData, is_text_only: v })}
+                                />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                Create a simple text banner without an image
+                            </p>
+
+                            {formData.is_text_only && (
+                                <div className="flex gap-4 pt-2">
+                                    <div className="flex-1">
+                                        <Label className="text-xs">Background Color</Label>
+                                        <div className="flex gap-2 mt-1">
+                                            <input
+                                                type="color"
+                                                value={formData.bg_color}
+                                                onChange={(e) => setFormData({ ...formData, bg_color: e.target.value })}
+                                                className="w-10 h-8 rounded cursor-pointer"
+                                            />
+                                            <Input
+                                                value={formData.bg_color}
+                                                onChange={(e) => setFormData({ ...formData, bg_color: e.target.value })}
+                                                className="h-8 text-xs"
+                                            />
                                         </div>
-                                    )}
-                                </Button>
+                                    </div>
+                                    <div className="flex-1">
+                                        <Label className="text-xs">Text Color</Label>
+                                        <div className="flex gap-2 mt-1">
+                                            <input
+                                                type="color"
+                                                value={formData.text_color}
+                                                onChange={(e) => setFormData({ ...formData, text_color: e.target.value })}
+                                                className="w-10 h-8 rounded cursor-pointer"
+                                            />
+                                            <Input
+                                                value={formData.text_color}
+                                                onChange={(e) => setFormData({ ...formData, text_color: e.target.value })}
+                                                className="h-8 text-xs"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
                             )}
                         </div>
+
+                        {/* Image Upload - Only show if not text-only */}
+                        {!formData.is_text_only && (
+                            <div>
+                                <Label>Banner Image/GIF *</Label>
+                                <p className="text-xs text-muted-foreground mb-2">
+                                    Upload an image or animated GIF (max 500KB). GIFs will auto-animate on the menu!
+                                </p>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*,.gif"
+                                    onChange={handleImageUpload}
+                                    className="hidden"
+                                />
+                                {formData.image_url ? (
+                                    <div className="relative">
+                                        <img
+                                            src={formData.image_url}
+                                            alt="Banner preview"
+                                            className="w-full h-32 object-cover rounded-lg border"
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="destructive"
+                                            size="sm"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setFormData({ ...formData, image_url: '' });
+                                            }}
+                                            className="absolute top-2 right-2 h-6 w-6 p-0"
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={saving}
+                                        className="w-full h-24 border-2 border-dashed"
+                                    >
+                                        {saving ? (
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                        ) : (
+                                            <div className="text-center">
+                                                <Image className="w-6 h-6 mx-auto mb-1" />
+                                                <span className="text-xs">Upload Image or GIF (max 500KB)</span>
+                                            </div>
+                                        )}
+                                    </Button>
+                                )}
+                            </div>
+                        )}
 
                         <div>
                             <Label>Link URL (optional)</Label>

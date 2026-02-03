@@ -24,7 +24,10 @@ import {
     MapPin,
     Phone,
     Palette,
-    LayoutGrid
+    LayoutGrid,
+    Navigation,
+    X,
+    Loader2
 } from 'lucide-react';
 import { PromoBannerManager } from '@/components/PromoBannerManager';
 
@@ -59,6 +62,11 @@ const QRCodeSettings = () => {
     const [menuTextColor, setMenuTextColor] = useState('#1c1917');
     const [menuItemsPerRow, setMenuItemsPerRow] = useState(1);
 
+    // Shop Location for Google Maps
+    const [shopLatitude, setShopLatitude] = useState<number | null>(null);
+    const [shopLongitude, setShopLongitude] = useState<number | null>(null);
+    const [locationLoading, setLocationLoading] = useState(false);
+
     // Determine the admin ID to use for the menu URL
     const adminId = profile?.role === 'admin' ? profile.id : profile?.admin_id;
 
@@ -91,7 +99,7 @@ const QRCodeSettings = () => {
             if (profile?.user_id) {
                 const { data } = await supabase
                     .from('shop_settings')
-                    .select('menu_slug, menu_show_shop_name, menu_show_address, menu_show_phone, menu_primary_color, menu_secondary_color, menu_background_color, menu_text_color, menu_items_per_row')
+                    .select('menu_slug, menu_show_shop_name, menu_show_address, menu_show_phone, menu_primary_color, menu_secondary_color, menu_background_color, menu_text_color, menu_items_per_row, shop_latitude, shop_longitude')
                     .eq('user_id', profile.user_id)
                     .maybeSingle();
 
@@ -106,6 +114,9 @@ const QRCodeSettings = () => {
                     if (data.menu_background_color) setMenuBackgroundColor(data.menu_background_color);
                     if (data.menu_text_color) setMenuTextColor(data.menu_text_color);
                     if (data.menu_items_per_row) setMenuItemsPerRow(data.menu_items_per_row);
+                    // Location settings
+                    if (data.shop_latitude) setShopLatitude(data.shop_latitude);
+                    if (data.shop_longitude) setShopLongitude(data.shop_longitude);
                 }
             }
         };
@@ -138,8 +149,41 @@ const QRCodeSettings = () => {
                     menu_background_color: menuBackgroundColor,
                     menu_text_color: menuTextColor,
                     menu_items_per_row: menuItemsPerRow,
+                    shop_latitude: shopLatitude,
+                    shop_longitude: shopLongitude,
                 }, { onConflict: 'user_id' });
         }
+    };
+
+    // Get current location using browser geo-location
+    const pinCurrentLocation = () => {
+        if (!navigator.geolocation) {
+            toast({ title: 'Error', description: 'Geolocation is not supported by your browser', variant: 'destructive' });
+            return;
+        }
+        setLocationLoading(true);
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setShopLatitude(position.coords.latitude);
+                setShopLongitude(position.coords.longitude);
+                setLocationLoading(false);
+                toast({ title: 'Location Pinned', description: 'Shop location has been saved' });
+                // Auto-save after pinning
+                setTimeout(() => saveSettings(), 500);
+            },
+            (error) => {
+                setLocationLoading(false);
+                toast({ title: 'Location Error', description: error.message, variant: 'destructive' });
+            },
+            { enableHighAccuracy: true }
+        );
+    };
+
+    const clearLocation = () => {
+        setShopLatitude(null);
+        setShopLongitude(null);
+        toast({ title: 'Location Cleared', description: 'Shop location has been removed' });
+        setTimeout(() => saveSettings(), 500);
     };
 
     // Debounced slug availability check
@@ -577,6 +621,58 @@ const QRCodeSettings = () => {
                         </div>
                         <p className="text-[10px] text-muted-foreground">
                             Toggle what customers see on your public menu page
+                        </p>
+                    </div>
+
+                    {/* Shop Location for Google Maps */}
+                    <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                        <Label className="text-sm font-medium flex items-center gap-2">
+                            <Navigation className="w-4 h-4" />
+                            Shop Location (Google Maps)
+                        </Label>
+                        {shopLatitude && shopLongitude ? (
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-sm text-green-600">
+                                    <Check className="w-4 h-4" />
+                                    <span>Location pinned: {shopLatitude.toFixed(5)}, {shopLongitude.toFixed(5)}</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => window.open(`https://www.google.com/maps?q=${shopLatitude},${shopLongitude}`, '_blank')}
+                                    >
+                                        <ExternalLink className="w-3 h-3 mr-1" />
+                                        View on Map
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={clearLocation}
+                                        className="text-red-600 hover:text-red-700"
+                                    >
+                                        <X className="w-3 h-3 mr-1" />
+                                        Clear
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={pinCurrentLocation}
+                                disabled={locationLoading}
+                            >
+                                {locationLoading ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                    <MapPin className="w-4 h-4 mr-2" />
+                                )}
+                                {locationLoading ? 'Getting Location...' : 'Pin Current Location'}
+                            </Button>
+                        )}
+                        <p className="text-[10px] text-muted-foreground">
+                            Customers can tap to get directions to your shop
                         </p>
                     </div>
                 </CardContent>
