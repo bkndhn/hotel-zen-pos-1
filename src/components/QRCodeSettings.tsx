@@ -66,6 +66,7 @@ const QRCodeSettings = () => {
     const [shopLatitude, setShopLatitude] = useState<number | null>(null);
     const [shopLongitude, setShopLongitude] = useState<number | null>(null);
     const [locationLoading, setLocationLoading] = useState(false);
+    const [locationError, setLocationError] = useState<string | null>(null);
 
     // Determine the admin ID to use for the menu URL
     const adminId = profile?.role === 'admin' ? profile.id : profile?.admin_id;
@@ -158,24 +159,49 @@ const QRCodeSettings = () => {
     // Get current location using browser geo-location
     const pinCurrentLocation = () => {
         if (!navigator.geolocation) {
+            setLocationError('Geolocation is not supported by your browser');
             toast({ title: 'Error', description: 'Geolocation is not supported by your browser', variant: 'destructive' });
             return;
         }
         setLocationLoading(true);
+        setLocationError(null); // Clear previous errors
+
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 setShopLatitude(position.coords.latitude);
                 setShopLongitude(position.coords.longitude);
                 setLocationLoading(false);
+                setLocationError(null);
                 toast({ title: 'Location Pinned', description: 'Shop location has been saved' });
                 // Auto-save after pinning
                 setTimeout(() => saveSettings(), 500);
             },
             (error) => {
                 setLocationLoading(false);
-                toast({ title: 'Location Error', description: error.message, variant: 'destructive' });
+                let errorMessage = error.message;
+
+                // Provide better error messages based on error code
+                if (error.code === error.PERMISSION_DENIED) {
+                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                    if (isIOS) {
+                        errorMessage = 'Location permission denied. Go to Settings > Safari > Location and enable for this site.';
+                    } else {
+                        errorMessage = 'Location permission denied. Please tap the lock icon in your browser address bar to enable location.';
+                    }
+                } else if (error.code === error.POSITION_UNAVAILABLE) {
+                    errorMessage = 'Location unavailable. Please check your GPS/location settings.';
+                } else if (error.code === error.TIMEOUT) {
+                    errorMessage = 'Location request timed out. Please try again.';
+                }
+
+                setLocationError(errorMessage);
+                toast({ title: 'Location Error', description: errorMessage, variant: 'destructive' });
             },
-            { enableHighAccuracy: true }
+            {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 0
+            }
         );
     };
 
@@ -657,19 +683,41 @@ const QRCodeSettings = () => {
                                 </div>
                             </div>
                         ) : (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={pinCurrentLocation}
-                                disabled={locationLoading}
-                            >
-                                {locationLoading ? (
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                ) : (
-                                    <MapPin className="w-4 h-4 mr-2" />
+                            <div className="space-y-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={pinCurrentLocation}
+                                    disabled={locationLoading}
+                                >
+                                    {locationLoading ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                        <MapPin className="w-4 h-4 mr-2" />
+                                    )}
+                                    {locationLoading ? 'Getting Location...' : 'Pin Current Location'}
+                                </Button>
+
+                                {/* Location Error Display */}
+                                {locationError && (
+                                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm">
+                                        <div className="flex items-start gap-2">
+                                            <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                                            <div className="flex-1">
+                                                <p className="text-red-700">{locationError}</p>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="text-red-600 hover:text-red-700 mt-1 h-7 px-2"
+                                                    onClick={pinCurrentLocation}
+                                                >
+                                                    Try Again
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 )}
-                                {locationLoading ? 'Getting Location...' : 'Pin Current Location'}
-                            </Button>
+                            </div>
                         )}
                         <p className="text-[10px] text-muted-foreground">
                             Customers can tap to get directions to your shop

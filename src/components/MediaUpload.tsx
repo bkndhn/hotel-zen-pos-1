@@ -50,7 +50,28 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
 
     // Request camera permission and handle denial
     const handleCameraClick = async () => {
+        // Detect iOS
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
         try {
+            // On iOS Safari, permissions API may not be available for camera
+            // So we try directly with getUserMedia
+            if (isIOS || !navigator.permissions) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    stream.getTracks().forEach(track => track.stop());
+                    cameraInputRef.current?.click();
+                } catch (err: any) {
+                    if (err.name === 'NotAllowedError' || err.name === 'SecurityError') {
+                        setShowPermissionDialog(true);
+                    } else {
+                        // On iOS, just try to open the camera input directly
+                        cameraInputRef.current?.click();
+                    }
+                }
+                return;
+            }
+
             // Check if camera permission is already granted
             const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
 
@@ -83,7 +104,9 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
 
     // Re-request camera permission
     const handleRequestPermission = async () => {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         setShowPermissionDialog(false);
+
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             stream.getTracks().forEach(track => track.stop());
@@ -94,9 +117,12 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
             // Now trigger camera input
             cameraInputRef.current?.click();
         } catch (err) {
+            const errorMessage = isIOS
+                ? "Go to Settings > Safari > Camera and enable access"
+                : "Please enable camera access in your browser or device settings";
             toast({
                 title: "Camera Access Denied",
-                description: "Please enable camera access in your device settings",
+                description: errorMessage,
                 variant: "destructive"
             });
         }
@@ -303,10 +329,20 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
                             <Camera className="w-5 h-5" />
                             Camera Access Required
                         </AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Camera access was denied. To capture photos, please grant camera permission.
-                            <br /><br />
-                            Click "Enable Camera" to try again, or go to your device settings to manually enable camera access for this app.
+                        <AlertDialogDescription asChild>
+                            <div className="space-y-2">
+                                <p>Camera access was denied. To capture photos, please grant camera permission.</p>
+                                <div className="bg-muted/50 p-3 rounded-lg text-sm space-y-1">
+                                    <p className="font-medium">How to enable:</p>
+                                    <p className="text-muted-foreground">
+                                        <strong>iPhone/iPad:</strong> Settings → Safari → Camera → Allow
+                                    </p>
+                                    <p className="text-muted-foreground">
+                                        <strong>Android:</strong> Tap the lock icon in browser address bar → Permissions → Camera → Allow
+                                    </p>
+                                </div>
+                                <p className="text-sm">Click "Enable Camera" to try again.</p>
+                            </div>
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

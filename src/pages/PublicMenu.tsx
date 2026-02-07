@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Utensils, Phone, MapPin, Wifi, WifiOff, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Utensils, Phone, MapPin, Wifi, WifiOff, Search, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getShortUnit } from '@/utils/timeUtils';
 
@@ -94,6 +94,9 @@ const PublicMenu = () => {
     const [touchStart, setTouchStart] = useState<number | null>(null);
     const [touchEnd, setTouchEnd] = useState<number | null>(null);
     const [isPaused, setIsPaused] = useState(false);
+
+    // Collapsible categories state
+    const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
 
     // Online/Offline detection
     useEffect(() => {
@@ -459,6 +462,19 @@ const PublicMenu = () => {
     const showPhone = shopSettings?.menu_show_phone !== false;
     const headerTitle = showShopName && shopSettings?.shop_name ? shopSettings.shop_name : 'Our Menu';
 
+    // Toggle category collapse
+    const toggleCategory = useCallback((category: string) => {
+        setCollapsedCategories(prev => {
+            const next = new Set(prev);
+            if (next.has(category)) {
+                next.delete(category);
+            } else {
+                next.add(category);
+            }
+            return next;
+        });
+    }, []);
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center">
@@ -778,56 +794,91 @@ const PublicMenu = () => {
                         </button>
                     </div>
                 ) : (
-                    Object.entries(groupedItems).map(([category, categoryItems]) => (
-                        <div key={category} className="mb-6">
-                            <h2 className="text-base font-bold text-orange-800 mb-2 flex items-center gap-2 sticky top-[110px] bg-gradient-to-r from-orange-50 to-transparent py-1 z-10">
-                                <span className="w-6 h-0.5 bg-orange-300 rounded-full" />
-                                {category}
-                                <span className="text-xs font-normal text-orange-500">({categoryItems.length})</span>
-                            </h2>
-                            <div
-                                className={cn(
-                                    "grid gap-3",
-                                    shopSettings?.menu_items_per_row === 3 ? "grid-cols-3" :
-                                        shopSettings?.menu_items_per_row === 2 ? "grid-cols-2" :
-                                            "grid-cols-1"
-                                )}
-                            >
-                                {categoryItems.map(item => (
-                                    <div
-                                        key={item.id}
-                                        className={cn(
-                                            "bg-white rounded-xl shadow-sm border border-orange-100 hover:shadow-md transition-all duration-200 overflow-hidden",
-                                            shopSettings?.menu_items_per_row === 1 ? "flex items-center p-3 gap-3" : "flex flex-col"
-                                        )}
-                                    >
-                                        {/* Image - larger for multi-column, side for single */}
-                                        {shopSettings?.menu_items_per_row === 1 ? (
-                                            // Single column: horizontal layout (original style)
-                                            <>
-                                                <ItemMedia item={item} />
-                                                <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                                                    <h3 className="font-semibold text-gray-900 text-sm leading-tight">
-                                                        {item.name}
-                                                    </h3>
-                                                    <div className="flex-shrink-0 text-right">
-                                                        <span className="text-base font-bold text-orange-600">
-                                                            ₹{item.price}
-                                                            <span className="text-xs font-medium text-gray-500">
-                                                                /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
-                                                            </span>
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </>
+                    Object.entries(groupedItems).map(([category, categoryItems]) => {
+                        const isCollapsed = collapsedCategories.has(category);
+                        return (
+                            <div key={category} className="mb-6">
+                                {/* Clickable category header */}
+                                <button
+                                    onClick={() => toggleCategory(category)}
+                                    className="w-full text-left text-base font-bold text-orange-800 mb-2 flex items-center gap-2 sticky top-[110px] bg-gradient-to-r from-orange-50 to-transparent py-2 z-10 cursor-pointer hover:text-orange-900 transition-colors"
+                                >
+                                    <span className="w-6 h-0.5 bg-orange-300 rounded-full" />
+                                    {category}
+                                    <span className="text-xs font-normal text-orange-500">({categoryItems.length})</span>
+                                    <span className="ml-auto pr-2">
+                                        {isCollapsed ? (
+                                            <ChevronDown className="w-4 h-4 text-orange-500" />
                                         ) : (
-                                            // Multi-column: vertical card with large image on top
-                                            <>
-                                                <div className="aspect-square bg-orange-50 relative overflow-hidden">
-                                                    {item.video_url || item.media_type === 'gif' || item.media_type === 'video' ? (
-                                                        item.media_type === 'gif' ? (
+                                            <ChevronUp className="w-4 h-4 text-orange-500" />
+                                        )}
+                                    </span>
+                                </button>
+
+                                {/* Collapsible items section */}
+                                <div
+                                    className={cn(
+                                        "grid gap-3 transition-all duration-300 ease-in-out overflow-hidden",
+                                        shopSettings?.menu_items_per_row === 3 ? "grid-cols-3" :
+                                            shopSettings?.menu_items_per_row === 2 ? "grid-cols-2" :
+                                                "grid-cols-1",
+                                        isCollapsed ? "max-h-0 opacity-0" : "max-h-[5000px] opacity-100"
+                                    )}
+                                >
+                                    {categoryItems.map(item => (
+                                        <div
+                                            key={item.id}
+                                            className={cn(
+                                                "bg-white rounded-xl shadow-sm border border-orange-100 hover:shadow-md transition-all duration-200 overflow-hidden",
+                                                shopSettings?.menu_items_per_row === 1 ? "flex items-center p-3 gap-3" : "flex flex-col"
+                                            )}
+                                        >
+                                            {/* Image - larger for multi-column, side for single */}
+                                            {shopSettings?.menu_items_per_row === 1 ? (
+                                                // Single column: horizontal layout (original style)
+                                                <>
+                                                    <ItemMedia item={item} />
+                                                    <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                                                        <h3 className="font-semibold text-gray-900 text-sm leading-tight">
+                                                            {item.name}
+                                                        </h3>
+                                                        <div className="flex-shrink-0 text-right">
+                                                            <span className="text-base font-bold text-orange-600">
+                                                                ₹{item.price}
+                                                                <span className="text-xs font-medium text-gray-500">
+                                                                    /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
+                                                                </span>
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                // Multi-column: vertical card with large image on top
+                                                <>
+                                                    <div className="aspect-square bg-orange-50 relative overflow-hidden">
+                                                        {item.video_url || item.media_type === 'gif' || item.media_type === 'video' ? (
+                                                            item.media_type === 'gif' ? (
+                                                                <img
+                                                                    src={item.video_url || item.image_url}
+                                                                    alt={item.name}
+                                                                    className="w-full h-full object-cover"
+                                                                    loading="lazy"
+                                                                    draggable={false}
+                                                                    onContextMenu={(e) => e.preventDefault()}
+                                                                />
+                                                            ) : (
+                                                                <video
+                                                                    src={item.video_url}
+                                                                    className="w-full h-full object-cover"
+                                                                    autoPlay
+                                                                    loop
+                                                                    muted
+                                                                    playsInline
+                                                                />
+                                                            )
+                                                        ) : item.image_url ? (
                                                             <img
-                                                                src={item.video_url || item.image_url}
+                                                                src={item.image_url}
                                                                 alt={item.name}
                                                                 className="w-full h-full object-cover"
                                                                 loading="lazy"
@@ -835,56 +886,38 @@ const PublicMenu = () => {
                                                                 onContextMenu={(e) => e.preventDefault()}
                                                             />
                                                         ) : (
-                                                            <video
-                                                                src={item.video_url}
-                                                                className="w-full h-full object-cover"
-                                                                autoPlay
-                                                                loop
-                                                                muted
-                                                                playsInline
-                                                            />
-                                                        )
-                                                    ) : item.image_url ? (
-                                                        <img
-                                                            src={item.image_url}
-                                                            alt={item.name}
-                                                            className="w-full h-full object-cover"
-                                                            loading="lazy"
-                                                            draggable={false}
-                                                            onContextMenu={(e) => e.preventDefault()}
-                                                        />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-orange-300">
-                                                            <Utensils className="w-12 h-12" />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="p-2.5 text-center">
-                                                    <h3 className={cn(
-                                                        "font-semibold text-gray-900 leading-tight line-clamp-2",
-                                                        shopSettings?.menu_items_per_row === 3 ? "text-xs" : "text-sm"
-                                                    )}>
-                                                        {item.name}
-                                                    </h3>
-                                                    <div className="mt-1">
-                                                        <span className={cn(
-                                                            "font-bold text-orange-600",
-                                                            shopSettings?.menu_items_per_row === 3 ? "text-sm" : "text-base"
-                                                        )}>
-                                                            ₹{item.price}
-                                                            <span className="text-[10px] font-medium text-gray-500 ml-0.5">
-                                                                /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
-                                                            </span>
-                                                        </span>
+                                                            <div className="w-full h-full flex items-center justify-center text-orange-300">
+                                                                <Utensils className="w-12 h-12" />
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                ))}
+                                                    <div className="p-2.5 text-center">
+                                                        <h3 className={cn(
+                                                            "font-semibold text-gray-900 leading-tight line-clamp-2",
+                                                            shopSettings?.menu_items_per_row === 3 ? "text-xs" : "text-sm"
+                                                        )}>
+                                                            {item.name}
+                                                        </h3>
+                                                        <div className="mt-1">
+                                                            <span className={cn(
+                                                                "font-bold text-orange-600",
+                                                                shopSettings?.menu_items_per_row === 3 ? "text-sm" : "text-base"
+                                                            )}>
+                                                                ₹{item.price}
+                                                                <span className="text-[10px] font-medium text-gray-500 ml-0.5">
+                                                                    /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
+                                                                </span>
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </main>
 
