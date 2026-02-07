@@ -157,41 +157,80 @@ const QRCodeSettings = () => {
     };
 
     // Get current location using browser geo-location
-    const pinCurrentLocation = () => {
+    const pinCurrentLocation = async () => {
+        // First check if geolocation is supported
         if (!navigator.geolocation) {
             setLocationError('Geolocation is not supported by your browser');
             toast({ title: 'Error', description: 'Geolocation is not supported by your browser', variant: 'destructive' });
             return;
         }
+
         setLocationLoading(true);
         setLocationError(null); // Clear previous errors
 
+        // Pre-check permission status using Permissions API (if available)
+        try {
+            if (navigator.permissions) {
+                const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
+
+                if (permissionStatus.state === 'denied') {
+                    setLocationLoading(false);
+                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                    const isAndroid = /Android/.test(navigator.userAgent);
+
+                    let errorMessage = 'Location permission is blocked.';
+                    if (isIOS) {
+                        errorMessage = 'Location blocked. Go to iPhone Settings > Safari > Location Services and enable for this site.';
+                    } else if (isAndroid) {
+                        errorMessage = 'Location blocked. Go to Android Settings > Apps > Chrome > Permissions > Location and enable it.';
+                    } else {
+                        errorMessage = 'Location permission blocked. Click the lock/info icon in your browser address bar and enable Location.';
+                    }
+
+                    setLocationError(errorMessage);
+                    toast({ title: 'Location Blocked', description: errorMessage, variant: 'destructive' });
+                    return;
+                }
+            }
+        } catch (permError) {
+            // Permissions API not supported or failed - continue with geolocation request
+            console.log('Permissions API check failed, proceeding with geolocation request');
+        }
+
+        // Request location
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 setShopLatitude(position.coords.latitude);
                 setShopLongitude(position.coords.longitude);
                 setLocationLoading(false);
                 setLocationError(null);
-                toast({ title: 'Location Pinned', description: 'Shop location has been saved' });
+                toast({ title: 'Location Pinned', description: 'Shop location has been saved successfully!' });
                 // Auto-save after pinning
                 setTimeout(() => saveSettings(), 500);
             },
             (error) => {
                 setLocationLoading(false);
+                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                const isAndroid = /Android/.test(navigator.userAgent);
                 let errorMessage = error.message;
 
-                // Provide better error messages based on error code
+                // Provide better error messages based on error code and platform
                 if (error.code === error.PERMISSION_DENIED) {
-                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
                     if (isIOS) {
-                        errorMessage = 'Location permission denied. Go to Settings > Safari > Location and enable for this site.';
+                        errorMessage = 'Location denied. Go to Settings > Privacy > Location Services > Safari and enable "While Using".';
+                    } else if (isAndroid) {
+                        errorMessage = 'Location denied. Tap the 3-dot menu in Chrome > Settings > Site Settings > Location and allow this site.';
                     } else {
-                        errorMessage = 'Location permission denied. Please tap the lock icon in your browser address bar to enable location.';
+                        errorMessage = 'Location denied. Click the lock icon in address bar, find Location, and select "Allow".';
                     }
                 } else if (error.code === error.POSITION_UNAVAILABLE) {
-                    errorMessage = 'Location unavailable. Please check your GPS/location settings.';
+                    if (isAndroid) {
+                        errorMessage = 'Location unavailable. Enable GPS: swipe down notification bar > tap Location/GPS icon.';
+                    } else {
+                        errorMessage = 'Location unavailable. Please check your GPS/location settings are enabled.';
+                    }
                 } else if (error.code === error.TIMEOUT) {
-                    errorMessage = 'Location request timed out. Please try again.';
+                    errorMessage = 'Location request timed out. Please ensure GPS is enabled and try again.';
                 }
 
                 setLocationError(errorMessage);
@@ -199,7 +238,7 @@ const QRCodeSettings = () => {
             },
             {
                 enableHighAccuracy: true,
-                timeout: 15000,
+                timeout: 20000, // Increased timeout for GPS cold start
                 maximumAge: 0
             }
         );

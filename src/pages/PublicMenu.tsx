@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Utensils, Phone, MapPin, Wifi, WifiOff, Search, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
+import { Utensils, Phone, MapPin, Wifi, WifiOff, Search, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getShortUnit } from '@/utils/timeUtils';
 
@@ -781,7 +781,7 @@ const PublicMenu = () => {
             )}
 
             {/* Menu Items */}
-            <main className="max-w-2xl mx-auto px-4 py-4 pb-28">
+            <main className="max-w-2xl mx-auto px-4 py-4 pb-36">
                 {filteredItems.length === 0 ? (
                     <div className="text-center py-12">
                         <Search className="w-12 h-12 mx-auto mb-4 text-orange-300" />
@@ -925,21 +925,42 @@ const PublicMenu = () => {
             <footer className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-orange-600 to-amber-600 text-white py-3 shadow-lg">
                 <div className="max-w-2xl mx-auto px-4">
                     {(showPhone || showAddress) && (
-                        <div className="flex flex-wrap items-center justify-center gap-3 text-xs">
+                        <div className="flex flex-wrap items-center justify-center gap-4 text-xs">
                             {showPhone && shopSettings?.contact_number && (
-                                <a
-                                    href={`tel:${shopSettings.contact_number}`}
-                                    className="flex items-center gap-1 hover:underline"
-                                >
-                                    <Phone className="w-3.5 h-3.5" />
-                                    {shopSettings.contact_number}
-                                </a>
+                                <div className="flex items-center gap-3">
+                                    {/* Call Button */}
+                                    <a
+                                        href={`tel:${shopSettings.contact_number}`}
+                                        className="flex items-center justify-center w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full transition-colors"
+                                        aria-label="Call us"
+                                    >
+                                        <Phone className="w-5 h-5" />
+                                    </a>
+                                    {/* WhatsApp Button */}
+                                    <a
+                                        href={`https://wa.me/${shopSettings.contact_number.replace(/[^0-9]/g, '')}?text=Hi! I visited your restaurant and have a query.`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center justify-center w-10 h-10 bg-green-500 hover:bg-green-600 rounded-full transition-colors"
+                                        aria-label="WhatsApp us"
+                                    >
+                                        <MessageCircle className="w-5 h-5" />
+                                    </a>
+                                </div>
                             )}
                             {showAddress && shopSettings?.address && (
-                                <span className="flex items-center gap-1 text-white/80">
+                                <a
+                                    href={shopSettings.shop_latitude && shopSettings.shop_longitude
+                                        ? `https://www.google.com/maps?q=${shopSettings.shop_latitude},${shopSettings.shop_longitude}`
+                                        : `https://www.google.com/maps/search/${encodeURIComponent(shopSettings.address)}`
+                                    }
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-white/90 hover:text-white hover:underline"
+                                >
                                     <MapPin className="w-3.5 h-3.5" />
                                     <span className="truncate max-w-[180px]">{shopSettings.address}</span>
-                                </span>
+                                </a>
                             )}
                         </div>
                     )}
