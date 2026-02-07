@@ -50,52 +50,49 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
 
     // Request camera permission and handle denial
     const handleCameraClick = async () => {
-        // Detect iOS
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isAndroid = /Android/.test(navigator.userAgent);
 
         try {
-            // On iOS Safari, permissions API may not be available for camera
-            // So we try directly with getUserMedia
-            if (isIOS || !navigator.permissions) {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                    stream.getTracks().forEach(track => track.stop());
-                    cameraInputRef.current?.click();
-                } catch (err: any) {
-                    if (err.name === 'NotAllowedError' || err.name === 'SecurityError') {
+            // Pre-check permission status using Permissions API (if available)
+            // Note: camera permission query may not work on all browsers
+            try {
+                if (navigator.permissions && !isIOS) {
+                    const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
+
+                    if (permissionStatus.state === 'denied') {
+                        // Permission is blocked at browser/OS level
                         setShowPermissionDialog(true);
-                    } else {
-                        // On iOS, just try to open the camera input directly
-                        cameraInputRef.current?.click();
+                        return;
                     }
                 }
-                return;
+            } catch (permError) {
+                // Permissions API not supported for camera - continue with getUserMedia
+                console.log('Camera permissions query not supported, trying getUserMedia directly');
             }
 
-            // Check if camera permission is already granted
-            const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
-
-            if (permissionStatus.state === 'denied') {
-                // Show dialog to inform user they need to enable camera
-                setShowPermissionDialog(true);
-                return;
-            }
-
-            if (permissionStatus.state === 'prompt') {
-                // Request camera access to trigger browser permission prompt
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                    // Close stream immediately - we just needed to trigger permission
-                    stream.getTracks().forEach(track => track.stop());
-                } catch (err) {
-                    // Permission denied via browser prompt
+            // Try to get camera access to trigger browser permission prompt
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                // Permission granted - stop the stream and trigger file input
+                stream.getTracks().forEach(track => track.stop());
+                cameraInputRef.current?.click();
+            } catch (err: any) {
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError' || err.name === 'SecurityError') {
+                    // Permission denied
                     setShowPermissionDialog(true);
-                    return;
+                } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                    // No camera found - try to open file input directly
+                    toast({
+                        title: "No Camera Found",
+                        description: "No camera detected. Please use file upload instead.",
+                        variant: "destructive"
+                    });
+                } else {
+                    // Other error - try to open camera input directly as fallback
+                    cameraInputRef.current?.click();
                 }
             }
-
-            // Permission granted - trigger camera input
-            cameraInputRef.current?.click();
         } catch (err) {
             // Fallback: just try to open camera directly (older browsers)
             cameraInputRef.current?.click();

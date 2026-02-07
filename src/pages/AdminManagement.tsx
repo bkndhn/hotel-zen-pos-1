@@ -112,12 +112,12 @@ const AdminManagement = () => {
   }
 
   return (
-    <div className="min-h-screen p-6">
+    <div className="min-h-screen p-4 sm:p-6 pb-24">
       <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
           <div className="flex items-center space-x-2">
-            <Shield className="w-6 h-6" />
-            <h1 className="text-2xl font-bold">Admin Management</h1>
+            <Shield className="w-5 h-5 sm:w-6 sm:h-6" />
+            <h1 className="text-xl sm:text-2xl font-bold">Admin Management</h1>
           </div>
         </div>
 
@@ -131,9 +131,9 @@ const AdminManagement = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <p className="text-sm text-muted-foreground">Manage additional charges for billing</p>
-                <Button onClick={() => setChargeDialogOpen(true)}>
+                <Button onClick={() => setChargeDialogOpen(true)} className="w-full sm:w-auto">
                   <DollarSign className="w-4 h-4 mr-2" />
                   Add Charge
                 </Button>
@@ -184,19 +184,19 @@ const AdminManagement = () => {
                     <div className="p-2.5 rounded-full bg-primary/10 mt-1 sm:mt-0">
                       <User className="w-5 h-5 text-primary" />
                     </div>
-                    <div className="space-y-1">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                        <h3 className="font-semibold text-lg">{userProfile.name}</h3>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] w-fit font-medium border ${userProfile.status === 'active'
-                            ? 'bg-green-50 text-green-700 border-green-200'
-                            : userProfile.status === 'suspended'
-                              ? 'bg-red-50 text-red-700 border-red-200'
-                              : 'bg-gray-50 text-gray-700 border-gray-200'
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                        <h3 className="font-semibold text-base sm:text-lg truncate max-w-[200px] sm:max-w-none">{userProfile.name}</h3>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] shrink-0 font-medium border ${userProfile.status === 'active'
+                          ? 'bg-green-50 text-green-700 border-green-200'
+                          : userProfile.status === 'suspended'
+                            ? 'bg-red-50 text-red-700 border-red-200'
+                            : 'bg-gray-50 text-gray-700 border-gray-200'
                           }`}>
                           {userProfile.status.toUpperCase()}
                         </span>
                       </div>
-                      <p className="text-sm text-foreground/80 font-medium">{userProfile.hotel_name}</p>
+                      <p className="text-sm text-foreground/80 font-medium truncate">{userProfile.hotel_name}</p>
                       <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                         <span className="capitalize">Role: {userProfile.role}</span>
                         {userProfile.login_count !== undefined && (
@@ -215,26 +215,26 @@ const AdminManagement = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 mt-2 sm:mt-0">
+                  <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 mt-2 sm:mt-0">
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => updateAdminStatus(userProfile.user_id, 'active' as UserStatus)}
                       disabled={userProfile.status === 'active'}
-                      className={`flex-1 sm:flex-none ${userProfile.status === 'active' ? '' : 'text-green-600 hover:text-green-700 hover:bg-green-50'}`}
+                      className={`flex-1 sm:flex-none min-w-[100px] ${userProfile.status === 'active' ? '' : 'text-green-600 hover:text-green-700 hover:bg-green-50'}`}
                     >
-                      <UserCheck className="w-4 h-4 mr-2" />
-                      Activate
+                      <UserCheck className="w-4 h-4 mr-1 sm:mr-2" />
+                      <span className="text-xs sm:text-sm">Activate</span>
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => updateAdminStatus(userProfile.user_id, 'suspended' as UserStatus)}
                       disabled={userProfile.status === 'suspended'}
-                      className={`flex-1 sm:flex-none ${userProfile.status === 'suspended' ? '' : 'text-red-600 hover:text-red-700 hover:bg-red-50'}`}
+                      className={`flex-1 sm:flex-none min-w-[100px] ${userProfile.status === 'suspended' ? '' : 'text-red-600 hover:text-red-700 hover:bg-red-50'}`}
                     >
-                      <UserX className="w-4 h-4 mr-2" />
-                      Suspend
+                      <UserX className="w-4 h-4 mr-1 sm:mr-2" />
+                      <span className="text-xs sm:text-sm">Suspend</span>
                     </Button>
                   </div>
                 </div>
