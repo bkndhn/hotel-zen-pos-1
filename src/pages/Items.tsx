@@ -24,6 +24,8 @@ interface Item {
   created_at: string;
   updated_at: string;
   image_url?: string;
+  video_url?: string;
+  media_type?: 'image' | 'gif' | 'video';
   description?: string;
   purchase_rate?: number;
   unit?: string;
@@ -392,16 +394,28 @@ const Items: React.FC = () => {
           </div>
         )}
 
-        {item.image_url && (
+        {/* Media display - supports images, GIFs, and videos */}
+        {(item.image_url || item.video_url) && (
           <div className={`w-full aspect-[4/3] overflow-hidden bg-muted/20 relative ${isInactive ? 'grayscale' : ''}`}>
-            <img
-              src={item.image_url}
-              alt={item.name}
-              className="w-full h-full object-cover pointer-events-none"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
+            {item.media_type === 'video' ? (
+              <video
+                src={item.video_url || item.image_url}
+                className="w-full h-full object-cover pointer-events-none"
+                muted
+                loop
+                autoPlay
+                playsInline
+              />
+            ) : (
+              <img
+                src={item.media_type === 'gif' ? (item.video_url || item.image_url) : item.image_url}
+                alt={item.name}
+                className="w-full h-full object-cover pointer-events-none"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            )}
             {isLowStock(item) && !isInactive && (
               <Badge className="absolute top-1 right-1 bg-orange-500 text-white text-[9px] px-1.5 py-0.5">
                 Low Stock

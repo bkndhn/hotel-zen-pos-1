@@ -36,6 +36,10 @@ export const PromoBannerManager = () => {
     const [saving, setSaving] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Drag and drop refs
+    const dragItem = useRef<number | null>(null);
+    const dragOverItem = useRef<number | null>(null);
+
     const [formData, setFormData] = useState({
         title: '',
         description: '',
@@ -245,6 +249,56 @@ export const PromoBannerManager = () => {
         }
     };
 
+    // Drag and drop handlers for reordering
+    const handleDragStart = (index: number) => {
+        dragItem.current = index;
+    };
+
+    const handleDragEnter = (index: number) => {
+        dragOverItem.current = index;
+    };
+
+    const handleDragEnd = async () => {
+        if (dragItem.current === null || dragOverItem.current === null) return;
+        if (dragItem.current === dragOverItem.current) {
+            dragItem.current = null;
+            dragOverItem.current = null;
+            return;
+        }
+
+        // Reorder banners locally
+        const reorderedBanners = [...banners];
+        const draggedBanner = reorderedBanners[dragItem.current];
+        reorderedBanners.splice(dragItem.current, 1);
+        reorderedBanners.splice(dragOverItem.current, 0, draggedBanner);
+
+        // Update local state immediately for responsiveness
+        setBanners(reorderedBanners);
+
+        // Save new order to database
+        try {
+            const updates = reorderedBanners.map((banner, idx) => ({
+                id: banner.id,
+                display_order: idx
+            }));
+
+            for (const update of updates) {
+                await supabase
+                    .from('promo_banners')
+                    .update({ display_order: update.display_order })
+                    .eq('id', update.id);
+            }
+
+            toast({ title: "Banner order updated" });
+        } catch (error) {
+            console.error('Error saving banner order:', error);
+            fetchBanners(); // Revert on error
+        }
+
+        dragItem.current = null;
+        dragOverItem.current = null;
+    };
+
     const openEditDialog = (banner: Banner) => {
         setEditingBanner(banner);
         setFormData({
@@ -321,17 +375,34 @@ export const PromoBannerManager = () => {
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {banners.map((banner) => (
+                            {banners.map((banner, index) => (
                                 <div
                                     key={banner.id}
                                     className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                                    draggable
+                                    onDragStart={() => handleDragStart(index)}
+                                    onDragEnter={() => handleDragEnter(index)}
+                                    onDragEnd={handleDragEnd}
+                                    onDragOver={(e) => e.preventDefault()}
                                 >
-                                    <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab" />
-                                    <img
-                                        src={banner.image_url}
-                                        alt={banner.title}
-                                        className="w-20 h-12 object-cover rounded"
-                                    />
+                                    <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab active:cursor-grabbing" />
+                                    {/* Banner preview - show image or solid color for text-only */}
+                                    {banner.is_text_only ? (
+                                        <div
+                                            className="w-20 h-12 rounded flex items-center justify-center"
+                                            style={{ backgroundColor: banner.bg_color || '#22c55e' }}
+                                        >
+                                            <span className="text-xs font-medium truncate px-1" style={{ color: banner.text_color || '#ffffff' }}>
+                                                Text
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <img
+                                            src={banner.image_url}
+                                            alt={banner.title}
+                                            className="w-20 h-12 object-cover rounded"
+                                        />
+                                    )}
                                     <div className="flex-1 min-w-0">
                                         <p className="font-medium text-sm truncate">{banner.title}</p>
                                         {banner.description && (

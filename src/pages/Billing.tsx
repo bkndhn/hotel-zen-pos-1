@@ -25,6 +25,8 @@ interface Item {
   name: string;
   price: number;
   image_url?: string;
+  video_url?: string;
+  media_type?: 'image' | 'gif' | 'video';
   is_active: boolean;
   category?: string;
   unit?: string;
@@ -78,7 +80,7 @@ const CategoryScrollBar: React.FC<{
   const getCategoryCount = (categoryName: string) => {
     return items.filter(item => item.category === categoryName && item.is_active).length;
   };
-  
+
   const totalActiveItems = items.filter(item => item.is_active).length;
 
   return (
@@ -1332,12 +1334,29 @@ const Billing = () => {
             return <div key={item.id} className={`relative bg-card rounded-xl border-2 p-1.5 flex flex-col shadow-sm transition-all duration-300 ${isInCart ? 'border-primary shadow-primary/20 shadow-md' : lowStock ? 'border-orange-500 dark:border-orange-400' : 'border-gray-200 dark:border-gray-700 hover:border-primary/30'}`}>
               {/* Image container with quantity badge */}
               <div className="relative aspect-[4/3] mb-1 bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-lg overflow-hidden flex-shrink-0">
-                {item.image_url ? <img src={getCachedImageUrl(item.id)} alt={item.name} className="w-full h-full object-cover" onError={e => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  target.nextElementSibling?.classList.remove('hidden');
-                }} /> : null}
-                <div className={`${item.image_url ? 'hidden' : ''} w-full h-full flex items-center justify-center text-muted-foreground`}>
+                {/* Media rendering - supports images, GIFs, and videos */}
+                {item.media_type === 'video' ? (
+                  <video
+                    src={item.video_url || item.image_url}
+                    className="w-full h-full object-cover"
+                    muted
+                    loop
+                    autoPlay
+                    playsInline
+                  />
+                ) : (item.image_url || item.video_url) ? (
+                  <img
+                    src={item.media_type === 'gif' ? (item.video_url || item.image_url) : (getCachedImageUrl(item.id) || item.image_url)}
+                    alt={item.name}
+                    className="w-full h-full object-cover"
+                    onError={e => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      target.nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                ) : null}
+                <div className={`${(item.image_url || item.video_url) ? 'hidden' : ''} w-full h-full flex items-center justify-center text-muted-foreground`}>
                   <Package className="w-8 h-8" />
                 </div>
 
@@ -1396,9 +1415,26 @@ const Billing = () => {
                     <div className="flex items-center space-x-3">
                       {/* Image */}
                       <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                        {imageUrl ? <img src={imageUrl} alt={item.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-400">
-                          <Package className="w-6 h-6" />
-                        </div>}
+                        {item.media_type === 'video' ? (
+                          <video
+                            src={item.video_url || item.image_url}
+                            className="w-full h-full object-cover"
+                            muted
+                            loop
+                            autoPlay
+                            playsInline
+                          />
+                        ) : (item.image_url || item.video_url) ? (
+                          <img
+                            src={item.media_type === 'gif' ? (item.video_url || item.image_url) : (imageUrl || item.image_url)}
+                            alt={item.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                            <Package className="w-6 h-6" />
+                          </div>
+                        )}
                       </div>
 
                       {/* Name and Price */}
