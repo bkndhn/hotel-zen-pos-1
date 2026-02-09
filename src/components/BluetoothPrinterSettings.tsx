@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Printer, Bluetooth, AlertCircle, CheckCircle2, RefreshCw, FileText, Zap, Upload, Image as ImageIcon, X } from 'lucide-react';
+import { Printer, Bluetooth, AlertCircle, CheckCircle2, RefreshCw, FileText, Zap, Upload, Image as ImageIcon, X, WifiOff, Loader2 } from 'lucide-react';
+import { usePrinter } from '@/hooks/usePrinter';
 
 
 // Local storage key for device persistence
@@ -30,6 +31,19 @@ interface SavedDevice {
 
 export const BluetoothPrinterSettings: React.FC = () => {
   const { profile } = useAuth();
+
+  // Use the new persistent printer hook
+  const {
+    connectionState,
+    deviceName: connectedDeviceName,
+    isConnected,
+    isBluetoothSupported,
+    queueSize,
+    connect,
+    disconnect,
+    print
+  } = usePrinter();
+
   const [settings, setSettings] = useState<BluetoothSettings>({
     is_enabled: false,
     printer_name: null,
@@ -40,13 +54,16 @@ export const BluetoothPrinterSettings: React.FC = () => {
   const [printing, setPrinting] = useState(false);
   const [connectionQuality, setConnectionQuality] = useState<'good' | 'fair' | 'poor' | null>(null);
 
-
-
-  const deviceRef = useRef<any>(null);
-  const characteristicRef = useRef<any>(null);
-
-  const reconnectAttemptsRef = useRef(0);
-  const maxReconnectAttempts = 3;
+  // Sync connection state with local state
+  useEffect(() => {
+    if (isConnected && connectedDeviceName) {
+      setSettings(prev => ({
+        ...prev,
+        is_enabled: true,
+        printer_name: connectedDeviceName
+      }));
+    }
+  }, [isConnected, connectedDeviceName]);
 
   const fetchSettings = async () => {
     try {
@@ -135,8 +152,7 @@ export const BluetoothPrinterSettings: React.FC = () => {
   };
 
   const connectPrinter = async () => {
-    const nav = navigator as any;
-    if (!nav.bluetooth) {
+    if (!isBluetoothSupported) {
       toast({
         title: "Not Supported",
         description: "Bluetooth is not supported in this browser. Use Chrome or Edge on Android/Desktop.",
@@ -147,41 +163,19 @@ export const BluetoothPrinterSettings: React.FC = () => {
 
     setConnecting(true);
     try {
-      const device = await nav.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: [
-          '000018f0-0000-1000-8000-00805f9b34fb',
-          '49535343-fe7d-4ae5-8fa9-9fafd205e455',
-          'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
-        ]
-      });
+      const success = await connect(true); // Force new device selection
 
-      deviceRef.current = device;
+      if (success) {
+        await updateSettings({
+          printer_name: connectedDeviceName || 'Bluetooth Printer',
+          is_enabled: true
+        });
 
-      const server = await device.gatt?.connect();
-      if (!server) throw new Error('Failed to connect to GATT server');
-
-      const services = await server.getPrimaryServices();
-      for (const service of services) {
-        const characteristics = await service.getCharacteristics();
-        for (const char of characteristics) {
-          if (char.properties.write || char.properties.writeWithoutResponse) {
-            characteristicRef.current = char;
-            break;
-          }
-        }
-        if (characteristicRef.current) break;
+        toast({
+          title: "Connected!",
+          description: `Successfully connected to ${connectedDeviceName || 'Bluetooth Printer'}. Connection will persist across prints.`,
+        });
       }
-
-      await updateSettings({
-        printer_name: device.name || 'Bluetooth Printer',
-        is_enabled: true
-      });
-
-      toast({
-        title: "Connected!",
-        description: `Successfully connected to ${device.name || 'Bluetooth Printer'}`,
-      });
     } catch (error: any) {
       if (error.name !== 'NotFoundError') {
         console.error('Bluetooth error:', error);
@@ -197,16 +191,16 @@ export const BluetoothPrinterSettings: React.FC = () => {
   };
 
   const disconnectPrinter = () => {
-    if (deviceRef.current?.gatt?.connected) {
-      deviceRef.current.gatt.disconnect();
-    }
-    deviceRef.current = null;
-    characteristicRef.current = null;
+    disconnect();
     updateSettings({ printer_name: null, is_enabled: false });
+    toast({
+      title: "Disconnected",
+      description: "Printer has been disconnected. You'll need to pair again for printing.",
+    });
   };
 
   const printTestPage = async () => {
-    if (!settings.is_enabled || !settings.printer_name) {
+    if (!isConnected) {
       toast({
         title: "No Printer",
         description: "Please connect a printer first",
@@ -217,77 +211,29 @@ export const BluetoothPrinterSettings: React.FC = () => {
 
     setPrinting(true);
     try {
-      // Reconnect if needed
-      if (!deviceRef.current?.gatt?.connected) {
-        const nav = navigator as any;
-        const device = await nav.bluetooth.requestDevice({
-          acceptAllDevices: true,
-          optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+      // Use the PrinterManager to print test page
+      const testData = {
+        billNo: 'TEST',
+        date: new Date().toLocaleDateString(),
+        time: new Date().toLocaleTimeString(),
+        items: [{ name: 'Test Item', quantity: 1, price: 100, total: 100 }],
+        subtotal: 100,
+        total: 100,
+        paymentMethod: 'Cash',
+        shopName: 'Test Print',
+        printerWidth: '58mm' as const
+      };
+
+      const success = await print(testData);
+
+      if (success) {
+        toast({
+          title: "Test Print Sent!",
+          description: "Check your printer for the test page. Connection is persistent - no re-pairing needed!",
         });
-        const server = await device.gatt?.connect();
-        const services = await server?.getPrimaryServices();
-        for (const service of services || []) {
-          const characteristics = await service.getCharacteristics();
-          for (const char of characteristics) {
-            if (char.properties.write || char.properties.writeWithoutResponse) {
-              characteristicRef.current = char;
-              break;
-            }
-          }
-          if (characteristicRef.current) break;
-        }
+      } else {
+        throw new Error('Print failed');
       }
-
-      if (!characteristicRef.current) {
-        throw new Error('No writable characteristic found');
-      }
-
-      // ESC/POS test print commands
-      const encoder = new TextEncoder();
-      const ESC = 0x1B;
-      const GS = 0x1D;
-
-      // Initialize printer
-      const init = new Uint8Array([ESC, 0x40]);
-      await characteristicRef.current.writeValue(init);
-
-      // Center align
-      const center = new Uint8Array([ESC, 0x61, 0x01]);
-      await characteristicRef.current.writeValue(center);
-
-      // Bold on
-      const boldOn = new Uint8Array([ESC, 0x45, 0x01]);
-      await characteristicRef.current.writeValue(boldOn);
-
-      // Print header
-      const header = encoder.encode('=== TEST PRINT ===\n');
-      await characteristicRef.current.writeValue(header);
-
-      // Bold off
-      const boldOff = new Uint8Array([ESC, 0x45, 0x00]);
-      await characteristicRef.current.writeValue(boldOff);
-
-      // Left align
-      const left = new Uint8Array([ESC, 0x61, 0x00]);
-      await characteristicRef.current.writeValue(left);
-
-      // Print details
-      const details = encoder.encode(`\nPrinter: ${settings.printer_name}\nDate: ${new Date().toLocaleString()}\n\nConnection successful!\nPrinter is ready to use.\n\n`);
-      await characteristicRef.current.writeValue(details);
-
-      // Center and print footer
-      await characteristicRef.current.writeValue(center);
-      const footer = encoder.encode('================\n\n\n');
-      await characteristicRef.current.writeValue(footer);
-
-      // Cut paper (if supported)
-      const cut = new Uint8Array([GS, 0x56, 0x00]);
-      await characteristicRef.current.writeValue(cut);
-
-      toast({
-        title: "Test Print Sent!",
-        description: "Check your printer for the test page",
-      });
     } catch (error: any) {
       console.error('Print error:', error);
       toast({
@@ -300,7 +246,7 @@ export const BluetoothPrinterSettings: React.FC = () => {
     }
   };
 
-  const isBluetoothSupported = typeof navigator !== 'undefined' && 'bluetooth' in navigator;
+  // isBluetoothSupported is now provided by usePrinter hook
 
   if (loading) {
     return (
@@ -314,16 +260,31 @@ export const BluetoothPrinterSettings: React.FC = () => {
     <Card className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-none shadow-sm">
       <CardContent className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className={`p-2.5 rounded-full ${settings.is_enabled && settings.printer_name ? 'bg-blue-100/50 text-blue-600 dark:bg-blue-900/30' : 'bg-slate-200/50 text-slate-500 dark:bg-slate-800'}`}>
-            <Printer className="w-5 h-5" />
+          <div className={`p-2.5 rounded-full ${isConnected ? 'bg-green-100/50 text-green-600 dark:bg-green-900/30' : connectionState === 'connecting' ? 'bg-blue-100/50 text-blue-600 dark:bg-blue-900/30' : 'bg-slate-200/50 text-slate-500 dark:bg-slate-800'}`}>
+            {connectionState === 'connecting' ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : isConnected ? (
+              <CheckCircle2 className="w-5 h-5" />
+            ) : (
+              <Printer className="w-5 h-5" />
+            )}
           </div>
           <div>
             <h3 className="font-semibold text-sm">Bluetooth Printer</h3>
             <p className="text-xs text-muted-foreground">
-              {settings.is_enabled && settings.printer_name
-                ? <span className="text-green-600 flex items-center gap-1">● Connected to {settings.printer_name}</span>
-                : "Not connected"}
+              {connectionState === 'connecting' ? (
+                <span className="text-blue-600 flex items-center gap-1">● Connecting...</span>
+              ) : isConnected ? (
+                <span className="text-green-600 flex items-center gap-1">● Connected to {connectedDeviceName || settings.printer_name} (Persistent)</span>
+              ) : connectionState === 'error' ? (
+                <span className="text-red-600 flex items-center gap-1">● Connection error</span>
+              ) : (
+                "Not connected"
+              )}
             </p>
+            {queueSize > 0 && (
+              <p className="text-xs text-amber-600">📋 {queueSize} print job(s) queued</p>
+            )}
           </div>
         </div>
         <Dialog>

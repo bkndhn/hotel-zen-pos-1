@@ -6,9 +6,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Plus, Minus, Trash2, Percent, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
+import { Plus, Minus, Trash2, Percent, ChevronDown, ChevronUp, MessageCircle, Image as ImageIcon, FileText, Loader2 } from 'lucide-react';
 import { getShortUnit, formatQuantityWithUnit, isWeightOrVolumeUnit } from '@/utils/timeUtils';
-import { isValidPhoneNumber } from '@/utils/whatsappBillShare';
+import { isValidPhoneNumber, formatBillMessage, shareViaWhatsApp } from '@/utils/whatsappBillShare';
+import { shareBillImageViaWhatsApp, BillImageData } from '@/utils/billImageGenerator';
+import { toast } from '@/hooks/use-toast';
 
 interface CartItem {
   id: string;
@@ -80,6 +82,8 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
   const [showDiscount, setShowDiscount] = useState(false);
   const [customerMobile, setCustomerMobile] = useState('');
   const [sendWhatsApp, setSendWhatsApp] = useState(false);
+  const [sharingImage, setSharingImage] = useState(false);
+  const [sharingText, setSharingText] = useState(false);
   const hasInitialized = React.useRef(false);
 
   // Get total quantity for charges (smart count: 1 for weighted items, sum for pieces)
@@ -487,7 +491,7 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
                 <MessageCircle className="w-4 h-4 text-green-600" />
                 <span className="font-semibold text-xs text-green-700 dark:text-green-400">WhatsApp Bill Share</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mb-2">
                 <Input
                   type="tel"
                   value={customerMobile}
@@ -495,22 +499,147 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
                   placeholder="Customer mobile (e.g. 9876543210)"
                   className="flex-1 h-8 text-xs bg-white dark:bg-gray-800"
                 />
-                <div className="flex items-center gap-1.5">
-                  <Switch
-                    id="send-whatsapp"
-                    checked={sendWhatsApp}
-                    onCheckedChange={setSendWhatsApp}
-                    disabled={!customerMobile.trim()}
-                    className="scale-75"
-                  />
-                  <Label htmlFor="send-whatsapp" className="text-[10px] text-muted-foreground whitespace-nowrap">
-                    Send
-                  </Label>
-                </div>
               </div>
               {customerMobile && !isValidPhoneNumber(customerMobile) && (
-                <p className="text-[10px] text-red-500 mt-1">Invalid phone number format</p>
+                <p className="text-[10px] text-red-500 mb-1.5">Invalid phone number format</p>
               )}
+              {/* Two share buttons: Image Bill and Text Bill */}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!customerMobile.trim() || !isValidPhoneNumber(customerMobile) || sharingImage}
+                  onClick={async () => {
+                    if (!customerMobile.trim() || !isValidPhoneNumber(customerMobile)) return;
+                    setSharingImage(true);
+                    try {
+                      const billData: BillImageData = {
+                        billNo: 'Preview',
+                        shopName: 'Your Shop', // This will be replaced with actual shop name in Billing.tsx
+                        items: cart.filter(item => getEffectiveQty(item) > 0).map(item => {
+                          const effectiveQty = getEffectiveQty(item);
+                          const baseValue = item.base_value || 1;
+                          const itemTotal = itemTotalOverrides[item.id] !== undefined
+                            ? itemTotalOverrides[item.id]
+                            : (effectiveQty / baseValue) * item.price;
+                          return {
+                            name: item.name,
+                            quantity: effectiveQty,
+                            total: itemTotal,
+                            unit: item.unit,
+                            price: item.price
+                          };
+                        }),
+                        subtotal: cartSubtotal,
+                        discount: discountAmount > 0 ? discountAmount : undefined,
+                        additionalCharges: additionalCharges
+                          .filter(c => selectedCharges[c.id])
+                          .map(c => ({
+                            name: c.name,
+                            amount: chargeAmountOverrides[c.id] !== undefined
+                              ? chargeAmountOverrides[c.id]
+                              : c.charge_type === 'fixed' ? c.amount
+                                : c.charge_type === 'per_unit' ? c.amount * getSmartTotalQuantity()
+                                  : cartSubtotal * c.amount / 100
+                          })),
+                        total: total,
+                        date: new Date().toLocaleDateString('en-IN'),
+                        time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+                        paymentMethod: Object.entries(paymentAmounts).find(([_, amt]) => amt > 0)?.[0] || 'Cash',
+                        totalItemsCount: cart.filter(item => getEffectiveQty(item) > 0).length,
+                        smartQtyCount: getSmartTotalQuantity()
+                      };
+                      const result = await shareBillImageViaWhatsApp(customerMobile, billData);
+                      if (result.success) {
+                        toast({
+                          title: result.method === 'share' ? 'Bill Shared!' : 'Bill Downloaded',
+                          description: result.method === 'share'
+                            ? 'Bill image shared via WhatsApp'
+                            : 'Bill image downloaded. WhatsApp opened - attach the image.',
+                        });
+                      } else {
+                        toast({
+                          title: 'Share Failed',
+                          description: result.error || 'Could not share bill image',
+                          variant: 'destructive'
+                        });
+                      }
+                    } catch (error) {
+                      console.error('Share error:', error);
+                    } finally {
+                      setSharingImage(false);
+                    }
+                  }}
+                  className="flex-1 h-8 text-xs border-green-300 hover:bg-green-50 dark:hover:bg-green-900/30"
+                >
+                  {sharingImage ? (
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  ) : (
+                    <ImageIcon className="w-3 h-3 mr-1" />
+                  )}
+                  Image Bill
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!customerMobile.trim() || !isValidPhoneNumber(customerMobile) || sharingText}
+                  onClick={() => {
+                    if (!customerMobile.trim() || !isValidPhoneNumber(customerMobile)) return;
+                    setSharingText(true);
+                    try {
+                      const message = formatBillMessage({
+                        billNo: 'Preview',
+                        shopName: 'Your Shop',
+                        items: cart.filter(item => getEffectiveQty(item) > 0).map(item => {
+                          const effectiveQty = getEffectiveQty(item);
+                          const baseValue = item.base_value || 1;
+                          const itemTotal = itemTotalOverrides[item.id] !== undefined
+                            ? itemTotalOverrides[item.id]
+                            : (effectiveQty / baseValue) * item.price;
+                          return {
+                            name: item.name,
+                            quantity: effectiveQty,
+                            total: itemTotal,
+                            unit: item.unit
+                          };
+                        }),
+                        subtotal: cartSubtotal,
+                        discount: discountAmount > 0 ? discountAmount : undefined,
+                        additionalCharges: additionalCharges
+                          .filter(c => selectedCharges[c.id])
+                          .map(c => ({
+                            name: c.name,
+                            amount: chargeAmountOverrides[c.id] !== undefined
+                              ? chargeAmountOverrides[c.id]
+                              : c.charge_type === 'fixed' ? c.amount
+                                : c.charge_type === 'per_unit' ? c.amount * getSmartTotalQuantity()
+                                  : cartSubtotal * c.amount / 100
+                          })),
+                        total: total,
+                        date: new Date().toLocaleDateString('en-IN'),
+                        time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+                        paymentMethod: Object.entries(paymentAmounts).find(([_, amt]) => amt > 0)?.[0] || 'Cash'
+                      });
+                      shareViaWhatsApp(customerMobile, message);
+                      toast({
+                        title: 'WhatsApp Opened',
+                        description: 'Bill text ready to send',
+                      });
+                    } catch (error) {
+                      console.error('Share error:', error);
+                    } finally {
+                      setSharingText(false);
+                    }
+                  }}
+                  className="flex-1 h-8 text-xs border-green-300 hover:bg-green-50 dark:hover:bg-green-900/30"
+                >
+                  <FileText className="w-3 h-3 mr-1" />
+                  Text Bill
+                </Button>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
+                📷 Image = Professional receipt look | 📝 Text = Quick & low data
+              </p>
             </div>
           )}
         </div>

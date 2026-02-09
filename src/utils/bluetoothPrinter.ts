@@ -277,7 +277,8 @@ const formatLine = (left: string, right: string, width: number = 32): string => 
   return padRight(left, leftLen) + ' ' + right;
 };
 
-const generateReceiptBytes = async (data: PrintData): Promise<Uint8Array> => {
+// Export the receipt byte generation for use by PrinterManager
+export const generateReceiptBytes = async (data: PrintData): Promise<Uint8Array> => {
   const commands: Uint8Array[] = [];
 
   // COMPACT mode: 58mm = 32 chars, 80mm = 48 chars
@@ -400,7 +401,15 @@ const generateReceiptBytes = async (data: PrintData): Promise<Uint8Array> => {
   return result;
 };
 
+// Legacy printReceipt - now uses PrinterManager for persistent connection
 export const printReceipt = async (data: PrintData): Promise<boolean> => {
+  // Import dynamically to avoid circular dependency
+  const { printerManager } = await import('./printerManager');
+  return printerManager.print(data);
+};
+
+// Direct print function that always requests new device (for testing/fallback)
+export const printReceiptDirect = async (data: PrintData): Promise<boolean> => {
   const nav = navigator as any;
 
   if (!nav.bluetooth) {
