@@ -15,6 +15,11 @@ interface BillShareData {
   date: string;
   time: string;
   paymentMethod: string;
+  // GST fields
+  gstin?: string;
+  taxSummary?: string;
+  totalTax?: number;
+  isComposition?: boolean;
 }
 
 /**
@@ -25,6 +30,9 @@ export const formatBillMessage = (data: BillShareData): string => {
   message += `━━━━━━━━━━━━━━\n`;
   message += `📋 Bill #${data.billNo}\n`;
   message += `📅 ${data.date} | ${data.time}\n`;
+  if (data.gstin) {
+    message += `🏢 GSTIN: ${data.gstin}\n`;
+  }
   message += `━━━━━━━━━━━━━━\n\n`;
 
   // Items
@@ -51,6 +59,31 @@ export const formatBillMessage = (data: BillShareData): string => {
   }
 
   message += `━━━━━━━━━━━━━━\n`;
+
+  // Tax details
+  if (data.totalTax && data.totalTax > 0) {
+    if (data.isComposition) {
+      message += `Tax (Comp): ₹${data.totalTax.toFixed(0)}\n`;
+    } else {
+      try {
+        const summary = data.taxSummary ? JSON.parse(data.taxSummary) : null;
+        if (summary?.byRate) {
+          Object.entries(summary.byRate).forEach(([rate, info]: [string, any]) => {
+            const halfRate = (parseFloat(rate) / 2).toFixed(1);
+            message += `CGST @${halfRate}%: ₹${(info.cgst || 0).toFixed(0)}\n`;
+            message += `SGST @${halfRate}%: ₹${(info.sgst || 0).toFixed(0)}\n`;
+          });
+        } else {
+          const halfTax = data.totalTax / 2;
+          message += `CGST: ₹${halfTax.toFixed(0)}\n`;
+          message += `SGST: ₹${halfTax.toFixed(0)}\n`;
+        }
+      } catch {
+        message += `Tax: ₹${data.totalTax.toFixed(0)}\n`;
+      }
+    }
+  }
+
   message += `*TOTAL: ₹${data.total.toFixed(0)}*\n`;
   message += `Paid via: ${data.paymentMethod}\n\n`;
   message += `Thank you for your visit! 🙏`;
@@ -60,29 +93,34 @@ export const formatBillMessage = (data: BillShareData): string => {
 
 /**
  * Open WhatsApp with pre-filled message (Direct/Manual method)
+ * Uses api.whatsapp.com/send which is more reliable than wa.me
  */
 export const shareViaWhatsApp = (phoneNumber: string, message: string): void => {
-  // Clean phone number (remove spaces, dashes, etc.)
-  let cleanPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
-
-  // Add country code if not present (default to India +91)
-  if (!cleanPhone.startsWith('+')) {
-    if (cleanPhone.startsWith('0')) {
-      cleanPhone = cleanPhone.substring(1);
-    }
-    if (cleanPhone.length === 10) {
-      cleanPhone = '91' + cleanPhone;
-    }
-  } else {
-    cleanPhone = cleanPhone.substring(1); // Remove + for wa.me link
-  }
-
-  // URL encode the message
+  const cleanPhone = cleanPhoneNumber(phoneNumber);
   const encodedMessage = encodeURIComponent(message);
 
-  // Open WhatsApp
-  const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+  // api.whatsapp.com/send is more reliable than wa.me for opening WhatsApp
+  const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMessage}`;
   window.open(whatsappUrl, '_blank');
+};
+
+/**
+ * Clean phone number for WhatsApp - handles Indian numbers
+ */
+const cleanPhoneNumber = (phone: string): string => {
+  let cleaned = phone.replace(/[\s\-\(\)\+]/g, '');
+
+  // Remove leading 0
+  if (cleaned.startsWith('0')) {
+    cleaned = cleaned.substring(1);
+  }
+
+  // 10-digit Indian mobile starting with 6-9 -> add 91
+  if (cleaned.length === 10 && /^[6-9]/.test(cleaned)) {
+    cleaned = '91' + cleaned;
+  }
+
+  return cleaned;
 };
 
 /**

@@ -260,6 +260,11 @@ interface PrintData {
   totalItemsCount?: number;
   smartQtyCount?: number;
   tableNo?: string;
+  // GST fields
+  gstin?: string;
+  taxSummary?: string; // JSON string of tax summary
+  totalTax?: number;
+  isComposition?: boolean;
 }
 
 const textToBytes = (text: string): Uint8Array => {
@@ -321,6 +326,13 @@ export const generateReceiptBytes = async (data: PrintData): Promise<Uint8Array>
     commands.push(FEED_LINE);
   }
 
+  // GSTIN - below address
+  if (data.gstin) {
+    commands.push(ALIGN_CENTER);
+    commands.push(textToBytes(`GSTIN: ${data.gstin}`));
+    commands.push(FEED_LINE);
+  }
+
   // Bill info - compact single line with time
   commands.push(textToBytes(SEP));
   commands.push(FEED_LINE);
@@ -363,6 +375,38 @@ export const generateReceiptBytes = async (data: PrintData): Promise<Uint8Array>
   if (data.discount > 0) {
     commands.push(textToBytes(fmtLine('Disc', `-${data.discount.toFixed(0)}`)));
     commands.push(FEED_LINE);
+  }
+
+  // GST Tax Summary - compact 2-3 lines
+  if (data.totalTax && data.totalTax > 0) {
+    commands.push(textToBytes(SEP));
+    commands.push(FEED_LINE);
+    if (data.isComposition) {
+      commands.push(textToBytes(fmtLine('Tax (Comp)', `${data.totalTax.toFixed(0)}`)));
+      commands.push(FEED_LINE);
+    } else {
+      try {
+        const summary = data.taxSummary ? JSON.parse(data.taxSummary) : null;
+        if (summary?.byRate) {
+          Object.entries(summary.byRate).forEach(([rate, info]: [string, any]) => {
+            const halfRate = (parseFloat(rate) / 2).toFixed(1);
+            commands.push(textToBytes(fmtLine(`CGST@${halfRate}%`, `${(info.cgst || 0).toFixed(0)}`)));
+            commands.push(FEED_LINE);
+            commands.push(textToBytes(fmtLine(`SGST@${halfRate}%`, `${(info.sgst || 0).toFixed(0)}`)));
+            commands.push(FEED_LINE);
+          });
+        } else {
+          const halfTax = data.totalTax / 2;
+          commands.push(textToBytes(fmtLine('CGST', `${halfTax.toFixed(0)}`)));
+          commands.push(FEED_LINE);
+          commands.push(textToBytes(fmtLine('SGST', `${halfTax.toFixed(0)}`)));
+          commands.push(FEED_LINE);
+        }
+      } catch {
+        commands.push(textToBytes(fmtLine('Tax', `${data.totalTax.toFixed(0)}`)));
+        commands.push(FEED_LINE);
+      }
+    }
   }
 
   // TOTAL - bold but NOT double size to save paper

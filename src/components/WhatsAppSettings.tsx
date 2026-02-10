@@ -8,15 +8,16 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
-import { MessageCircle, Settings2, Zap, Info } from 'lucide-react';
+import { MessageCircle, Settings2, Zap, Info, Image as ImageIcon, FileText } from 'lucide-react';
 
 export const WhatsAppSettings: React.FC = () => {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  
+
   // Settings state
   const [whatsappBillShareEnabled, setWhatsappBillShareEnabled] = useState(false);
+  const [whatsappShareMode, setWhatsappShareMode] = useState<'text' | 'image'>('text');
   const [whatsappBusinessApiEnabled, setWhatsappBusinessApiEnabled] = useState(false);
   const [whatsappBusinessApiToken, setWhatsappBusinessApiToken] = useState('');
   const [whatsappBusinessPhoneId, setWhatsappBusinessPhoneId] = useState('');
@@ -31,7 +32,7 @@ export const WhatsAppSettings: React.FC = () => {
     try {
       const { data, error } = await (supabase as any)
         .from('shop_settings')
-        .select('whatsapp_bill_share_enabled, whatsapp_business_api_enabled, whatsapp_business_api_token, whatsapp_business_phone_id')
+        .select('whatsapp_bill_share_enabled, whatsapp_share_mode, whatsapp_business_api_enabled, whatsapp_business_api_token, whatsapp_business_phone_id')
         .eq('user_id', profile?.user_id)
         .maybeSingle();
 
@@ -39,12 +40,13 @@ export const WhatsAppSettings: React.FC = () => {
 
       if (data) {
         setWhatsappBillShareEnabled(data.whatsapp_bill_share_enabled || false);
+        setWhatsappShareMode(data.whatsapp_share_mode === 'image' ? 'image' : 'text');
         setWhatsappBusinessApiEnabled(data.whatsapp_business_api_enabled || false);
         setWhatsappBusinessApiToken(data.whatsapp_business_api_token || '');
         setWhatsappBusinessPhoneId(data.whatsapp_business_phone_id || '');
       }
     } catch (error) {
-      console.error('Error fetching WhatsApp settings:', error);
+      // Silent fail
     } finally {
       setLoading(false);
     }
@@ -60,6 +62,7 @@ export const WhatsAppSettings: React.FC = () => {
         .upsert({
           user_id: profile.user_id,
           whatsapp_bill_share_enabled: whatsappBillShareEnabled,
+          whatsapp_share_mode: whatsappShareMode,
           whatsapp_business_api_enabled: whatsappBusinessApiEnabled,
           whatsapp_business_api_token: whatsappBusinessApiToken || null,
           whatsapp_business_phone_id: whatsappBusinessPhoneId || null,
@@ -73,6 +76,7 @@ export const WhatsAppSettings: React.FC = () => {
       if (existingCache) {
         const parsed = JSON.parse(existingCache);
         parsed.whatsappBillShareEnabled = whatsappBillShareEnabled;
+        parsed.whatsappShareMode = whatsappShareMode;
         localStorage.setItem('hotel_pos_bill_header', JSON.stringify(parsed));
       }
 
@@ -81,7 +85,6 @@ export const WhatsAppSettings: React.FC = () => {
         description: "WhatsApp bill sharing settings updated successfully."
       });
     } catch (error) {
-      console.error('Error saving WhatsApp settings:', error);
       toast({
         title: "Error",
         description: "Failed to save settings.",
@@ -127,6 +130,66 @@ export const WhatsAppSettings: React.FC = () => {
 
         {whatsappBillShareEnabled && (
           <>
+            {/* Share Format Mode */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Settings2 className="w-4 h-4" />
+                <Label className="text-sm font-medium">Default Share Format</Label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* Image Mode */}
+                <div
+                  onClick={() => setWhatsappShareMode('image')}
+                  className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${whatsappShareMode === 'image'
+                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-950/20 shadow-md'
+                      : 'border-muted hover:border-purple-200'
+                    }`}
+                >
+                  <div className="flex flex-col items-center text-center gap-2">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${whatsappShareMode === 'image' ? 'bg-purple-100 dark:bg-purple-900' : 'bg-muted'
+                      }`}>
+                      <ImageIcon className={`w-5 h-5 ${whatsappShareMode === 'image' ? 'text-purple-600' : 'text-muted-foreground'}`} />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span className="font-semibold text-sm">Image Bill</span>
+                        {whatsappShareMode === 'image' && (
+                          <Badge className="text-[9px] bg-purple-600 h-4">Active</Badge>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1">Professional colorful receipt</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Text Mode */}
+                <div
+                  onClick={() => setWhatsappShareMode('text')}
+                  className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${whatsappShareMode === 'text'
+                      ? 'border-green-500 bg-green-50 dark:bg-green-950/20 shadow-md'
+                      : 'border-muted hover:border-green-200'
+                    }`}
+                >
+                  <div className="flex flex-col items-center text-center gap-2">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${whatsappShareMode === 'text' ? 'bg-green-100 dark:bg-green-900' : 'bg-muted'
+                      }`}>
+                      <FileText className={`w-5 h-5 ${whatsappShareMode === 'text' ? 'text-green-600' : 'text-muted-foreground'}`} />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span className="font-semibold text-sm">Text Bill</span>
+                        {whatsappShareMode === 'text' && (
+                          <Badge className="text-[9px] bg-green-600 h-4">Active</Badge>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1">Quick & low data usage</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Integration Mode */}
             <div className="space-y-4">
               <div className="flex items-center gap-2">
@@ -182,7 +245,7 @@ export const WhatsAppSettings: React.FC = () => {
                     <div className="flex items-start gap-2 p-2 bg-yellow-50 rounded-md border border-yellow-200">
                       <Info className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
                       <p className="text-xs text-yellow-800">
-                        WhatsApp Business API requires a Meta Business account and approved WhatsApp Business number. 
+                        WhatsApp Business API requires a Meta Business account and approved WhatsApp Business number.
                         <a href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started" target="_blank" rel="noopener noreferrer" className="underline ml-1">Learn more</a>
                       </p>
                     </div>

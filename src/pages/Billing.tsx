@@ -170,6 +170,13 @@ const Billing = () => {
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [selectedTableNumber, setSelectedTableNumber] = useState<string | null>(null);
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+  const [whatsappShareMode, setWhatsappShareMode] = useState<'text' | 'image'>('text');
+  const [gstSettings, setGstSettings] = useState<{
+    enabled: boolean;
+    gstin: string;
+    isComposition: boolean;
+    taxRatesMap: Record<string, { rate: number; name: string; cess: number; hsn_code: string }>;
+  }>({ enabled: false, gstin: '', isComposition: false, taxRatesMap: {} });
   const syncChannelRef = useRef<any>(null);
 
   // Setup Global Sync Channel for Cross-Device updates
@@ -453,8 +460,34 @@ const Billing = () => {
         };
         setBillSettings(settings);
         setWhatsappEnabled(data.whatsapp_bill_share_enabled || false);
+        setWhatsappShareMode((data as any).whatsapp_share_mode === 'image' ? 'image' : 'text');
         // Update cache
         localStorage.setItem('hotel_pos_bill_header', JSON.stringify(settings));
+
+        // Load GST settings
+        if ((data as any).gst_enabled) {
+          const adminId = profile?.role === 'admin' ? profile.user_id : profile?.admin_id;
+          if (adminId) {
+            const { data: rates } = await (supabase as any)
+              .from('tax_rates')
+              .select('id, name, rate, cess_rate, hsn_code')
+              .eq('admin_id', adminId)
+              .eq('is_active', true);
+            const taxRatesMap: Record<string, any> = {};
+            (rates || []).forEach((r: any) => {
+              taxRatesMap[r.id] = { rate: r.rate, name: r.name, cess: r.cess_rate || 0, hsn_code: r.hsn_code || '' };
+            });
+            setGstSettings({
+              enabled: true,
+              gstin: (data as any).gstin || '',
+              isComposition: (data as any).is_composition_scheme || false,
+              taxRatesMap
+            });
+          }
+        } else {
+          setGstSettings({ enabled: false, gstin: '', isComposition: false, taxRatesMap: {} });
+        }
+
         return settings;
       }
       return null;
@@ -748,6 +781,12 @@ const Billing = () => {
     validCart: CartItem[],
     billNumber: string
   ) => {
+    // Extract and remove internal GST data from payload before inserting
+    const taxRatesMap = billPayload._taxRatesMap;
+    const isComposition = billPayload._isComposition;
+    delete billPayload._taxRatesMap;
+    delete billPayload._isComposition;
+
     // 1. Create Bill
     const { data: billData, error: billError } = await supabase
       .from('bills')
@@ -758,16 +797,43 @@ const Billing = () => {
     if (billError) throw billError;
     if (!billData) throw new Error('Failed to create bill record');
 
-    // 2. Create Bill Items
+    // 2. Create Bill Items (with tax snapshots if GST enabled)
     const billItems = validCart.map(item => {
       const baseValue = item.base_value || 1;
-      return {
+      const lineTotal = (item.quantity / baseValue) * item.price;
+      const billItem: any = {
         bill_id: billData.id,
         item_id: item.id,
         quantity: item.quantity,
         price: item.price,
-        total: (item.quantity / baseValue) * item.price
+        total: lineTotal
       };
+
+      // Add tax snapshot if GST is enabled
+      const itemAny = item as any;
+      const taxRateId = itemAny.tax_rate_id;
+      if (taxRateId && taxRatesMap) {
+        const taxRateInfo = taxRatesMap[taxRateId];
+        if (taxRateInfo) {
+          billItem.tax_rate_snapshot = taxRateInfo.rate;
+          billItem.hsn_code = itemAny.hsn_code || taxRateInfo.hsn_code || null;
+          // Calculate individual item tax for snapshot
+          const taxRate = taxRateInfo.rate;
+          const isTaxInclusive = itemAny.is_tax_inclusive !== false;
+          const cessRate = taxRateInfo.cess || 0;
+          let taxableValue = lineTotal;
+          let taxAmount = 0;
+          if (isTaxInclusive) {
+            taxableValue = lineTotal / (1 + (taxRate + cessRate) / 100);
+            taxAmount = lineTotal - taxableValue;
+          } else {
+            taxAmount = lineTotal * (taxRate + cessRate) / 100;
+          }
+          billItem.tax_amount = Math.round(taxAmount * 100) / 100;
+        }
+      }
+
+      return billItem;
     });
 
     const { error: itemsError } = await supabase
@@ -906,7 +972,8 @@ const Billing = () => {
     cartItems: CartItem[],
     total: number,
     paymentMethod: string,
-    adminId: string | null | undefined
+    adminId: string | null | undefined,
+    paymentDetails?: Record<string, number>
   ) => {
     try {
       const { formatBillMessage, shareViaWhatsApp, isValidPhoneNumber } = await import('@/utils/whatsappBillShare');
@@ -928,7 +995,6 @@ const Billing = () => {
           .maybeSingle();
 
         if (existingCustomer) {
-          // Update existing customer
           await (supabase as any)
             .from('customers')
             .update({
@@ -938,7 +1004,6 @@ const Billing = () => {
             })
             .eq('id', existingCustomer.id);
         } else {
-          // Create new customer
           await (supabase as any)
             .from('customers')
             .insert({
@@ -951,34 +1016,73 @@ const Billing = () => {
         }
       }
 
-      // Format and send WhatsApp message
       const now = new Date();
       const subtotal = cartItems.reduce((sum, item) => {
         const baseValue = item.base_value || 1;
         return sum + (item.quantity / baseValue) * item.price;
       }, 0);
 
-      const message = formatBillMessage({
-        billNo,
-        shopName: billSettings?.shopName || profile?.hotel_name || 'Hotel',
-        items: cartItems.map(item => ({
-          name: item.name,
-          quantity: item.quantity,
-          total: (item.quantity / (item.base_value || 1)) * item.price,
-          unit: item.unit
-        })),
-        subtotal,
-        total,
-        date: now.toLocaleDateString('en-IN'),
-        time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-        paymentMethod
-      });
+      // Check share mode from settings
+      if (whatsappShareMode === 'image') {
+        // Image mode: generate colorful bill image
+        const { shareBillImageViaWhatsApp, BillImageData } = await import('@/utils/billImageGenerator');
+        const billData = {
+          billNo,
+          shopName: billSettings?.shopName || profile?.hotel_name || 'Hotel',
+          address: billSettings?.address,
+          phone: billSettings?.contactNumber,
+          items: cartItems.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            total: (item.quantity / (item.base_value || 1)) * item.price,
+            unit: item.unit,
+            price: item.price
+          })),
+          subtotal,
+          total,
+          date: now.toLocaleDateString('en-IN'),
+          time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+          paymentMethod,
+          totalItemsCount: cartItems.length,
+          smartQtyCount: cartItems.reduce((sum, item) => {
+            const isWeight = item.unit && ['kg', 'g', 'l', 'ml', 'liter', 'litre', 'gram', 'kilogram'].includes(item.unit.toLowerCase());
+            return sum + (isWeight ? 1 : item.quantity);
+          }, 0),
+          paymentDetails
+        };
+        const result = await shareBillImageViaWhatsApp(customerMobile, billData);
+        if (result.success) {
+          toast({
+            title: result.method === 'share' ? 'Bill Image Shared!' : 'Bill Image Downloaded',
+            description: result.method === 'share'
+              ? 'Bill image shared via WhatsApp'
+              : 'Bill image downloaded. Attach it in WhatsApp chat.',
+          });
+        } else {
+          toast({ title: "Share Failed", description: result.error, variant: "destructive" });
+        }
+      } else {
+        // Text mode: format and send text message
+        const message = formatBillMessage({
+          billNo,
+          shopName: billSettings?.shopName || profile?.hotel_name || 'Hotel',
+          items: cartItems.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            total: (item.quantity / (item.base_value || 1)) * item.price,
+            unit: item.unit
+          })),
+          subtotal,
+          total,
+          date: now.toLocaleDateString('en-IN'),
+          time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+          paymentMethod
+        });
 
-      shareViaWhatsApp(customerMobile, message);
-
-      toast({ title: "WhatsApp", description: "Opening WhatsApp to share bill..." });
+        shareViaWhatsApp(customerMobile, message);
+        toast({ title: "WhatsApp", description: "Opening WhatsApp to share bill..." });
+      }
     } catch (error) {
-      console.error('WhatsApp share error:', error);
       toast({ title: "WhatsApp Error", description: "Failed to share via WhatsApp", variant: "destructive" });
     }
   };
@@ -996,6 +1100,7 @@ const Billing = () => {
     finalItems?: CartItem[];
     customerMobile?: string;
     sendWhatsApp?: boolean;
+    customerGstin?: string;
   }) => {
     setPaymentDialogOpen(false);
 
@@ -1078,7 +1183,30 @@ const Billing = () => {
 
       // adminId already defined above for bill number isolation
 
-      const billPayload = {
+      // Calculate GST if enabled
+      let taxSummary: any = null;
+      let totalTax = 0;
+      if (gstSettings.enabled) {
+        const { calculateItemTax, calculateBillTaxSummary } = await import('@/utils/gstCalculator');
+        const itemTaxes = validCart.map(item => {
+          const itemAny = item as any;
+          const taxRateId = itemAny.tax_rate_id;
+          const taxRateInfo = taxRateId ? gstSettings.taxRatesMap[taxRateId] : null;
+          if (!taxRateInfo) return { taxAmount: 0, cgst: 0, sgst: 0, cess: 0, taxableValue: (item.quantity / (item.base_value || 1)) * item.price, rate: 0 };
+          const lineTotal = (item.quantity / (item.base_value || 1)) * item.price;
+          return calculateItemTax(lineTotal, taxRateInfo.rate, itemAny.is_tax_inclusive !== false, gstSettings.isComposition, taxRateInfo.cess);
+        });
+        const summary = calculateBillTaxSummary(validCart.map((item, i) => ({
+          lineTotal: (item.quantity / (item.base_value || 1)) * item.price,
+          taxResult: itemTaxes[i],
+          rate: itemTaxes[i].rate,
+          hsnCode: (item as any).hsn_code || gstSettings.taxRatesMap[(item as any).tax_rate_id]?.hsn_code || ''
+        })));
+        taxSummary = summary;
+        totalTax = itemTaxes.reduce((s, t) => s + t.taxAmount, 0);
+      }
+
+      const billPayload: any = {
         bill_no: billNumber,
         total_amount: totalAmount,
         discount: paymentData.discount,
@@ -1094,6 +1222,16 @@ const Billing = () => {
         status_updated_at: now.toISOString(),
         table_no: selectedTableNumber || null
       };
+
+      // Add GST fields to bill if enabled
+      if (gstSettings.enabled && taxSummary) {
+        billPayload.tax_summary = JSON.stringify(taxSummary);
+        billPayload.total_tax = totalTax;
+        billPayload.customer_gstin = paymentData.customerGstin || null;
+        // Pass tax rates map for bill_items snapshot (will be removed before insert)
+        billPayload._taxRatesMap = gstSettings.taxRatesMap;
+        billPayload._isComposition = gstSettings.isComposition;
+      }
 
       // OFFLINE MODE - Use new PendingBill system
       if (isOffline) {
@@ -1199,7 +1337,12 @@ const Billing = () => {
         whatsapp: settingsToUse?.showWhatsapp !== false ? settingsToUse?.whatsapp : undefined,
         printerWidth: settingsToUse?.printerWidth || '58mm',
         logoUrl: settingsToUse?.logoUrl,
-        tableNo: selectedTableNumber || undefined
+        tableNo: selectedTableNumber || undefined,
+        // GST fields
+        gstin: gstSettings.enabled ? gstSettings.gstin : undefined,
+        taxSummary: billPayload.tax_summary || undefined,
+        totalTax: billPayload.total_tax || undefined,
+        isComposition: gstSettings.enabled ? gstSettings.isComposition : undefined
       };
 
       // Check auto-print setting

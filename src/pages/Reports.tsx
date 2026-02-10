@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { CalendarDays, TrendingUp, TrendingDown, DollarSign, Package, Receipt, CreditCard, BarChart3, Edit, Trash2, Eye, Download, FileSpreadsheet, Printer, Search, MessageCircle, Phone } from 'lucide-react';
+import { CalendarDays, TrendingUp, TrendingDown, DollarSign, Package, Receipt, CreditCard, BarChart3, Edit, Trash2, Eye, Download, FileSpreadsheet, Printer, Search, MessageCircle, Phone, Image as ImageIcon, FileText, Loader2 } from 'lucide-react';
 import { FacebookIcon, InstagramIcon, WhatsAppIcon } from '@/components/SocialIcons';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
@@ -22,6 +22,7 @@ import { printBrowserReceipt } from '@/utils/browserPrinter';
 import { offlineManager } from '@/utils/offlineManager';
 import { formatQuantityWithUnit, getShortUnit, calculateSmartQtyCount } from '@/utils/timeUtils';
 import { formatBillMessage, shareViaWhatsApp, isValidPhoneNumber } from '@/utils/whatsappBillShare';
+import { shareBillImageViaWhatsApp, type BillImageData } from '@/utils/billImageGenerator';
 
 interface Bill {
   id: string;
@@ -99,18 +100,19 @@ const Reports: React.FC = () => {
   const [billToDelete, setBillToDelete] = useState<string | null>(null);
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
   const [billToRestore, setBillToRestore] = useState<string | null>(null);
-  
+
   // WhatsApp share state
   const [whatsappPhone, setWhatsappPhone] = useState('');
   const [showWhatsappInput, setShowWhatsappInput] = useState(false);
+  const [sharingImage, setSharingImage] = useState(false);
 
   // Handle WhatsApp share for selected bill
-  const handleWhatsAppShareBill = (bill: Bill) => {
+  const handleWhatsAppShareBill = (bill: Bill, mode: 'text' | 'image' = 'text') => {
     if (!whatsappPhone.trim()) {
       toast({ title: "Enter phone number", description: "Please enter customer's phone number", variant: "destructive" });
       return;
     }
-    
+
     if (!isValidPhoneNumber(whatsappPhone)) {
       toast({ title: "Invalid phone", description: "Enter a valid 10-digit mobile number", variant: "destructive" });
       return;
@@ -118,29 +120,71 @@ const Reports: React.FC = () => {
 
     const subtotal = bill.bill_items.reduce((sum, item) => sum + item.total, 0);
     const billDate = new Date(bill.created_at);
-    
-    const message = formatBillMessage({
-      billNo: bill.bill_no,
-      shopName: billSettings?.shopName || profile?.hotel_name || 'Hotel',
-      items: bill.bill_items.map(item => ({
-        name: item.items?.name || 'Item',
-        quantity: item.quantity,
-        total: item.total,
-        unit: item.items?.unit
-      })),
-      subtotal,
-      discount: bill.discount,
-      additionalCharges: bill.additional_charges || [],
-      total: bill.total_amount,
-      date: format(billDate, 'dd/MM/yyyy'),
-      time: format(billDate, 'hh:mm a'),
-      paymentMethod: bill.payment_mode
-    });
 
-    shareViaWhatsApp(whatsappPhone, message);
-    setWhatsappPhone('');
-    setShowWhatsappInput(false);
-    toast({ title: "Opening WhatsApp", description: "Bill details ready to send" });
+    if (mode === 'image') {
+      // Image mode
+      setSharingImage(true);
+      const billData: BillImageData = {
+        billNo: bill.bill_no,
+        shopName: billSettings?.shopName || profile?.hotel_name || 'Hotel',
+        address: billSettings?.address,
+        phone: billSettings?.contactNumber,
+        items: bill.bill_items.map(item => ({
+          name: item.items?.name || 'Item',
+          quantity: item.quantity,
+          total: item.total,
+          unit: item.items?.unit,
+          price: item.price
+        })),
+        subtotal,
+        discount: bill.discount,
+        additionalCharges: bill.additional_charges || [],
+        total: bill.total_amount,
+        date: format(billDate, 'dd/MM/yyyy'),
+        time: format(billDate, 'hh:mm a'),
+        paymentMethod: bill.payment_mode,
+        totalItemsCount: bill.bill_items.length,
+        smartQtyCount: calculateSmartQtyCount(bill.bill_items.map(bi => ({ quantity: bi.quantity, unit: bi.items?.unit }))),
+        paymentDetails: bill.payment_details as Record<string, number> | undefined
+      };
+      shareBillImageViaWhatsApp(whatsappPhone, billData).then(result => {
+        setSharingImage(false);
+        if (result.success) {
+          setWhatsappPhone('');
+          setShowWhatsappInput(false);
+          toast({
+            title: result.method === 'share' ? 'Bill Image Shared!' : 'Bill Image Downloaded',
+            description: result.method === 'share' ? 'Shared via WhatsApp' : 'Image downloaded. Attach in WhatsApp.',
+          });
+        } else {
+          toast({ title: "Share Failed", description: result.error, variant: "destructive" });
+        }
+      }).catch(() => setSharingImage(false));
+    } else {
+      // Text mode
+      const message = formatBillMessage({
+        billNo: bill.bill_no,
+        shopName: billSettings?.shopName || profile?.hotel_name || 'Hotel',
+        items: bill.bill_items.map(item => ({
+          name: item.items?.name || 'Item',
+          quantity: item.quantity,
+          total: item.total,
+          unit: item.items?.unit
+        })),
+        subtotal,
+        discount: bill.discount,
+        additionalCharges: bill.additional_charges || [],
+        total: bill.total_amount,
+        date: format(billDate, 'dd/MM/yyyy'),
+        time: format(billDate, 'hh:mm a'),
+        paymentMethod: bill.payment_mode
+      });
+
+      shareViaWhatsApp(whatsappPhone, message);
+      setWhatsappPhone('');
+      setShowWhatsappInput(false);
+      toast({ title: "Opening WhatsApp", description: "Bill details ready to send" });
+    }
   };
 
   // Cache-first loading: localStorage first, then Supabase sync
@@ -1149,11 +1193,12 @@ const Reports: React.FC = () => {
       {/* Detailed Reports */}
       <Tabs defaultValue="bills" className="w-full">
         <div className="overflow-x-auto">
-          <TabsList className="grid w-full grid-cols-4 min-w-[300px] h-10">
+          <TabsList className="grid w-full grid-cols-5 min-w-[380px] h-10">
             <TabsTrigger value="bills" className="text-sm font-medium">Bills</TabsTrigger>
             <TabsTrigger value="items" disabled={billFilter === 'deleted'} className="text-sm font-medium">Items</TabsTrigger>
             <TabsTrigger value="payments" disabled={billFilter === 'deleted'} className="text-sm font-medium">Payments</TabsTrigger>
             <TabsTrigger value="profit" disabled={billFilter === 'deleted'} className="text-sm font-medium">P&L</TabsTrigger>
+            <TabsTrigger value="gst" disabled={billFilter === 'deleted'} className="text-sm font-medium">GST</TabsTrigger>
           </TabsList>
         </div>
 
@@ -1476,6 +1521,191 @@ const Reports: React.FC = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* GST Reports Tab */}
+        <TabsContent value="gst" className="mt-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                <Receipt className="w-4 h-4" />
+                GST Report
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                // Compute GST data from bills
+                const gstBills = bills.filter((b: any) => b.total_tax > 0);
+                if (gstBills.length === 0) {
+                  return (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <p className="text-sm">No GST bills found in selected period</p>
+                      <p className="text-xs mt-1">Enable GST in Settings and create bills to see tax reports</p>
+                    </div>
+                  );
+                }
+
+                // Tax summary by rate
+                const rateMap: Record<string, { taxable: number; cgst: number; sgst: number; cess: number; total: number; count: number }> = {};
+                // HSN summary
+                const hsnMap: Record<string, { description: string; taxable: number; tax: number; count: number }> = {};
+                // B2B vs B2C
+                let b2bCount = 0, b2bTotal = 0, b2cCount = 0, b2cTotal = 0;
+                let totalTaxCollected = 0;
+
+                gstBills.forEach((bill: any) => {
+                  totalTaxCollected += bill.total_tax || 0;
+                  if (bill.customer_gstin) {
+                    b2bCount++; b2bTotal += bill.total_amount || 0;
+                  } else {
+                    b2cCount++; b2cTotal += bill.total_amount || 0;
+                  }
+                  try {
+                    const summary = bill.tax_summary ? (typeof bill.tax_summary === 'string' ? JSON.parse(bill.tax_summary) : bill.tax_summary) : null;
+                    if (summary?.byRate) {
+                      Object.entries(summary.byRate).forEach(([rate, info]: [string, any]) => {
+                        if (!rateMap[rate]) rateMap[rate] = { taxable: 0, cgst: 0, sgst: 0, cess: 0, total: 0, count: 0 };
+                        rateMap[rate].taxable += info.taxableValue || 0;
+                        rateMap[rate].cgst += info.cgst || 0;
+                        rateMap[rate].sgst += info.sgst || 0;
+                        rateMap[rate].cess += info.cess || 0;
+                        rateMap[rate].total += (info.cgst || 0) + (info.sgst || 0) + (info.cess || 0);
+                        rateMap[rate].count++;
+                      });
+                    }
+                    if (summary?.byHSN) {
+                      Object.entries(summary.byHSN).forEach(([hsn, info]: [string, any]) => {
+                        if (!hsnMap[hsn]) hsnMap[hsn] = { description: hsn, taxable: 0, tax: 0, count: 0 };
+                        hsnMap[hsn].taxable += info.taxableValue || 0;
+                        hsnMap[hsn].tax += info.totalTax || 0;
+                        hsnMap[hsn].count++;
+                      });
+                    }
+                  } catch { }
+                });
+
+                const exportGSTR1 = () => {
+                  let csv = 'GSTIN,Invoice No,Date,Total Amount,Taxable Value,CGST,SGST,Total Tax,Customer GSTIN\n';
+                  gstBills.forEach((bill: any) => {
+                    const taxSummary = bill.tax_summary ? (typeof bill.tax_summary === 'string' ? JSON.parse(bill.tax_summary) : bill.tax_summary) : {};
+                    const totalTaxable = taxSummary.totalTaxableValue || (bill.total_amount - (bill.total_tax || 0));
+                    const halfTax = (bill.total_tax || 0) / 2;
+                    csv += `${bill.gstin || ''},${bill.bill_no},${bill.date},${bill.total_amount},${totalTaxable.toFixed(2)},${halfTax.toFixed(2)},${halfTax.toFixed(2)},${bill.total_tax || 0},${bill.customer_gstin || ''}\n`;
+                  });
+                  const blob = new Blob([csv], { type: 'text/csv' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url; a.download = `GSTR1_${new Date().toISOString().split('T')[0]}.csv`;
+                  a.click(); URL.revokeObjectURL(url);
+                };
+
+                return (
+                  <div className="space-y-6">
+                    {/* Summary Cards */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3 text-center">
+                        <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Tax Collected</p>
+                        <p className="text-lg font-black text-amber-900 dark:text-amber-200">₹{totalTaxCollected.toFixed(0)}</p>
+                      </div>
+                      <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 text-center">
+                        <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">GST Bills</p>
+                        <p className="text-lg font-black text-blue-900 dark:text-blue-200">{gstBills.length}</p>
+                      </div>
+                      <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-3 text-center">
+                        <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider">B2B Bills</p>
+                        <p className="text-lg font-black text-green-900 dark:text-green-200">{b2bCount}</p>
+                      </div>
+                    </div>
+
+                    {/* Tax by Rate */}
+                    {Object.keys(rateMap).length > 0 && (
+                      <div>
+                        <h4 className="font-semibold text-sm mb-2">Tax Summary by Rate</h4>
+                        <div className="rounded-lg border overflow-hidden">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="bg-muted/50">
+                                <th className="text-left p-2 font-semibold">Rate</th>
+                                <th className="text-right p-2 font-semibold">Taxable</th>
+                                <th className="text-right p-2 font-semibold">CGST</th>
+                                <th className="text-right p-2 font-semibold">SGST</th>
+                                <th className="text-right p-2 font-semibold">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {Object.entries(rateMap).sort(([a], [b]) => parseFloat(a) - parseFloat(b)).map(([rate, data]) => (
+                                <tr key={rate} className="border-t">
+                                  <td className="p-2 font-medium">{rate}%</td>
+                                  <td className="p-2 text-right">₹{data.taxable.toFixed(0)}</td>
+                                  <td className="p-2 text-right">₹{data.cgst.toFixed(0)}</td>
+                                  <td className="p-2 text-right">₹{data.sgst.toFixed(0)}</td>
+                                  <td className="p-2 text-right font-semibold">₹{data.total.toFixed(0)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* HSN Summary */}
+                    {Object.keys(hsnMap).length > 0 && (
+                      <div>
+                        <h4 className="font-semibold text-sm mb-2">HSN-wise Summary</h4>
+                        <div className="rounded-lg border overflow-hidden">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="bg-muted/50">
+                                <th className="text-left p-2 font-semibold">HSN</th>
+                                <th className="text-right p-2 font-semibold">Taxable</th>
+                                <th className="text-right p-2 font-semibold">Tax</th>
+                                <th className="text-right p-2 font-semibold">Count</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {Object.entries(hsnMap).map(([hsn, data]) => (
+                                <tr key={hsn} className="border-t">
+                                  <td className="p-2 font-mono font-medium">{hsn}</td>
+                                  <td className="p-2 text-right">₹{data.taxable.toFixed(0)}</td>
+                                  <td className="p-2 text-right">₹{data.tax.toFixed(0)}</td>
+                                  <td className="p-2 text-right">{data.count}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* B2B vs B2C */}
+                    <div>
+                      <h4 className="font-semibold text-sm mb-2">B2B vs B2C</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-lg p-3">
+                          <p className="text-[10px] font-bold text-indigo-600 uppercase">B2B (With GSTIN)</p>
+                          <p className="text-base font-bold text-indigo-900 dark:text-indigo-200">{b2bCount} bills</p>
+                          <p className="text-xs text-indigo-600">₹{b2bTotal.toFixed(0)}</p>
+                        </div>
+                        <div className="bg-purple-50 dark:bg-purple-950/30 rounded-lg p-3">
+                          <p className="text-[10px] font-bold text-purple-600 uppercase">B2C (Without GSTIN)</p>
+                          <p className="text-base font-bold text-purple-900 dark:text-purple-200">{b2cCount} bills</p>
+                          <p className="text-xs text-purple-600">₹{b2cTotal.toFixed(0)}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* GSTR-1 Export */}
+                    <div className="border-t pt-4">
+                      <Button onClick={exportGSTR1} variant="outline" className="w-full gap-2">
+                        <Download className="w-4 h-4" />
+                        Export GSTR-1 (CSV)
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Bill Details Dialog */}
@@ -1642,6 +1872,65 @@ const Reports: React.FC = () => {
                 </div>
               )}
 
+              {/* GST Tax Breakdown */}
+              {(selectedBill as any)?.total_tax > 0 && (
+                <div className="border-t pt-4">
+                  <h4 className="font-medium mb-2 text-sm text-amber-800 dark:text-amber-400">Tax Details</h4>
+                  <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3 space-y-1">
+                    {(() => {
+                      const bill = selectedBill as any;
+                      if (bill.is_composition) {
+                        return (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-amber-700 dark:text-amber-300">Tax (Composition)</span>
+                            <span className="font-semibold text-amber-900 dark:text-amber-200">₹{bill.total_tax.toFixed(2)}</span>
+                          </div>
+                        );
+                      }
+                      try {
+                        const summary = bill.tax_summary ? (typeof bill.tax_summary === 'string' ? JSON.parse(bill.tax_summary) : bill.tax_summary) : null;
+                        if (summary?.byRate) {
+                          return Object.entries(summary.byRate).map(([rate, info]: [string, any]) => {
+                            const halfRate = (parseFloat(rate) / 2).toFixed(1);
+                            return (
+                              <div key={rate}>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-amber-700 dark:text-amber-300">CGST @{halfRate}%</span>
+                                  <span className="font-medium">₹{(info.cgst || 0).toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-amber-700 dark:text-amber-300">SGST @{halfRate}%</span>
+                                  <span className="font-medium">₹{(info.sgst || 0).toFixed(2)}</span>
+                                </div>
+                              </div>
+                            );
+                          });
+                        }
+                      } catch { }
+                      const halfTax = bill.total_tax / 2;
+                      return (
+                        <>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-amber-700 dark:text-amber-300">CGST</span>
+                            <span className="font-medium">₹{halfTax.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-amber-700 dark:text-amber-300">SGST</span>
+                            <span className="font-medium">₹{halfTax.toFixed(2)}</span>
+                          </div>
+                        </>
+                      );
+                    })()}
+                    {(selectedBill as any)?.customer_gstin && (
+                      <div className="flex justify-between text-xs pt-1 border-t border-amber-200 dark:border-amber-800 mt-1">
+                        <span className="text-amber-600 dark:text-amber-400">Customer GSTIN</span>
+                        <span className="font-mono font-medium">{(selectedBill as any).customer_gstin}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* WhatsApp Share Section */}
               <div className="border-t pt-4 mt-4">
                 {!showWhatsappInput ? (
@@ -1667,12 +1956,27 @@ const Reports: React.FC = () => {
                           maxLength={12}
                         />
                       </div>
+                    </div>
+                    <div className="flex gap-2">
                       <Button
-                        onClick={() => handleWhatsAppShareBill(selectedBill)}
-                        className="bg-green-600 hover:bg-green-700 text-white gap-1"
+                        onClick={() => handleWhatsAppShareBill(selectedBill, 'image')}
+                        disabled={sharingImage || !whatsappPhone.trim()}
+                        className="flex-1 bg-purple-600 hover:bg-purple-700 text-white gap-1 h-9"
                       >
-                        <MessageCircle className="w-4 h-4" />
-                        Send
+                        {sharingImage ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <ImageIcon className="w-4 h-4" />
+                        )}
+                        Image Bill
+                      </Button>
+                      <Button
+                        onClick={() => handleWhatsAppShareBill(selectedBill, 'text')}
+                        disabled={!whatsappPhone.trim()}
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1 h-9"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Text Bill
                       </Button>
                     </div>
                     <Button

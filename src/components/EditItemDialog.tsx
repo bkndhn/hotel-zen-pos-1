@@ -14,6 +14,12 @@ import { Edit } from 'lucide-react';
 import { MediaUpload } from '@/components/MediaUpload';
 import { useAuth } from '@/contexts/AuthContext';
 
+interface TaxRateOption {
+  id: string;
+  name: string;
+  rate: number;
+}
+
 interface Category {
   id: string;
   name: string;
@@ -48,6 +54,8 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
   const [open, setOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [hasPremiumAccess, setHasPremiumAccess] = useState(false);
+  const [gstEnabled, setGstEnabled] = useState(false);
+  const [taxRates, setTaxRates] = useState<TaxRateOption[]>([]);
   const [formData, setFormData] = useState({
     name: item.name,
     description: item.description || '',
@@ -63,7 +71,10 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
     video_url: item.video_url || '',
     media_type: (item.media_type || 'image') as 'image' | 'gif' | 'video',
     is_active: item.is_active,
-    unlimited_stock: item.unlimited_stock || false
+    unlimited_stock: item.unlimited_stock || false,
+    tax_rate_id: (item as any).tax_rate_id || '',
+    is_tax_inclusive: (item as any).is_tax_inclusive !== false,
+    hsn_code: (item as any).hsn_code || ''
   });
   const [loading, setLoading] = useState(false);
 
@@ -71,6 +82,7 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
     if (open) {
       fetchCategories();
       checkPremiumAccess();
+      fetchGstSettings();
       // Reset form data with current item values when dialog opens
       setFormData({
         name: item.name,
@@ -87,7 +99,10 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
         video_url: item.video_url || '',
         media_type: (item.media_type || 'image') as 'image' | 'gif' | 'video',
         is_active: item.is_active,
-        unlimited_stock: item.unlimited_stock || false
+        unlimited_stock: item.unlimited_stock || false,
+        tax_rate_id: (item as any).tax_rate_id || '',
+        is_tax_inclusive: (item as any).is_tax_inclusive !== false,
+        hsn_code: (item as any).hsn_code || ''
       });
     }
   }, [open, item]);
@@ -139,6 +154,32 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
     }
   };
 
+  const fetchGstSettings = async () => {
+    try {
+      const adminId = profile?.role === 'admin' ? profile.user_id : profile?.admin_id;
+      if (!adminId) return;
+
+      const { data: settings } = await (supabase as any)
+        .from('shop_settings')
+        .select('gst_enabled')
+        .eq('user_id', profile?.user_id)
+        .maybeSingle();
+
+      const enabled = settings?.gst_enabled || false;
+      setGstEnabled(enabled);
+
+      if (enabled) {
+        const { data: rates } = await (supabase as any)
+          .from('tax_rates')
+          .select('id, name, rate')
+          .eq('admin_id', adminId)
+          .eq('is_active', true)
+          .order('rate', { ascending: true });
+        setTaxRates(rates || []);
+      }
+    } catch (e) { /* silent */ }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.price || !formData.purchase_rate || (!formData.unlimited_stock && !formData.stock_quantity)) {
@@ -154,25 +195,34 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
 
     setLoading(true);
     try {
+      const updatePayload: any = {
+        name: formData.name,
+        description: formData.description || null,
+        price: parseFloat(formData.price),
+        purchase_rate: parseFloat(formData.purchase_rate),
+        unit: formData.unit,
+        base_value: parseFloat(formData.base_value),
+        stock_quantity: formData.unlimited_stock ? null : parseFloat(formData.stock_quantity),
+        minimum_stock_alert: formData.unlimited_stock ? null : (parseFloat(formData.minimum_stock_alert) || 0),
+        quantity_step: parseFloat(formData.quantity_step),
+        category: formData.category || null,
+        image_url: formData.image_url || null,
+        video_url: formData.video_url || null,
+        media_type: formData.media_type,
+        is_active: formData.is_active,
+        unlimited_stock: formData.unlimited_stock
+      };
+
+      // Add GST fields if enabled
+      if (gstEnabled) {
+        updatePayload.tax_rate_id = formData.tax_rate_id || null;
+        updatePayload.is_tax_inclusive = formData.is_tax_inclusive;
+        updatePayload.hsn_code = formData.hsn_code.trim() || null;
+      }
+
       const { error } = await supabase
         .from('items')
-        .update({
-          name: formData.name,
-          description: formData.description || null,
-          price: parseFloat(formData.price),
-          purchase_rate: parseFloat(formData.purchase_rate),
-          unit: formData.unit,
-          base_value: parseFloat(formData.base_value),
-          stock_quantity: formData.unlimited_stock ? null : parseFloat(formData.stock_quantity),
-          minimum_stock_alert: formData.unlimited_stock ? null : (parseFloat(formData.minimum_stock_alert) || 0),
-          quantity_step: parseFloat(formData.quantity_step),
-          category: formData.category || null,
-          image_url: formData.image_url || null,
-          video_url: formData.video_url || null,
-          media_type: formData.media_type,
-          is_active: formData.is_active,
-          unlimited_stock: formData.unlimited_stock
-        } as any)
+        .update(updatePayload)
         .eq('id', item.id);
 
       if (error) throw error;
@@ -243,6 +293,57 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
                 required
               />
             </div>
+
+            {/* GST Fields - only shown when GST is enabled */}
+            {gstEnabled && (
+              <div className="p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800 space-y-3">
+                <Label className="text-xs font-semibold text-orange-700 dark:text-orange-400">TAX SETTINGS</Label>
+                <div>
+                  <Label htmlFor="edit_tax_rate" className="text-sm">Tax Rate</Label>
+                  <Select
+                    value={formData.tax_rate_id || 'none'}
+                    onValueChange={(value) => setFormData({ ...formData, tax_rate_id: value === 'none' ? '' : value })}
+                  >
+                    <SelectTrigger className="bg-background">
+                      <SelectValue placeholder="Select tax rate" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border shadow-lg z-50">
+                      <SelectItem value="none">No Tax / Exempt</SelectItem>
+                      {taxRates.map((rate) => (
+                        <SelectItem key={rate.id} value={rate.id}>
+                          {rate.name} ({rate.rate}%)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {formData.tax_rate_id && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="edit_is_tax_inclusive" className="text-sm">Selling price includes GST</Label>
+                      <Switch
+                        id="edit_is_tax_inclusive"
+                        checked={formData.is_tax_inclusive}
+                        onCheckedChange={(checked) => setFormData({ ...formData, is_tax_inclusive: checked })}
+                      />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      {formData.is_tax_inclusive ? 'GST is included in the selling price (back-calculated)' : 'GST will be added on top of the selling price'}
+                    </p>
+                    <div>
+                      <Label htmlFor="edit_hsn_code" className="text-sm">HSN/SAC Code (optional)</Label>
+                      <Input
+                        id="edit_hsn_code"
+                        value={formData.hsn_code}
+                        onChange={(e) => setFormData({ ...formData, hsn_code: e.target.value })}
+                        placeholder="e.g., 9963"
+                        className="font-mono"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             <div>
               <Label htmlFor="purchase_rate">Purchase Rate *</Label>

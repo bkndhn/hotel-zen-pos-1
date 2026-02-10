@@ -12,6 +12,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { Plus } from 'lucide-react';
 import { MediaUpload } from '@/components/MediaUpload';
 import { useAuth } from '@/contexts/AuthContext';
+import { Switch } from '@/components/ui/switch';
+
+interface TaxRateOption {
+  id: string;
+  name: string;
+  rate: number;
+}
 
 interface Item {
   id: string;
@@ -44,6 +51,8 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
   const [open, setOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [hasPremiumAccess, setHasPremiumAccess] = useState(false);
+  const [gstEnabled, setGstEnabled] = useState(false);
+  const [taxRates, setTaxRates] = useState<TaxRateOption[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -59,7 +68,10 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
     video_url: '',
     media_type: 'image' as 'image' | 'gif' | 'video',
     is_active: true,
-    unlimited_stock: false
+    unlimited_stock: false,
+    tax_rate_id: '',
+    is_tax_inclusive: true,
+    hsn_code: ''
   });
   const [loading, setLoading] = useState(false);
 
@@ -83,7 +95,35 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
 
   useEffect(() => {
     fetchCategories();
+    fetchGstSettings();
   }, []);
+
+  const fetchGstSettings = async () => {
+    try {
+      const adminId = profile?.role === 'admin' ? profile.user_id : profile?.admin_id;
+      if (!adminId) return;
+
+      // Check if GST is enabled
+      const { data: settings } = await (supabase as any)
+        .from('shop_settings')
+        .select('gst_enabled')
+        .eq('user_id', profile?.user_id)
+        .maybeSingle();
+
+      const enabled = settings?.gst_enabled || false;
+      setGstEnabled(enabled);
+
+      if (enabled) {
+        const { data: rates } = await (supabase as any)
+          .from('tax_rates')
+          .select('id, name, rate')
+          .eq('admin_id', adminId)
+          .eq('is_active', true)
+          .order('rate', { ascending: true });
+        setTaxRates(rates || []);
+      }
+    } catch (e) { /* silent */ }
+  };
 
   const fetchCategories = async () => {
     try {
@@ -147,7 +187,7 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
         }
       }
 
-      const { error } = await supabase.from('items').insert({
+      const insertPayload: any = {
         name: formData.name.trim(),
         description: formData.description.trim() || null,
         price: parseFloat(formData.price),
@@ -164,7 +204,16 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
         is_active: formData.is_active,
         unlimited_stock: formData.unlimited_stock,
         admin_id: adminId
-      } as any);
+      };
+
+      // Add GST fields if enabled
+      if (gstEnabled) {
+        insertPayload.tax_rate_id = formData.tax_rate_id || null;
+        insertPayload.is_tax_inclusive = formData.is_tax_inclusive;
+        insertPayload.hsn_code = formData.hsn_code.trim() || null;
+      }
+
+      const { error } = await supabase.from('items').insert(insertPayload);
 
       if (error) throw error;
 
@@ -188,7 +237,10 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
         video_url: '',
         media_type: 'image',
         is_active: true,
-        unlimited_stock: false
+        unlimited_stock: false,
+        tax_rate_id: '',
+        is_tax_inclusive: true,
+        hsn_code: ''
       });
       setOpen(false);
       onItemAdded();
@@ -252,6 +304,57 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
               required
             />
           </div>
+
+          {/* GST Fields - only shown when GST is enabled */}
+          {gstEnabled && (
+            <div className="p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800 space-y-3">
+              <Label className="text-xs font-semibold text-orange-700 dark:text-orange-400">TAX SETTINGS</Label>
+              <div>
+                <Label htmlFor="tax_rate" className="text-sm">Tax Rate</Label>
+                <Select
+                  value={formData.tax_rate_id || 'none'}
+                  onValueChange={(value) => setFormData({ ...formData, tax_rate_id: value === 'none' ? '' : value })}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select tax rate" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border shadow-lg z-50">
+                    <SelectItem value="none">No Tax / Exempt</SelectItem>
+                    {taxRates.map((rate) => (
+                      <SelectItem key={rate.id} value={rate.id}>
+                        {rate.name} ({rate.rate}%)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {formData.tax_rate_id && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="is_tax_inclusive" className="text-sm">Selling price includes GST</Label>
+                    <Switch
+                      id="is_tax_inclusive"
+                      checked={formData.is_tax_inclusive}
+                      onCheckedChange={(checked) => setFormData({ ...formData, is_tax_inclusive: checked })}
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    {formData.is_tax_inclusive ? 'GST is included in the selling price (back-calculated)' : 'GST will be added on top of the selling price'}
+                  </p>
+                  <div>
+                    <Label htmlFor="hsn_code" className="text-sm">HSN/SAC Code (optional)</Label>
+                    <Input
+                      id="hsn_code"
+                      value={formData.hsn_code}
+                      onChange={(e) => setFormData({ ...formData, hsn_code: e.target.value })}
+                      placeholder="e.g., 9963"
+                      className="font-mono"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           <div>
             <Label htmlFor="purchase_rate">Purchase Rate *</Label>
