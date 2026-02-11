@@ -1563,22 +1563,37 @@ const Reports: React.FC = () => {
                   }
                   try {
                     const summary = bill.tax_summary ? (typeof bill.tax_summary === 'string' ? JSON.parse(bill.tax_summary) : bill.tax_summary) : null;
-                    if (summary?.byRate) {
-                      Object.entries(summary.byRate).forEach(([rate, info]: [string, any]) => {
+                    const rawEntries = summary?.entries || [];
+                    const taxEntries = rawEntries.length > 0 ? rawEntries : (() => {
+                      if (summary && typeof summary === 'object') {
+                        return Object.keys(summary).filter((k: string) => !isNaN(parseFloat(k))).map((rate: string) => ({
+                          taxName: summary[rate].taxName || `GST ${rate}%`,
+                          taxRate: parseFloat(rate),
+                          taxableAmount: summary[rate].taxable || 0,
+                          cgst: summary[rate].cgst || 0,
+                          sgst: summary[rate].sgst || 0,
+                          cess: summary[rate].cess || 0,
+                          hsnCode: summary[rate].hsnCode || ''
+                        }));
+                      }
+                      return [];
+                    })();
+                    if (taxEntries.length > 0) {
+                      taxEntries.forEach((entry: any) => {
+                        const rate = String(entry.taxRate || 0);
                         if (!rateMap[rate]) rateMap[rate] = { taxable: 0, cgst: 0, sgst: 0, cess: 0, total: 0, count: 0 };
-                        rateMap[rate].taxable += info.taxableValue || 0;
-                        rateMap[rate].cgst += info.cgst || 0;
-                        rateMap[rate].sgst += info.sgst || 0;
-                        rateMap[rate].cess += info.cess || 0;
-                        rateMap[rate].total += (info.cgst || 0) + (info.sgst || 0) + (info.cess || 0);
+                        rateMap[rate].taxable += entry.taxableAmount || 0;
+                        rateMap[rate].cgst += entry.cgst || 0;
+                        rateMap[rate].sgst += entry.sgst || 0;
+                        rateMap[rate].cess += entry.cess || 0;
+                        rateMap[rate].total += (entry.cgst || 0) + (entry.sgst || 0) + (entry.cess || 0);
                         rateMap[rate].count++;
                       });
-                    }
-                    if (summary?.byHSN) {
-                      Object.entries(summary.byHSN).forEach(([hsn, info]: [string, any]) => {
-                        if (!hsnMap[hsn]) hsnMap[hsn] = { description: hsn, taxable: 0, tax: 0, count: 0 };
-                        hsnMap[hsn].taxable += info.taxableValue || 0;
-                        hsnMap[hsn].tax += info.totalTax || 0;
+                      taxEntries.forEach((entry: any) => {
+                        const hsn = entry.hsnCode || 'N/A';
+                        if (!hsnMap[hsn]) hsnMap[hsn] = { description: entry.taxName || '', taxable: 0, tax: 0, count: 0 };
+                        hsnMap[hsn].taxable += entry.taxableAmount || 0;
+                        hsnMap[hsn].tax += (entry.cgst || 0) + (entry.sgst || 0) + (entry.cess || 0);
                         hsnMap[hsn].count++;
                       });
                     }
@@ -1878,7 +1893,7 @@ const Reports: React.FC = () => {
               {(selectedBill as any)?.total_tax > 0 && (
                 <div className="border-t pt-4">
                   <h4 className="font-medium mb-2 text-sm text-amber-800 dark:text-amber-400">Tax Details</h4>
-                  <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3 space-y-1">
+                  <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3">
                     {(() => {
                       const bill = selectedBill as any;
                       if (bill.is_composition) {
@@ -1891,22 +1906,44 @@ const Reports: React.FC = () => {
                       }
                       try {
                         const summary = bill.tax_summary ? (typeof bill.tax_summary === 'string' ? JSON.parse(bill.tax_summary) : bill.tax_summary) : null;
-                        if (summary?.byRate) {
-                          return Object.entries(summary.byRate).map(([rate, info]: [string, any]) => {
-                            const halfRate = (parseFloat(rate) / 2).toFixed(1);
-                            return (
-                              <div key={rate}>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-amber-700 dark:text-amber-300">CGST @{halfRate}%</span>
-                                  <span className="font-medium">₹{(info.cgst || 0).toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-amber-700 dark:text-amber-300">SGST @{halfRate}%</span>
-                                  <span className="font-medium">₹{(info.sgst || 0).toFixed(2)}</span>
-                                </div>
-                              </div>
-                            );
-                          });
+                        const rawEntries = summary?.entries || [];
+                        // Try entries[] format, fallback to numeric-key format
+                        const taxEntries = rawEntries.length > 0 ? rawEntries : (() => {
+                          if (summary && typeof summary === 'object') {
+                            return Object.keys(summary).filter((k: string) => !isNaN(parseFloat(k))).map((rate: string) => ({
+                              taxName: summary[rate].taxName || `GST ${rate}%`,
+                              taxRate: parseFloat(rate),
+                              taxableAmount: summary[rate].taxable || 0,
+                              cgst: summary[rate].cgst || 0,
+                              sgst: summary[rate].sgst || 0,
+                              cess: summary[rate].cess || 0
+                            }));
+                          }
+                          return [];
+                        })();
+                        if (taxEntries.length > 0) {
+                          return (
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="border-b border-amber-200 dark:border-amber-800">
+                                  <th className="text-left py-1 text-amber-700 dark:text-amber-400 font-semibold">TaxName</th>
+                                  <th className="text-right py-1 text-amber-700 dark:text-amber-400 font-semibold">Taxable</th>
+                                  <th className="text-right py-1 text-amber-700 dark:text-amber-400 font-semibold">CGST</th>
+                                  <th className="text-right py-1 text-amber-700 dark:text-amber-400 font-semibold">SGST</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {taxEntries.map((entry: any, i: number) => (
+                                  <tr key={i}>
+                                    <td className="py-1 text-amber-800 dark:text-amber-300">{entry.taxName || `GST ${entry.taxRate}%`}</td>
+                                    <td className="text-right py-1 font-medium">{(entry.taxableAmount || 0).toFixed(2)}</td>
+                                    <td className="text-right py-1 font-medium">{(entry.cgst || 0).toFixed(2)}</td>
+                                    <td className="text-right py-1 font-medium">{(entry.sgst || 0).toFixed(2)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          );
                         }
                       } catch { }
                       const halfTax = bill.total_tax / 2;
@@ -1923,6 +1960,13 @@ const Reports: React.FC = () => {
                         </>
                       );
                     })()}
+                    {/* Round Off */}
+                    {(selectedBill as any)?.round_off && (selectedBill as any).round_off !== 0 && (
+                      <div className="flex justify-between text-xs pt-1 border-t border-amber-200 dark:border-amber-800 mt-1">
+                        <span className="text-amber-600 dark:text-amber-400">Round Off</span>
+                        <span className="font-medium">{(selectedBill as any).round_off > 0 ? '+' : ''}₹{(selectedBill as any).round_off.toFixed(2)}</span>
+                      </div>
+                    )}
                     {(selectedBill as any)?.customer_gstin && (
                       <div className="flex justify-between text-xs pt-1 border-t border-amber-200 dark:border-amber-800 mt-1">
                         <span className="text-amber-600 dark:text-amber-400">Customer GSTIN</span>
@@ -1998,7 +2042,8 @@ const Reports: React.FC = () => {
             </div>
           </DialogContent>
         </Dialog>
-      )}
+      )
+      }
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
@@ -2041,7 +2086,7 @@ const Reports: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </div >
   );
 };
 

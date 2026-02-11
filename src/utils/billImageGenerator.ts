@@ -29,6 +29,7 @@ interface BillImageData {
   taxSummary?: string;
   totalTax?: number;
   isComposition?: boolean;
+  roundOff?: number;
 }
 
 /**
@@ -185,28 +186,55 @@ const generateBillHtml = (data: BillImageData): string => {
       if (!data.totalTax || data.totalTax <= 0) return '';
       let taxHtml = '<div style="padding: 0 16px;">';
       taxHtml += '<div style="margin-top: 8px; padding: 10px 14px; background: #fef3c7; border-radius: 8px; border: 1px solid #fde68a;">';
-      taxHtml += '<div style="font-size: 10px; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Tax Details</div>';
       if (data.isComposition) {
-        taxHtml += `<div style="display: flex; justify-content: space-between; font-size: 12px; color: #78350f;"><span>Tax (Composition)</span><span style="font-weight: 700;">₹${data.totalTax.toFixed(0)}</span></div>`;
+        taxHtml += `<div style="display: flex; justify-content: space-between; font-size: 12px; color: #78350f;"><span>Tax (Composition)</span><span style="font-weight: 700;">₹${data.totalTax.toFixed(2)}</span></div>`;
       } else {
         try {
           const summary = data.taxSummary ? JSON.parse(data.taxSummary) : null;
-          if (summary?.byRate) {
-            Object.entries(summary.byRate).forEach(([rate, info]: [string, any]) => {
-              const halfRate = (parseFloat(rate) / 2).toFixed(1);
-              taxHtml += `<div style="display: flex; justify-content: space-between; font-size: 12px; color: #78350f; margin-bottom: 2px;"><span>CGST @${halfRate}%</span><span>₹${(info.cgst || 0).toFixed(0)}</span></div>`;
-              taxHtml += `<div style="display: flex; justify-content: space-between; font-size: 12px; color: #78350f; margin-bottom: 2px;"><span>SGST @${halfRate}%</span><span>₹${(info.sgst || 0).toFixed(0)}</span></div>`;
+          const entries = summary?.entries || [];
+          // Try entries[] format (raw BillTaxSummary)
+          const parseEntries = entries.length > 0 ? entries : (() => {
+            // Fallback: top-level numeric keys (taxSummaryToJson format)
+            if (summary && typeof summary === 'object') {
+              return Object.keys(summary).filter(k => !isNaN(parseFloat(k))).map(rate => ({
+                taxName: summary[rate].taxName || `GST ${rate}%`,
+                taxRate: parseFloat(rate),
+                taxableAmount: summary[rate].taxable || 0,
+                cgst: summary[rate].cgst || 0,
+                sgst: summary[rate].sgst || 0,
+                cess: summary[rate].cess || 0
+              }));
+            }
+            return [];
+          })();
+          if (parseEntries.length > 0) {
+            taxHtml += '<table style="width: 100%; font-size: 11px; color: #78350f; border-collapse: collapse;">';
+            taxHtml += '<tr style="border-bottom: 1px solid #fde68a;"><th style="text-align: left; padding: 2px 4px; font-size: 10px;">TaxName</th><th style="text-align: right; padding: 2px 4px; font-size: 10px;">Taxable</th><th style="text-align: right; padding: 2px 4px; font-size: 10px;">CGST</th><th style="text-align: right; padding: 2px 4px; font-size: 10px;">SGST</th></tr>';
+            parseEntries.forEach((entry: any) => {
+              const name = entry.taxName || `GST ${entry.taxRate}%`;
+              taxHtml += `<tr><td style="padding: 2px 4px;">${name}</td><td style="text-align: right; padding: 2px 4px;">${(entry.taxableAmount || 0).toFixed(2)}</td><td style="text-align: right; padding: 2px 4px;">${(entry.cgst || 0).toFixed(2)}</td><td style="text-align: right; padding: 2px 4px;">${(entry.sgst || 0).toFixed(2)}</td></tr>`;
             });
+            taxHtml += '</table>';
           } else {
             const halfTax = data.totalTax / 2;
-            taxHtml += `<div style="display: flex; justify-content: space-between; font-size: 12px; color: #78350f;"><span>CGST</span><span>₹${halfTax.toFixed(0)}</span></div>`;
-            taxHtml += `<div style="display: flex; justify-content: space-between; font-size: 12px; color: #78350f;"><span>SGST</span><span>₹${halfTax.toFixed(0)}</span></div>`;
+            taxHtml += `<div style="display: flex; justify-content: space-between; font-size: 12px; color: #78350f;"><span>CGST</span><span>₹${halfTax.toFixed(2)}</span></div>`;
+            taxHtml += `<div style="display: flex; justify-content: space-between; font-size: 12px; color: #78350f;"><span>SGST</span><span>₹${halfTax.toFixed(2)}</span></div>`;
           }
-        } catch { taxHtml += `<div style="font-size: 12px; color: #78350f;">Tax: ₹${data.totalTax.toFixed(0)}</div>`; }
+        } catch { taxHtml += `<div style="font-size: 12px; color: #78350f;">Tax: ₹${data.totalTax.toFixed(2)}</div>`; }
       }
       taxHtml += '</div></div>';
       return taxHtml;
     })()}
+
+      <!-- Round Off -->
+      ${data.roundOff && data.roundOff !== 0 ? `
+      <div style="padding: 0 16px;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #6b7280; padding: 4px 0;">
+          <span>Round Off</span>
+          <span>${data.roundOff > 0 ? '+' : ''}${data.roundOff.toFixed(2)}</span>
+        </div>
+      </div>
+      ` : ''}
 
       <!-- Payment Details -->
       <div style="padding: 0 16px 20px;">

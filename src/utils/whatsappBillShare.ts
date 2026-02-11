@@ -20,6 +20,7 @@ interface BillShareData {
   taxSummary?: string;
   totalTax?: number;
   isComposition?: boolean;
+  roundOff?: number;
 }
 
 /**
@@ -63,27 +64,49 @@ export const formatBillMessage = (data: BillShareData): string => {
   // Tax details
   if (data.totalTax && data.totalTax > 0) {
     if (data.isComposition) {
-      message += `Tax (Comp): ₹${data.totalTax.toFixed(0)}\n`;
+      message += `Tax (Comp): ₹${data.totalTax.toFixed(2)}\n`;
     } else {
       try {
         const summary = data.taxSummary ? JSON.parse(data.taxSummary) : null;
-        if (summary?.byRate) {
-          Object.entries(summary.byRate).forEach(([rate, info]: [string, any]) => {
-            const halfRate = (parseFloat(rate) / 2).toFixed(1);
-            message += `CGST @${halfRate}%: ₹${(info.cgst || 0).toFixed(0)}\n`;
-            message += `SGST @${halfRate}%: ₹${(info.sgst || 0).toFixed(0)}\n`;
+        const entries = summary?.entries || [];
+        // Try entries[] format (raw BillTaxSummary)
+        const parseEntries = entries.length > 0 ? entries : (() => {
+          if (summary && typeof summary === 'object') {
+            return Object.keys(summary).filter(k => !isNaN(parseFloat(k))).map(rate => ({
+              taxName: summary[rate].taxName || `GST ${rate}%`,
+              taxRate: parseFloat(rate),
+              taxableAmount: summary[rate].taxable || 0,
+              cgst: summary[rate].cgst || 0,
+              sgst: summary[rate].sgst || 0
+            }));
+          }
+          return [];
+        })();
+        if (parseEntries.length > 0) {
+          message += `\n──────────────\n`;
+          parseEntries.forEach((entry: any) => {
+            const name = entry.taxName || `GST ${entry.taxRate}%`;
+            message += `${name}  Taxable: ₹${(entry.taxableAmount || 0).toFixed(2)}\n`;
+            message += `  CGST: ₹${(entry.cgst || 0).toFixed(2)}  SGST: ₹${(entry.sgst || 0).toFixed(2)}\n`;
           });
         } else {
           const halfTax = data.totalTax / 2;
-          message += `CGST: ₹${halfTax.toFixed(0)}\n`;
-          message += `SGST: ₹${halfTax.toFixed(0)}\n`;
+          message += `CGST: ₹${halfTax.toFixed(2)}\n`;
+          message += `SGST: ₹${halfTax.toFixed(2)}\n`;
         }
       } catch {
-        message += `Tax: ₹${data.totalTax.toFixed(0)}\n`;
+        message += `Tax: ₹${data.totalTax.toFixed(2)}\n`;
       }
     }
   }
 
+  // Round Off
+  if (data.roundOff && data.roundOff !== 0) {
+    const sign = data.roundOff > 0 ? '+' : '';
+    message += `Round Off: ${sign}₹${data.roundOff.toFixed(2)}\n`;
+  }
+
+  message += `━━━━━━━━━━━━━━\n`;
   message += `*TOTAL: ₹${data.total.toFixed(0)}*\n`;
   message += `Paid via: ${data.paymentMethod}\n\n`;
   message += `Thank you for your visit! 🙏`;

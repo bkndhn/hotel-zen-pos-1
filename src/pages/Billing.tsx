@@ -973,7 +973,8 @@ const Billing = () => {
     total: number,
     paymentMethod: string,
     adminId: string | null | undefined,
-    paymentDetails?: Record<string, number>
+    paymentDetails?: Record<string, number>,
+    gstData?: { taxSummary?: string; totalTax?: number; isComposition?: boolean; roundOff?: number; gstin?: string }
   ) => {
     try {
       const { formatBillMessage, shareViaWhatsApp, isValidPhoneNumber } = await import('@/utils/whatsappBillShare');
@@ -1051,7 +1052,13 @@ const Billing = () => {
             const isWeight = item.unit && ['kg', 'g', 'l', 'ml', 'liter', 'litre', 'gram', 'kilogram'].includes(item.unit.toLowerCase());
             return sum + (isWeight ? 1 : item.quantity);
           }, 0),
-          paymentDetails
+          paymentDetails,
+          // GST fields
+          gstin: gstData?.gstin,
+          taxSummary: gstData?.taxSummary,
+          totalTax: gstData?.totalTax,
+          isComposition: gstData?.isComposition,
+          roundOff: gstData?.roundOff
         };
         const result = await shareBillImageViaWhatsApp(customerMobile, billData);
         if (result.success) {
@@ -1079,7 +1086,13 @@ const Billing = () => {
           total,
           date: now.toLocaleDateString('en-IN'),
           time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-          paymentMethod
+          paymentMethod,
+          // GST fields
+          gstin: gstData?.gstin,
+          taxSummary: gstData?.taxSummary,
+          totalTax: gstData?.totalTax,
+          isComposition: gstData?.isComposition,
+          roundOff: gstData?.roundOff
         });
 
         shareViaWhatsApp(customerMobile, message);
@@ -1172,7 +1185,7 @@ const Billing = () => {
         return sum + (item.quantity / baseValue) * item.price;
       }, 0);
       const totalAdditionalCharges = paymentData.additionalCharges.reduce((sum, charge) => sum + charge.amount, 0);
-      const totalAmount = subtotal + totalAdditionalCharges - paymentData.discount;
+      let totalAmount = subtotal + totalAdditionalCharges - paymentData.discount;
 
       const mapPaymentMode = (method: string): PaymentMode => {
         const lower = method.toLowerCase();
@@ -1216,6 +1229,20 @@ const Billing = () => {
         totalTax = itemTaxes.reduce((s, t) => s + t.totalTax, 0);
       }
 
+      // Round-off: if GST makes total a decimal, round to nearest rupee
+      let roundOff = 0;
+      if (gstSettings.enabled && totalTax > 0) {
+        const rawTotal = totalAmount;
+        const roundedTotal = Math.round(rawTotal);
+        roundOff = roundedTotal - rawTotal;
+        // Only apply if there's actually a decimal difference
+        if (Math.abs(roundOff) > 0.001) {
+          totalAmount = roundedTotal;
+        } else {
+          roundOff = 0;
+        }
+      }
+
       const billPayload: any = {
         bill_no: billNumber,
         total_amount: totalAmount,
@@ -1230,7 +1257,8 @@ const Billing = () => {
         service_status: 'pending',
         kitchen_status: 'pending',
         status_updated_at: now.toISOString(),
-        table_no: selectedTableNumber || null
+        table_no: selectedTableNumber || null,
+        round_off: roundOff !== 0 ? roundOff : 0
       };
 
       // Add GST fields to bill if enabled
@@ -1352,7 +1380,8 @@ const Billing = () => {
         gstin: gstSettings.enabled ? gstSettings.gstin : undefined,
         taxSummary: billPayload.tax_summary || undefined,
         totalTax: billPayload.total_tax || undefined,
-        isComposition: gstSettings.enabled ? gstSettings.isComposition : undefined
+        isComposition: gstSettings.enabled ? gstSettings.isComposition : undefined,
+        roundOff: roundOff !== 0 ? roundOff : undefined
       };
 
       // Check auto-print setting
@@ -1389,7 +1418,13 @@ const Billing = () => {
 
           // 3. WhatsApp share (if requested)
           if (paymentData.sendWhatsApp) {
-            handleWhatsAppShare(billNumber, paymentData.customerMobile || '', validCart, totalAmount, paymentData.paymentMethod, adminId)
+            handleWhatsAppShare(billNumber, paymentData.customerMobile || '', validCart, totalAmount, paymentData.paymentMethod, adminId, paymentData.paymentAmounts, {
+              taxSummary: billPayload.tax_summary,
+              totalTax: billPayload.total_tax,
+              isComposition: gstSettings.isComposition,
+              roundOff: roundOff !== 0 ? roundOff : undefined,
+              gstin: gstSettings.gstin
+            })
               .catch(err => console.error('WhatsApp share failed:', err));
           }
         } catch (saveError: any) {

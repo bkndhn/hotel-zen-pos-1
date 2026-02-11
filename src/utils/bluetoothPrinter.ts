@@ -265,6 +265,7 @@ interface PrintData {
   taxSummary?: string; // JSON string of tax summary
   totalTax?: number;
   isComposition?: boolean;
+  roundOff?: number;
 }
 
 const textToBytes = (text: string): Uint8Array => {
@@ -377,7 +378,7 @@ export const generateReceiptBytes = async (data: PrintData): Promise<Uint8Array>
     commands.push(FEED_LINE);
   }
 
-  // GST Tax Summary - compact 2-3 lines
+  // GST Tax Summary - TaxName / Taxable / CGST / SGST table
   if (data.totalTax && data.totalTax > 0) {
     commands.push(textToBytes(SEP));
     commands.push(FEED_LINE);
@@ -387,19 +388,56 @@ export const generateReceiptBytes = async (data: PrintData): Promise<Uint8Array>
     } else {
       try {
         const summary = data.taxSummary ? JSON.parse(data.taxSummary) : null;
-        if (summary?.byRate) {
-          Object.entries(summary.byRate).forEach(([rate, info]: [string, any]) => {
-            const halfRate = (parseFloat(rate) / 2).toFixed(1);
-            commands.push(textToBytes(fmtLine(`CGST@${halfRate}%`, `${(info.cgst || 0).toFixed(0)}`)));
-            commands.push(FEED_LINE);
-            commands.push(textToBytes(fmtLine(`SGST@${halfRate}%`, `${(info.sgst || 0).toFixed(0)}`)));
+        const entries = summary?.entries || [];
+        if (entries.length > 0) {
+          // Header row
+          if (lineWidth >= 48) {
+            commands.push(textToBytes(padRight('TaxName', 10) + padRight('Taxable', 10) + padRight('CGST', 9) + 'SGST'));
+          } else {
+            commands.push(textToBytes(padRight('TaxName', 8) + padRight('Taxable', 8) + padRight('CGST', 8) + 'SGST'));
+          }
+          commands.push(FEED_LINE);
+          entries.forEach((entry: any) => {
+            const name = (entry.taxName || `GST ${entry.taxRate}%`).substring(0, lineWidth >= 48 ? 10 : 8);
+            if (lineWidth >= 48) {
+              commands.push(textToBytes(padRight(name, 10) + padRight((entry.taxableAmount || 0).toFixed(2), 10) + padRight((entry.cgst || 0).toFixed(2), 9) + (entry.sgst || 0).toFixed(2)));
+            } else {
+              commands.push(textToBytes(padRight(name, 8) + padRight((entry.taxableAmount || 0).toFixed(0), 8) + padRight((entry.cgst || 0).toFixed(2), 8) + (entry.sgst || 0).toFixed(2)));
+            }
             commands.push(FEED_LINE);
           });
+        } else if (summary && typeof summary === 'object') {
+          // Fallback: try top-level keys as rate entries (taxSummaryToJson format)
+          const rateKeys = Object.keys(summary).filter(k => !isNaN(parseFloat(k)));
+          if (rateKeys.length > 0) {
+            if (lineWidth >= 48) {
+              commands.push(textToBytes(padRight('TaxName', 10) + padRight('Taxable', 10) + padRight('CGST', 9) + 'SGST'));
+            } else {
+              commands.push(textToBytes(padRight('TaxName', 8) + padRight('Taxable', 8) + padRight('CGST', 8) + 'SGST'));
+            }
+            commands.push(FEED_LINE);
+            rateKeys.forEach(rate => {
+              const info = summary[rate];
+              const name = (info.taxName || `GST ${rate}%`).substring(0, lineWidth >= 48 ? 10 : 8);
+              if (lineWidth >= 48) {
+                commands.push(textToBytes(padRight(name, 10) + padRight((info.taxable || 0).toFixed(2), 10) + padRight((info.cgst || 0).toFixed(2), 9) + (info.sgst || 0).toFixed(2)));
+              } else {
+                commands.push(textToBytes(padRight(name, 8) + padRight((info.taxable || 0).toFixed(0), 8) + padRight((info.cgst || 0).toFixed(2), 8) + (info.sgst || 0).toFixed(2)));
+              }
+              commands.push(FEED_LINE);
+            });
+          } else {
+            const halfTax = data.totalTax / 2;
+            commands.push(textToBytes(fmtLine('CGST', `${halfTax.toFixed(2)}`)));
+            commands.push(FEED_LINE);
+            commands.push(textToBytes(fmtLine('SGST', `${halfTax.toFixed(2)}`)));
+            commands.push(FEED_LINE);
+          }
         } else {
           const halfTax = data.totalTax / 2;
-          commands.push(textToBytes(fmtLine('CGST', `${halfTax.toFixed(0)}`)));
+          commands.push(textToBytes(fmtLine('CGST', `${halfTax.toFixed(2)}`)));
           commands.push(FEED_LINE);
-          commands.push(textToBytes(fmtLine('SGST', `${halfTax.toFixed(0)}`)));
+          commands.push(textToBytes(fmtLine('SGST', `${halfTax.toFixed(2)}`)));
           commands.push(FEED_LINE);
         }
       } catch {
@@ -408,6 +446,16 @@ export const generateReceiptBytes = async (data: PrintData): Promise<Uint8Array>
       }
     }
   }
+
+  // Round Off line
+  if (data.roundOff && data.roundOff !== 0) {
+    const sign = data.roundOff > 0 ? '+' : '';
+    commands.push(textToBytes(fmtLine('Round Off', `${sign}${data.roundOff.toFixed(2)}`)));
+    commands.push(FEED_LINE);
+  }
+
+  commands.push(textToBytes(SEP_DOUBLE));
+  commands.push(FEED_LINE);
 
   // TOTAL - bold but NOT double size to save paper
   commands.push(BOLD_ON);
