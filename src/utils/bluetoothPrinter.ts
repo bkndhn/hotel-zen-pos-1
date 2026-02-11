@@ -391,15 +391,15 @@ export const generateReceiptBytes = async (data: PrintData): Promise<Uint8Array>
         const entries = summary?.entries || [];
         if (entries.length > 0) {
           // Header row
-          if (lineWidth >= 48) {
+          if (LINE_WIDTH >= 48) {
             commands.push(textToBytes(padRight('TaxName', 10) + padRight('Taxable', 10) + padRight('CGST', 9) + 'SGST'));
           } else {
             commands.push(textToBytes(padRight('TaxName', 8) + padRight('Taxable', 8) + padRight('CGST', 8) + 'SGST'));
           }
           commands.push(FEED_LINE);
           entries.forEach((entry: any) => {
-            const name = (entry.taxName || `GST ${entry.taxRate}%`).substring(0, lineWidth >= 48 ? 10 : 8);
-            if (lineWidth >= 48) {
+            const name = (entry.taxName || `GST ${entry.taxRate}%`).substring(0, LINE_WIDTH >= 48 ? 10 : 8);
+            if (LINE_WIDTH >= 48) {
               commands.push(textToBytes(padRight(name, 10) + padRight((entry.taxableAmount || 0).toFixed(2), 10) + padRight((entry.cgst || 0).toFixed(2), 9) + (entry.sgst || 0).toFixed(2)));
             } else {
               commands.push(textToBytes(padRight(name, 8) + padRight((entry.taxableAmount || 0).toFixed(2), 8) + padRight((entry.cgst || 0).toFixed(2), 8) + (entry.sgst || 0).toFixed(2)));
@@ -410,7 +410,7 @@ export const generateReceiptBytes = async (data: PrintData): Promise<Uint8Array>
           // Fallback: try top-level keys as rate entries (taxSummaryToJson format)
           const rateKeys = Object.keys(summary).filter(k => !isNaN(parseFloat(k)));
           if (rateKeys.length > 0) {
-            if (lineWidth >= 48) {
+            if (LINE_WIDTH >= 48) {
               commands.push(textToBytes(padRight('TaxName', 10) + padRight('Taxable', 10) + padRight('CGST', 9) + 'SGST'));
             } else {
               commands.push(textToBytes(padRight('TaxName', 8) + padRight('Taxable', 8) + padRight('CGST', 8) + 'SGST'));
@@ -418,8 +418,8 @@ export const generateReceiptBytes = async (data: PrintData): Promise<Uint8Array>
             commands.push(FEED_LINE);
             rateKeys.forEach(rate => {
               const info = summary[rate];
-              const name = (info.taxName || `GST ${rate}%`).substring(0, lineWidth >= 48 ? 10 : 8);
-              if (lineWidth >= 48) {
+              const name = (info.taxName || `GST ${rate}%`).substring(0, LINE_WIDTH >= 48 ? 10 : 8);
+              if (LINE_WIDTH >= 48) {
                 commands.push(textToBytes(padRight(name, 10) + padRight((info.taxable || 0).toFixed(2), 10) + padRight((info.cgst || 0).toFixed(2), 9) + (info.sgst || 0).toFixed(2)));
               } else {
                 commands.push(textToBytes(padRight(name, 8) + padRight((info.taxable || 0).toFixed(2), 8) + padRight((info.cgst || 0).toFixed(2), 8) + (info.sgst || 0).toFixed(2)));
