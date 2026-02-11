@@ -402,7 +402,7 @@ export const generateReceiptBytes = async (data: PrintData): Promise<Uint8Array>
             if (lineWidth >= 48) {
               commands.push(textToBytes(padRight(name, 10) + padRight((entry.taxableAmount || 0).toFixed(2), 10) + padRight((entry.cgst || 0).toFixed(2), 9) + (entry.sgst || 0).toFixed(2)));
             } else {
-              commands.push(textToBytes(padRight(name, 8) + padRight((entry.taxableAmount || 0).toFixed(0), 8) + padRight((entry.cgst || 0).toFixed(2), 8) + (entry.sgst || 0).toFixed(2)));
+              commands.push(textToBytes(padRight(name, 8) + padRight((entry.taxableAmount || 0).toFixed(2), 8) + padRight((entry.cgst || 0).toFixed(2), 8) + (entry.sgst || 0).toFixed(2)));
             }
             commands.push(FEED_LINE);
           });
@@ -422,7 +422,7 @@ export const generateReceiptBytes = async (data: PrintData): Promise<Uint8Array>
               if (lineWidth >= 48) {
                 commands.push(textToBytes(padRight(name, 10) + padRight((info.taxable || 0).toFixed(2), 10) + padRight((info.cgst || 0).toFixed(2), 9) + (info.sgst || 0).toFixed(2)));
               } else {
-                commands.push(textToBytes(padRight(name, 8) + padRight((info.taxable || 0).toFixed(0), 8) + padRight((info.cgst || 0).toFixed(2), 8) + (info.sgst || 0).toFixed(2)));
+                commands.push(textToBytes(padRight(name, 8) + padRight((info.taxable || 0).toFixed(2), 8) + padRight((info.cgst || 0).toFixed(2), 8) + (info.sgst || 0).toFixed(2)));
               }
               commands.push(FEED_LINE);
             });

@@ -93,6 +93,7 @@ const Reports: React.FC = () => {
     showInstagram?: boolean;
     whatsapp: string;
     showWhatsapp?: boolean;
+    gstin?: string;
   } | null>(null);
 
   // Delete confirmation dialog state
@@ -131,6 +132,7 @@ const Reports: React.FC = () => {
         shopName: billSettings?.shopName || profile?.hotel_name || 'Hotel',
         address: billSettings?.address,
         phone: billSettings?.contactNumber,
+        gstin: billSettings?.gstin,
         items: bill.bill_items.map(item => ({
           name: item.items?.name || 'Item',
           quantity: item.quantity,
@@ -147,7 +149,11 @@ const Reports: React.FC = () => {
         paymentMethod: bill.payment_mode,
         totalItemsCount: bill.bill_items.length,
         smartQtyCount: calculateSmartQtyCount(bill.bill_items.map(bi => ({ quantity: bi.quantity, unit: bi.items?.unit }))),
-        paymentDetails: bill.payment_details as Record<string, number> | undefined
+        paymentDetails: bill.payment_details as Record<string, number> | undefined,
+        taxSummary: bill.tax_summary ? (typeof bill.tax_summary === 'string' ? bill.tax_summary : JSON.stringify(bill.tax_summary)) : undefined,
+        totalTax: bill.total_tax || undefined,
+        isComposition: (bill as any).is_composition || undefined,
+        roundOff: (bill as any).round_off || undefined
       };
       shareBillImageViaWhatsApp('', billData).then(result => {
         setSharingImage(false);
@@ -167,6 +173,7 @@ const Reports: React.FC = () => {
       const message = formatBillMessage({
         billNo: bill.bill_no,
         shopName: billSettings?.shopName || profile?.hotel_name || 'Hotel',
+        gstin: billSettings?.gstin,
         items: bill.bill_items.map(item => ({
           name: item.items?.name || 'Item',
           quantity: item.quantity,
@@ -179,7 +186,11 @@ const Reports: React.FC = () => {
         total: bill.total_amount,
         date: format(billDate, 'dd/MM/yyyy'),
         time: format(billDate, 'hh:mm a'),
-        paymentMethod: bill.payment_mode
+        paymentMethod: bill.payment_mode,
+        taxSummary: bill.tax_summary ? (typeof bill.tax_summary === 'string' ? bill.tax_summary : JSON.stringify(bill.tax_summary)) : undefined,
+        totalTax: bill.total_tax || undefined,
+        isComposition: (bill as any).is_composition || undefined,
+        roundOff: (bill as any).round_off || undefined
       });
 
       shareViaWhatsApp(whatsappPhone, message);
@@ -206,7 +217,8 @@ const Reports: React.FC = () => {
           instagram: parsed.instagram || '',
           showInstagram: parsed.showInstagram !== false,
           whatsapp: parsed.whatsapp || '',
-          showWhatsapp: parsed.showWhatsapp !== false
+          showWhatsapp: parsed.showWhatsapp !== false,
+          gstin: parsed.gstin || ''
         });
       } catch (e) { /* ignore parse errors */ }
     }
@@ -233,7 +245,8 @@ const Reports: React.FC = () => {
           instagram: data.instagram || '',
           showInstagram: data.show_instagram,
           whatsapp: data.whatsapp || '',
-          showWhatsapp: data.show_whatsapp
+          showWhatsapp: data.show_whatsapp,
+          gstin: data.gstin || ''
         };
         setBillSettings(settings);
         // Update cache
@@ -1621,7 +1634,7 @@ const Reports: React.FC = () => {
                     <div className="grid grid-cols-3 gap-3">
                       <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3 text-center">
                         <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Tax Collected</p>
-                        <p className="text-lg font-black text-amber-900 dark:text-amber-200">₹{totalTaxCollected.toFixed(0)}</p>
+                        <p className="text-lg font-black text-amber-900 dark:text-amber-200">₹{totalTaxCollected.toFixed(2)}</p>
                       </div>
                       <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 text-center">
                         <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">GST Bills</p>
@@ -1652,10 +1665,10 @@ const Reports: React.FC = () => {
                               {Object.entries(rateMap).sort(([a], [b]) => parseFloat(a) - parseFloat(b)).map(([rate, data]) => (
                                 <tr key={rate} className="border-t">
                                   <td className="p-2 font-medium">{rate}%</td>
-                                  <td className="p-2 text-right">₹{data.taxable.toFixed(0)}</td>
-                                  <td className="p-2 text-right">₹{data.cgst.toFixed(0)}</td>
-                                  <td className="p-2 text-right">₹{data.sgst.toFixed(0)}</td>
-                                  <td className="p-2 text-right font-semibold">₹{data.total.toFixed(0)}</td>
+                                  <td className="p-2 text-right">₹{data.taxable.toFixed(2)}</td>
+                                  <td className="p-2 text-right">₹{data.cgst.toFixed(2)}</td>
+                                  <td className="p-2 text-right">₹{data.sgst.toFixed(2)}</td>
+                                  <td className="p-2 text-right font-semibold">₹{data.total.toFixed(2)}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -1682,8 +1695,8 @@ const Reports: React.FC = () => {
                               {Object.entries(hsnMap).map(([hsn, data]) => (
                                 <tr key={hsn} className="border-t">
                                   <td className="p-2 font-mono font-medium">{hsn}</td>
-                                  <td className="p-2 text-right">₹{data.taxable.toFixed(0)}</td>
-                                  <td className="p-2 text-right">₹{data.tax.toFixed(0)}</td>
+                                  <td className="p-2 text-right">₹{data.taxable.toFixed(2)}</td>
+                                  <td className="p-2 text-right">₹{data.tax.toFixed(2)}</td>
                                   <td className="p-2 text-right">{data.count}</td>
                                 </tr>
                               ))}
@@ -1754,6 +1767,11 @@ const Reports: React.FC = () => {
                 {/* Contact */}
                 {billSettings?.contactNumber && (
                   <p className="text-sm font-medium mt-1">{billSettings.contactNumber}</p>
+                )}
+
+                {/* GSTIN */}
+                {billSettings?.gstin && (
+                  <p className="text-xs font-semibold text-indigo-600 mt-1">GSTIN: {billSettings.gstin}</p>
                 )}
 
                 {/* Social Media */}
