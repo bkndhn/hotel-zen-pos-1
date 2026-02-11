@@ -978,15 +978,18 @@ const Billing = () => {
     try {
       const { formatBillMessage, shareViaWhatsApp, isValidPhoneNumber } = await import('@/utils/whatsappBillShare');
 
-      if (!isValidPhoneNumber(customerMobile)) {
+      // Image mode: skip phone validation (uses share dialog)
+      // Text mode: requires valid phone
+      const isImageMode = whatsappShareMode === 'image';
+      if (!isImageMode && !isValidPhoneNumber(customerMobile)) {
         toast({ title: "Invalid Phone", description: "Cannot send WhatsApp - invalid number", variant: "destructive" });
         return;
       }
 
-      // Save/Update customer in CRM
-      const cleanPhone = customerMobile.replace(/[\s\-\(\)\+]/g, '');
+      // Save/Update customer in CRM (only if valid phone provided)
+      const cleanPhone = customerMobile?.replace(/[\s\-\(\)\+]/g, '') || '';
 
-      if (adminId) {
+      if (adminId && cleanPhone.length >= 10) {
         const { data: existingCustomer } = await (supabase as any)
           .from('customers')
           .select('id, visit_count, total_spent')
@@ -1378,8 +1381,8 @@ const Billing = () => {
           await saveBillToDatabase(billPayload, validCart, billNumber);
 
           // 3. WhatsApp share (if requested)
-          if (paymentData.sendWhatsApp && paymentData.customerMobile) {
-            handleWhatsAppShare(billNumber, paymentData.customerMobile, validCart, totalAmount, paymentData.paymentMethod, adminId)
+          if (paymentData.sendWhatsApp) {
+            handleWhatsAppShare(billNumber, paymentData.customerMobile || '', validCart, totalAmount, paymentData.paymentMethod, adminId)
               .catch(err => console.error('WhatsApp share failed:', err));
           }
         } catch (saveError: any) {
@@ -1706,7 +1709,7 @@ const Billing = () => {
     </div>}
 
     {/* Payment Dialog */}
-    <CompletePaymentDialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen} cart={cart} paymentTypes={paymentTypes} additionalCharges={additionalCharges} onUpdateQuantity={updateQuantity} onRemoveItem={removeFromCart} onCompletePayment={handleCompletePayment} whatsappEnabled={whatsappEnabled} />
+    <CompletePaymentDialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen} cart={cart} paymentTypes={paymentTypes} additionalCharges={additionalCharges} onUpdateQuantity={updateQuantity} onRemoveItem={removeFromCart} onCompletePayment={handleCompletePayment} whatsappEnabled={whatsappEnabled} whatsappShareMode={whatsappShareMode} gstEnabled={gstSettings.enabled} />
 
     {/* Printer Error Dialog */}
     <PrinterErrorDialog

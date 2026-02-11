@@ -160,44 +160,16 @@ const QRCodeSettings = () => {
     const pinCurrentLocation = async () => {
         // First check if geolocation is supported
         if (!navigator.geolocation) {
-            setLocationError('Geolocation is not supported by your browser');
-            toast({ title: 'Error', description: 'Geolocation is not supported by your browser', variant: 'destructive' });
+            setLocationError('Geolocation is not supported by your browser. Use manual entry below.');
+            toast({ title: 'Error', description: 'Geolocation not supported. Use manual entry.', variant: 'destructive' });
             return;
         }
 
         setLocationLoading(true);
-        setLocationError(null); // Clear previous errors
+        setLocationError(null);
 
-        // Pre-check permission status using Permissions API (if available)
-        try {
-            if (navigator.permissions) {
-                const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
-
-                if (permissionStatus.state === 'denied') {
-                    setLocationLoading(false);
-                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-                    const isAndroid = /Android/.test(navigator.userAgent);
-
-                    let errorMessage = 'Location permission is blocked.';
-                    if (isIOS) {
-                        errorMessage = 'Location blocked. Go to iPhone Settings > Safari > Location Services and enable for this site.';
-                    } else if (isAndroid) {
-                        errorMessage = 'Location blocked. Go to Android Settings > Apps > Chrome > Permissions > Location and enable it.';
-                    } else {
-                        errorMessage = 'Location permission blocked. Click the lock/info icon in your browser address bar and enable Location.';
-                    }
-
-                    setLocationError(errorMessage);
-                    toast({ title: 'Location Blocked', description: errorMessage, variant: 'destructive' });
-                    return;
-                }
-            }
-        } catch (permError) {
-            // Permissions API not supported or failed - continue with geolocation request
-            console.log('Permissions API check failed, proceeding with geolocation request');
-        }
-
-        // Request location
+        // Skip Permissions API pre-check — directly request location
+        // The browser will prompt the user if needed
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 setShopLatitude(position.coords.latitude);
@@ -205,41 +177,26 @@ const QRCodeSettings = () => {
                 setLocationLoading(false);
                 setLocationError(null);
                 toast({ title: 'Location Pinned', description: 'Shop location has been saved successfully!' });
-                // Auto-save after pinning
                 setTimeout(() => saveSettings(), 500);
             },
             (error) => {
                 setLocationLoading(false);
-                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-                const isAndroid = /Android/.test(navigator.userAgent);
-                let errorMessage = error.message;
-
-                // Provide better error messages based on error code and platform
+                // On ANY error, show a simple message and suggest manual entry
+                let errorMessage = 'Could not get location. ';
                 if (error.code === error.PERMISSION_DENIED) {
-                    if (isIOS) {
-                        errorMessage = 'Location denied. Go to Settings > Privacy > Location Services > Safari and enable "While Using".';
-                    } else if (isAndroid) {
-                        errorMessage = 'Location denied. Tap the 3-dot menu in Chrome > Settings > Site Settings > Location and allow this site.';
-                    } else {
-                        errorMessage = 'Location denied. Click the lock icon in address bar, find Location, and select "Allow".';
-                    }
+                    errorMessage += 'Permission denied. You can enter coordinates manually below, or open Google Maps, find your shop, and copy the lat/lng.';
                 } else if (error.code === error.POSITION_UNAVAILABLE) {
-                    if (isAndroid) {
-                        errorMessage = 'Location unavailable. Enable GPS: swipe down notification bar > tap Location/GPS icon.';
-                    } else {
-                        errorMessage = 'Location unavailable. Please check your GPS/location settings are enabled.';
-                    }
-                } else if (error.code === error.TIMEOUT) {
-                    errorMessage = 'Location request timed out. Please ensure GPS is enabled and try again.';
+                    errorMessage += 'GPS unavailable. Try enabling GPS or enter coordinates manually below.';
+                } else {
+                    errorMessage += 'Request timed out. Try again or enter coordinates manually below.';
                 }
-
                 setLocationError(errorMessage);
-                toast({ title: 'Location Error', description: errorMessage, variant: 'destructive' });
+                toast({ title: 'Location Error', description: 'Use manual entry below if location keeps failing.', variant: 'destructive' });
             },
             {
-                enableHighAccuracy: true,
-                timeout: 20000, // Increased timeout for GPS cold start
-                maximumAge: 0
+                enableHighAccuracy: false, // Use network location first (faster, works without GPS)
+                timeout: 15000,
+                maximumAge: 60000 // Accept cached location up to 1 minute old
             }
         );
     };
@@ -743,7 +700,7 @@ const QRCodeSettings = () => {
                                         <div className="flex items-start gap-2">
                                             <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                                             <div className="flex-1">
-                                                <p className="text-red-700">{locationError}</p>
+                                                <p className="text-red-700 text-xs">{locationError}</p>
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
@@ -752,6 +709,39 @@ const QRCodeSettings = () => {
                                                 >
                                                     Try Again
                                                 </Button>
+                                            </div>
+                                        </div>
+                                        {/* Manual entry fallback */}
+                                        <div className="mt-3 pt-3 border-t border-red-200">
+                                            <p className="text-xs font-medium text-gray-700 mb-2">📍 Manual Entry (from Google Maps):</p>
+                                            <div className="flex gap-2">
+                                                <Input
+                                                    type="number"
+                                                    step="any"
+                                                    placeholder="Latitude"
+                                                    className="flex-1 h-8 text-xs"
+                                                    onChange={(e) => {
+                                                        const val = parseFloat(e.target.value);
+                                                        if (!isNaN(val) && val >= -90 && val <= 90) setShopLatitude(val);
+                                                    }}
+                                                />
+                                                <Input
+                                                    type="number"
+                                                    step="any"
+                                                    placeholder="Longitude"
+                                                    className="flex-1 h-8 text-xs"
+                                                    onChange={(e) => {
+                                                        const val = parseFloat(e.target.value);
+                                                        if (!isNaN(val) && val >= -180 && val <= 180) setShopLongitude(val);
+                                                    }}
+                                                />
+                                                <Button size="sm" className="h-8 px-3 text-xs" onClick={() => {
+                                                    if (shopLatitude && shopLongitude) {
+                                                        setLocationError(null);
+                                                        toast({ title: 'Location Saved', description: 'Manual coordinates applied!' });
+                                                        setTimeout(() => saveSettings(), 500);
+                                                    }
+                                                }}>Save</Button>
                                             </div>
                                         </div>
                                     </div>
