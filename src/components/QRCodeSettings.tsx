@@ -32,8 +32,8 @@ import {
 import { PromoBannerManager } from '@/components/PromoBannerManager';
 
 // Simple QR Code generator using a public API
-const generateQRCodeUrl = (text: string, size: number = 300): string => {
-    return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}&margin=10`;
+const generateQRCodeUrl = (text: string, size: number = 300, fgColor: string = '1a1a6c', bgColor: string = 'ffffff'): string => {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}&margin=10&color=${fgColor}&bgcolor=${bgColor}`;
 };
 
 const QRCodeSettings = () => {
@@ -335,12 +335,11 @@ const QRCodeSettings = () => {
         }
     };
 
-    // Download QR code using canvas to avoid CORS
+    // Download QR code as a premium branded card
     const handleDownloadQR = async () => {
         try {
-            const qrUrl = generateQRCodeUrl(currentQrUrl, 500);
+            const qrUrl = generateQRCodeUrl(currentQrUrl, 400, '1a1a6c');
 
-            // Create a new image element
             const img = new Image();
             img.crossOrigin = 'anonymous';
 
@@ -350,33 +349,90 @@ const QRCodeSettings = () => {
                 img.src = qrUrl;
             });
 
-            // Create canvas with extra space for footer text
-            const footerHeight = 45;
+            // Create canvas for premium QR card
+            const padding = 40;
+            const headerHeight = 70;
+            const footerHeight = 60;
+            const qrSize = img.width;
+            const cardWidth = qrSize + padding * 2;
+            const cardHeight = qrSize + headerHeight + footerHeight + padding;
+
             const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height + footerHeight;
+            canvas.width = cardWidth;
+            canvas.height = cardHeight;
             const ctx = canvas.getContext('2d');
             if (!ctx) throw new Error('Canvas not supported');
 
-            // Fill white background
+            // Draw gradient background
+            const grad = ctx.createLinearGradient(0, 0, cardWidth, cardHeight);
+            grad.addColorStop(0, '#667eea');
+            grad.addColorStop(0.5, '#764ba2');
+            grad.addColorStop(1, '#f093fb');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, cardWidth, cardHeight);
+
+            // Draw white rounded container for QR
+            const containerX = padding - 10;
+            const containerY = headerHeight - 5;
+            const containerW = qrSize + 20;
+            const containerH = qrSize + 20;
+            const radius = 16;
             ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.beginPath();
+            ctx.moveTo(containerX + radius, containerY);
+            ctx.lineTo(containerX + containerW - radius, containerY);
+            ctx.quadraticCurveTo(containerX + containerW, containerY, containerX + containerW, containerY + radius);
+            ctx.lineTo(containerX + containerW, containerY + containerH - radius);
+            ctx.quadraticCurveTo(containerX + containerW, containerY + containerH, containerX + containerW - radius, containerY + containerH);
+            ctx.lineTo(containerX + radius, containerY + containerH);
+            ctx.quadraticCurveTo(containerX, containerY + containerH, containerX, containerY + containerH - radius);
+            ctx.lineTo(containerX, containerY + radius);
+            ctx.quadraticCurveTo(containerX, containerY, containerX + radius, containerY);
+            ctx.closePath();
+            ctx.fill();
+
+            // Draw subtle shadow
+            ctx.shadowColor = 'rgba(0,0,0,0.15)';
+            ctx.shadowBlur = 20;
+            ctx.shadowOffsetY = 5;
+            ctx.fill();
+            ctx.shadowColor = 'transparent';
 
             // Draw QR code
-            ctx.drawImage(img, 0, 0);
+            ctx.drawImage(img, padding, headerHeight + 5);
 
-            // Draw instruction text at bottom
-            ctx.fillStyle = '#64748b';
-            ctx.font = '12px Arial, sans-serif';
+            // Draw header text (shop name or "Scan Menu")
+            const shopName = localStorage.getItem('hotel_pos_bill_header');
+            let displayName = 'Scan Our Menu';
+            if (shopName) {
+                try {
+                    const parsed = JSON.parse(shopName);
+                    if (parsed.shopName) displayName = parsed.shopName;
+                } catch { }
+            }
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 22px Arial, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('Scan with Camera or Google Lens', canvas.width / 2, img.height + 18);
-            ctx.fillText('to view menu items', canvas.width / 2, img.height + 35);
+            ctx.fillText(displayName, cardWidth / 2, 40);
+
+            // Table number if applicable
+            if (selectedTable) {
+                ctx.font = 'bold 16px Arial, sans-serif';
+                ctx.fillStyle = 'rgba(255,255,255,0.85)';
+                ctx.fillText(`Table ${selectedTable}`, cardWidth / 2, 60);
+            }
+
+            // Footer instruction
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.font = 'bold 14px Arial, sans-serif';
+            ctx.fillText('📱 Scan to View Menu', cardWidth / 2, containerY + containerH + 30);
+            ctx.font = '11px Arial, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.65)';
+            ctx.fillText('Use Camera or Google Lens', cardWidth / 2, containerY + containerH + 48);
 
             // Convert to blob and download
             canvas.toBlob((blob) => {
-                if (!blob) {
-                    throw new Error('Could not create blob');
-                }
+                if (!blob) throw new Error('Could not create blob');
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -395,7 +451,6 @@ const QRCodeSettings = () => {
             }, 'image/png');
         } catch (err) {
             console.error('QR download error:', err);
-            // Fallback: open in new tab for manual save
             window.open(generateQRCodeUrl(currentQrUrl, 500), '_blank');
             toast({
                 title: "Manual Download",
@@ -404,21 +459,43 @@ const QRCodeSettings = () => {
         }
     };
 
-    // Download all table QR codes with table number label
+    // Download all table QR codes as premium branded cards
     const handleDownloadAllTableQRs = async () => {
         toast({
             title: "Downloading...",
-            description: `Generating ${tableCount} QR codes with table numbers`,
+            description: `Generating ${tableCount} premium QR cards with table numbers`,
         });
 
         let successCount = 0;
 
+        // Color schemes for table QRs (cycle through)
+        const tableColors = [
+            { grad1: '#667eea', grad2: '#764ba2', qr: '1a1a6c' },
+            { grad1: '#f093fb', grad2: '#f5576c', qr: '8b1a6c' },
+            { grad1: '#4facfe', grad2: '#00f2fe', qr: '0a4a6c' },
+            { grad1: '#43e97b', grad2: '#38f9d7', qr: '0a6c3a' },
+            { grad1: '#fa709a', grad2: '#fee140', qr: '6c1a2a' },
+            { grad1: '#a18cd1', grad2: '#fbc2eb', qr: '4a1a6c' },
+            { grad1: '#fccb90', grad2: '#d57eeb', qr: '6c4a1a' },
+            { grad1: '#e0c3fc', grad2: '#8ec5fc', qr: '2a1a6c' },
+        ];
+
+        // Get shop name
+        const shopNameStr = localStorage.getItem('hotel_pos_bill_header');
+        let displayName = 'Scan Our Menu';
+        if (shopNameStr) {
+            try {
+                const parsed = JSON.parse(shopNameStr);
+                if (parsed.shopName) displayName = parsed.shopName;
+            } catch { }
+        }
+
         for (let i = 1; i <= tableCount; i++) {
             const tableUrl = `${baseUrl}?table=${i}`;
+            const colors = tableColors[(i - 1) % tableColors.length];
             try {
-                const qrUrl = generateQRCodeUrl(tableUrl, 400);
+                const qrUrl = generateQRCodeUrl(tableUrl, 350, colors.qr);
 
-                // Create image and load with CORS
                 const img = new Image();
                 img.crossOrigin = 'anonymous';
 
@@ -428,34 +505,70 @@ const QRCodeSettings = () => {
                     img.src = qrUrl;
                 });
 
-                // Create canvas with extra space for table number header and instruction footer
-                const headerHeight = 50;
-                const footerHeight = 45;
+                // Premium card dimensions
+                const padding = 35;
+                const headerHeight = 80;
+                const footerHeight = 55;
+                const qrSize = img.width;
+                const cardWidth = qrSize + padding * 2;
+                const cardHeight = qrSize + headerHeight + footerHeight + padding;
+
                 const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height + headerHeight + footerHeight;
+                canvas.width = cardWidth;
+                canvas.height = cardHeight;
                 const ctx = canvas.getContext('2d');
                 if (!ctx) continue;
 
-                // Fill white background
+                // Gradient background
+                const grad = ctx.createLinearGradient(0, 0, cardWidth, cardHeight);
+                grad.addColorStop(0, colors.grad1);
+                grad.addColorStop(1, colors.grad2);
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, cardWidth, cardHeight);
+
+                // White rounded container
+                const containerX = padding - 8;
+                const containerY = headerHeight;
+                const containerW = qrSize + 16;
+                const containerH = qrSize + 16;
+                const radius = 14;
                 ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.beginPath();
+                ctx.moveTo(containerX + radius, containerY);
+                ctx.lineTo(containerX + containerW - radius, containerY);
+                ctx.quadraticCurveTo(containerX + containerW, containerY, containerX + containerW, containerY + radius);
+                ctx.lineTo(containerX + containerW, containerY + containerH - radius);
+                ctx.quadraticCurveTo(containerX + containerW, containerY + containerH, containerX + containerW - radius, containerY + containerH);
+                ctx.lineTo(containerX + radius, containerY + containerH);
+                ctx.quadraticCurveTo(containerX, containerY + containerH, containerX, containerY + containerH - radius);
+                ctx.lineTo(containerX, containerY + radius);
+                ctx.quadraticCurveTo(containerX, containerY, containerX + radius, containerY);
+                ctx.closePath();
+                ctx.shadowColor = 'rgba(0,0,0,0.15)';
+                ctx.shadowBlur = 15;
+                ctx.shadowOffsetY = 4;
+                ctx.fill();
+                ctx.shadowColor = 'transparent';
 
-                // Draw table number header
-                ctx.fillStyle = '#1e293b';
-                ctx.font = 'bold 28px Arial, sans-serif';
+                // Draw QR code
+                ctx.drawImage(img, padding, headerHeight + 8);
+
+                // Header — Table number big + shop name small
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 30px Arial, sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText(`Table ${i}`, canvas.width / 2, 35);
+                ctx.fillText(`Table ${i}`, cardWidth / 2, 40);
+                ctx.font = '14px Arial, sans-serif';
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.fillText(displayName, cardWidth / 2, 62);
 
-                // Draw QR code below header
-                ctx.drawImage(img, 0, headerHeight);
-
-                // Draw instruction footer below QR
-                ctx.fillStyle = '#64748b';
-                ctx.font = '12px Arial, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('Scan with Camera or Google Lens', canvas.width / 2, headerHeight + img.height + 18);
-                ctx.fillText('to view menu items', canvas.width / 2, headerHeight + img.height + 35);
+                // Footer
+                ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                ctx.font = 'bold 13px Arial, sans-serif';
+                ctx.fillText('📱 Scan to View Menu', cardWidth / 2, containerY + containerH + 25);
+                ctx.font = '10px Arial, sans-serif';
+                ctx.fillStyle = 'rgba(255,255,255,0.6)';
+                ctx.fillText('Use Camera or Google Lens', cardWidth / 2, containerY + containerH + 42);
 
                 // Convert to blob and download
                 await new Promise<void>((resolve) => {
@@ -485,7 +598,7 @@ const QRCodeSettings = () => {
         toast({
             title: successCount > 0 ? "Download Complete!" : "Download Failed",
             description: successCount > 0
-                ? `${successCount} of ${tableCount} QR codes saved with table numbers`
+                ? `${successCount} of ${tableCount} premium QR cards saved`
                 : "Could not download QR codes. Try downloading individually.",
             variant: successCount > 0 ? "default" : "destructive"
         });

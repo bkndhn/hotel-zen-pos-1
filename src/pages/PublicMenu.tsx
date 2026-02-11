@@ -517,35 +517,35 @@ const PublicMenu = () => {
             className="min-h-screen"
             style={{
                 background: shopSettings?.menu_background_color
-                    ? `linear-gradient(to bottom right, ${shopSettings.menu_background_color}, ${shopSettings.menu_background_color}dd)`
-                    : 'linear-gradient(to bottom right, #fffbeb, #fef3c7, #fef9c3)'
+                    ? `linear-gradient(135deg, ${shopSettings.menu_background_color}15 0%, ${shopSettings.menu_background_color}08 50%, ${shopSettings.menu_background_color}15 100%)`
+                    : 'linear-gradient(135deg, #fef7ed 0%, #fff7ed 25%, #fefce8 50%, #f0fdf4 75%, #fef7ed 100%)'
             }}
         >
             {/* Header with Shop Name */}
             <header
-                className="sticky top-0 z-50 text-white shadow-lg"
+                className="sticky top-0 z-50 text-white shadow-xl"
                 style={{
                     background: shopSettings?.menu_primary_color
-                        ? `linear-gradient(to right, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})`
-                        : 'linear-gradient(to right, #ea580c, #d97706)'
+                        ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color}cc)`
+                        : 'linear-gradient(135deg, #ea580c, #dc2626)'
                 }}
             >
-                <div className="max-w-2xl mx-auto px-4 py-3">
+                <div className="max-w-2xl mx-auto px-4 py-3.5">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="flex items-center gap-3.5 flex-1 min-w-0">
                             {shopSettings?.logo_url ? (
                                 <img
                                     src={shopSettings.logo_url}
                                     alt="Logo"
-                                    className="w-11 h-11 rounded-full object-cover border-2 border-white/30 flex-shrink-0"
+                                    className="w-12 h-12 rounded-xl object-cover border-2 border-white/40 flex-shrink-0 shadow-lg"
                                 />
                             ) : (
-                                <div className="w-11 h-11 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-                                    <Utensils className="w-5 h-5" />
+                                <div className="w-12 h-12 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center flex-shrink-0 border border-white/20">
+                                    <Utensils className="w-6 h-6" />
                                 </div>
                             )}
                             <div className="min-w-0 flex-1">
-                                <h1 className="text-lg font-bold leading-tight truncate">
+                                <h1 className="text-xl font-extrabold leading-tight truncate tracking-tight" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.2)' }}>
                                     {headerTitle}
                                 </h1>
                             </div>
@@ -610,37 +610,49 @@ const PublicMenu = () => {
             {/* Category Filter */}
             {itemCategories.length > 0 && (
                 <div className={cn(
-                    "sticky z-40 bg-white/90 backdrop-blur-sm border-b border-orange-100 shadow-sm",
-                    showSearch ? "top-[120px]" : "top-[68px]"
-                )}>
-                    <div className="max-w-2xl mx-auto px-4 py-2">
+                    "sticky z-40 bg-white/95 backdrop-blur-md border-b shadow-sm",
+                    showSearch ? "top-[120px]" : "top-[72px]"
+                )}
+                    style={{ borderColor: shopSettings?.menu_primary_color ? `${shopSettings.menu_primary_color}20` : '#fed7aa' }}
+                >
+                    <div className="max-w-2xl mx-auto px-4 py-2.5">
                         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                            <Button
-                                variant={selectedCategory === 'all' ? 'default' : 'outline'}
-                                size="sm"
+                            <button
                                 onClick={() => setSelectedCategory('all')}
                                 className={cn(
-                                    "flex-shrink-0 rounded-full h-8 text-xs",
-                                    selectedCategory === 'all' && "bg-orange-500 hover:bg-orange-600"
+                                    "flex-shrink-0 rounded-full h-8 px-4 text-xs font-semibold transition-all duration-200 border",
+                                    selectedCategory === 'all'
+                                        ? "text-white border-transparent shadow-md scale-105"
+                                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:shadow-sm"
                                 )}
+                                style={selectedCategory === 'all' ? {
+                                    background: shopSettings?.menu_primary_color
+                                        ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})`
+                                        : 'linear-gradient(135deg, #ea580c, #dc2626)'
+                                } : {}}
                             >
                                 All ({items.length})
-                            </Button>
+                            </button>
                             {itemCategories.map(cat => {
                                 const count = items.filter(i => i.category === cat).length;
                                 return (
-                                    <Button
+                                    <button
                                         key={cat}
-                                        variant={selectedCategory === cat ? 'default' : 'outline'}
-                                        size="sm"
                                         onClick={() => setSelectedCategory(cat)}
                                         className={cn(
-                                            "flex-shrink-0 rounded-full h-8 text-xs",
-                                            selectedCategory === cat && "bg-orange-500 hover:bg-orange-600"
+                                            "flex-shrink-0 rounded-full h-8 px-4 text-xs font-semibold transition-all duration-200 border",
+                                            selectedCategory === cat
+                                                ? "text-white border-transparent shadow-md scale-105"
+                                                : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:shadow-sm"
                                         )}
+                                        style={selectedCategory === cat ? {
+                                            background: shopSettings?.menu_primary_color
+                                                ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})`
+                                                : 'linear-gradient(135deg, #ea580c, #dc2626)'
+                                        } : {}}
                                     >
                                         {cat} ({count})
-                                    </Button>
+                                    </button>
                                 );
                             })}
                         </div>
@@ -797,20 +809,21 @@ const PublicMenu = () => {
                     Object.entries(groupedItems).map(([category, categoryItems]) => {
                         const isCollapsed = collapsedCategories.has(category);
                         return (
-                            <div key={category} className="mb-6">
+                            <div key={category} className="mb-8">
                                 {/* Clickable category header */}
                                 <button
                                     onClick={() => toggleCategory(category)}
-                                    className="w-full text-left text-base font-bold text-orange-800 mb-2 flex items-center gap-2 sticky top-[110px] bg-gradient-to-r from-orange-50 to-transparent py-2 z-10 cursor-pointer hover:text-orange-900 transition-colors"
+                                    className="w-full text-left text-base font-bold mb-3 flex items-center gap-2.5 sticky top-[114px] py-2.5 z-10 cursor-pointer transition-colors"
+                                    style={{ color: shopSettings?.menu_primary_color || '#9a3412' }}
                                 >
-                                    <span className="w-6 h-0.5 bg-orange-300 rounded-full" />
-                                    {category}
-                                    <span className="text-xs font-normal text-orange-500">({categoryItems.length})</span>
+                                    <span className="w-8 h-0.5 rounded-full" style={{ background: `linear-gradient(to right, ${shopSettings?.menu_primary_color || '#ea580c'}, transparent)` }} />
+                                    <span className="text-[15px] tracking-tight">{category}</span>
+                                    <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: `${shopSettings?.menu_primary_color || '#ea580c'}15`, color: shopSettings?.menu_primary_color || '#ea580c' }}>({categoryItems.length})</span>
                                     <span className="ml-auto pr-2">
                                         {isCollapsed ? (
-                                            <ChevronDown className="w-4 h-4 text-orange-500" />
+                                            <ChevronDown className="w-4 h-4" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }} />
                                         ) : (
-                                            <ChevronUp className="w-4 h-4 text-orange-500" />
+                                            <ChevronUp className="w-4 h-4" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }} />
                                         )}
                                     </span>
                                 </button>
@@ -829,13 +842,14 @@ const PublicMenu = () => {
                                         <div
                                             key={item.id}
                                             className={cn(
-                                                "bg-white rounded-xl shadow-sm border border-orange-100 hover:shadow-md transition-all duration-200 overflow-hidden",
-                                                shopSettings?.menu_items_per_row === 1 ? "flex items-center p-3 gap-3" : "flex flex-col"
+                                                "bg-white rounded-2xl shadow-sm border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden group",
+                                                shopSettings?.menu_items_per_row === 1 ? "flex items-center p-3.5 gap-3.5" : "flex flex-col"
                                             )}
+                                            style={{ borderColor: shopSettings?.menu_primary_color ? `${shopSettings.menu_primary_color}15` : '#ffedd5' }}
                                         >
                                             {/* Image - larger for multi-column, side for single */}
                                             {shopSettings?.menu_items_per_row === 1 ? (
-                                                // Single column: horizontal layout (original style)
+                                                // Single column: horizontal layout
                                                 <>
                                                     <ItemMedia item={item} />
                                                     <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
@@ -843,9 +857,9 @@ const PublicMenu = () => {
                                                             {item.name}
                                                         </h3>
                                                         <div className="flex-shrink-0 text-right">
-                                                            <span className="text-base font-bold text-orange-600">
+                                                            <span className="text-base font-bold" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>
                                                                 ₹{item.price}
-                                                                <span className="text-xs font-medium text-gray-500">
+                                                                <span className="text-xs font-medium text-gray-400 ml-0.5">
                                                                     /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
                                                                 </span>
                                                             </span>
@@ -893,18 +907,21 @@ const PublicMenu = () => {
                                                     </div>
                                                     <div className="p-2.5 text-center">
                                                         <h3 className={cn(
-                                                            "font-semibold text-gray-900 leading-tight line-clamp-2",
+                                                            "font-semibold text-gray-800 leading-tight line-clamp-2",
                                                             shopSettings?.menu_items_per_row === 3 ? "text-xs" : "text-sm"
                                                         )}>
                                                             {item.name}
                                                         </h3>
-                                                        <div className="mt-1">
-                                                            <span className={cn(
-                                                                "font-bold text-orange-600",
-                                                                shopSettings?.menu_items_per_row === 3 ? "text-sm" : "text-base"
-                                                            )}>
+                                                        <div className="mt-1.5">
+                                                            <span
+                                                                className={cn(
+                                                                    "font-extrabold",
+                                                                    shopSettings?.menu_items_per_row === 3 ? "text-sm" : "text-base"
+                                                                )}
+                                                                style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}
+                                                            >
                                                                 ₹{item.price}
-                                                                <span className="text-[10px] font-medium text-gray-500 ml-0.5">
+                                                                <span className="text-[10px] font-medium text-gray-400 ml-0.5">
                                                                     /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
                                                                 </span>
                                                             </span>
@@ -922,7 +939,14 @@ const PublicMenu = () => {
             </main>
 
             {/* Footer with Contact Info */}
-            <footer className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-orange-600 to-amber-600 text-white py-3 shadow-lg">
+            <footer
+                className="fixed bottom-0 left-0 right-0 text-white py-3.5 shadow-2xl backdrop-blur-sm"
+                style={{
+                    background: shopSettings?.menu_primary_color
+                        ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}ee, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color}dd)`
+                        : 'linear-gradient(135deg, #ea580cee, #dc2626dd)'
+                }}
+            >
                 <div className="max-w-2xl mx-auto px-4">
                     {(showPhone || showAddress) && (
                         <div className="flex flex-wrap items-center justify-center gap-4 text-xs">
@@ -931,7 +955,7 @@ const PublicMenu = () => {
                                     {/* Call Button */}
                                     <a
                                         href={`tel:${shopSettings.contact_number}`}
-                                        className="flex items-center justify-center w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full transition-colors"
+                                        className="flex items-center justify-center w-11 h-11 bg-white/15 hover:bg-white/25 rounded-xl transition-all duration-200 backdrop-blur-sm border border-white/20 hover:scale-105"
                                         aria-label="Call us"
                                     >
                                         <Phone className="w-5 h-5" />
@@ -941,7 +965,7 @@ const PublicMenu = () => {
                                         href={`https://wa.me/${shopSettings.contact_number.replace(/[^0-9]/g, '')}?text=Hi! I visited your restaurant and have a query.`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="flex items-center justify-center w-10 h-10 bg-green-500 hover:bg-green-600 rounded-full transition-colors"
+                                        className="flex items-center justify-center w-11 h-11 bg-green-500/90 hover:bg-green-500 rounded-xl transition-all duration-200 border border-green-400/30 hover:scale-105 shadow-md"
                                         aria-label="WhatsApp us"
                                     >
                                         <MessageCircle className="w-5 h-5" />
@@ -956,17 +980,17 @@ const PublicMenu = () => {
                                     }
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="flex items-center gap-1 text-white/90 hover:text-white hover:underline"
+                                    className="flex items-center gap-1.5 text-white/90 hover:text-white transition-colors"
                                 >
                                     <MapPin className="w-3.5 h-3.5" />
-                                    <span className="truncate max-w-[180px]">{shopSettings.address}</span>
+                                    <span className="truncate max-w-[200px] text-[11px]">{shopSettings.address}</span>
                                 </a>
                             )}
                         </div>
                     )}
                     <p className={cn(
-                        "text-center text-[9px] text-white/40",
-                        (showPhone || showAddress) && "mt-1.5"
+                        "text-center text-[8px] text-white/30 tracking-wider uppercase",
+                        (showPhone || showAddress) && "mt-2"
                     )}>
                         Powered by Hotel Zen POS
                     </p>
