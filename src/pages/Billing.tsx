@@ -1195,18 +1195,25 @@ const Billing = () => {
           const itemAny = item as any;
           const taxRateId = itemAny.tax_rate_id;
           const taxRateInfo = taxRateId ? gstSettings.taxRatesMap[taxRateId] : null;
-          if (!taxRateInfo) return { taxAmount: 0, cgst: 0, sgst: 0, cess: 0, taxableValue: (item.quantity / (item.base_value || 1)) * item.price, rate: 0 };
+          if (!taxRateInfo) return { taxableAmount: 0, cgst: 0, sgst: 0, cess: 0, totalTax: 0, totalWithTax: (item.quantity / (item.base_value || 1)) * item.price, taxRate: 0, _cessRate: 0, _taxName: '', _isTaxInclusive: true };
           const lineTotal = (item.quantity / (item.base_value || 1)) * item.price;
-          return calculateItemTax(lineTotal, taxRateInfo.rate, itemAny.is_tax_inclusive !== false, gstSettings.isComposition, taxRateInfo.cess);
+          const isTaxInclusive = itemAny.is_tax_inclusive !== false;
+          const cessRate = taxRateInfo.cess_rate || 0;
+          const result = calculateItemTax(lineTotal, taxRateInfo.rate, cessRate, isTaxInclusive);
+          return { ...result, _cessRate: cessRate, _taxName: taxRateInfo.name || `GST ${taxRateInfo.rate}%`, _isTaxInclusive: isTaxInclusive };
         });
         const summary = calculateBillTaxSummary(validCart.map((item, i) => ({
-          lineTotal: (item.quantity / (item.base_value || 1)) * item.price,
-          taxResult: itemTaxes[i],
-          rate: itemTaxes[i].rate,
+          price: item.price,
+          quantity: item.quantity,
+          total: (item.quantity / (item.base_value || 1)) * item.price,
+          taxRate: itemTaxes[i].taxRate,
+          taxName: (itemTaxes[i] as any)._taxName || `GST ${itemTaxes[i].taxRate}%`,
+          cessRate: (itemTaxes[i] as any)._cessRate || 0,
+          isTaxInclusive: (itemTaxes[i] as any)._isTaxInclusive !== false,
           hsnCode: (item as any).hsn_code || gstSettings.taxRatesMap[(item as any).tax_rate_id]?.hsn_code || ''
         })));
         taxSummary = summary;
-        totalTax = itemTaxes.reduce((s, t) => s + t.taxAmount, 0);
+        totalTax = itemTaxes.reduce((s, t) => s + t.totalTax, 0);
       }
 
       const billPayload: any = {
