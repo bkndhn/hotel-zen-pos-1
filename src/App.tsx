@@ -45,6 +45,7 @@ const queryClient = new QueryClient({
 });
 
 import { InstallPrompt } from './components/InstallPrompt';
+import { DevicePermissions } from './components/DevicePermissions';
 
 const App = () => {
   // Always On Display State
@@ -218,6 +219,7 @@ const App = () => {
           <Toaster />
           <Sonner />
           <InstallPrompt />
+          <DevicePermissions />
           <PendingBillsQueue />
           <BrowserRouter>
             <AuthProvider>

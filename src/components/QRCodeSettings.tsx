@@ -156,7 +156,7 @@ const QRCodeSettings = () => {
         }
     };
 
-    // Get current location using browser geo-location
+    // Get current location using browser geo-location with progressive retry
     const pinCurrentLocation = async () => {
         // First check if geolocation is supported
         if (!navigator.geolocation) {
@@ -168,37 +168,61 @@ const QRCodeSettings = () => {
         setLocationLoading(true);
         setLocationError(null);
 
-        // Skip Permissions API pre-check — directly request location
-        // The browser will prompt the user if needed
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                setShopLatitude(position.coords.latitude);
-                setShopLongitude(position.coords.longitude);
-                setLocationLoading(false);
-                setLocationError(null);
-                toast({ title: 'Location Pinned', description: 'Shop location has been saved successfully!' });
-                setTimeout(() => saveSettings(), 500);
-            },
-            (error) => {
-                setLocationLoading(false);
-                // On ANY error, show a simple message and suggest manual entry
-                let errorMessage = 'Could not get location. ';
-                if (error.code === error.PERMISSION_DENIED) {
-                    errorMessage += 'Permission denied. You can enter coordinates manually below, or open Google Maps, find your shop, and copy the lat/lng.';
-                } else if (error.code === error.POSITION_UNAVAILABLE) {
-                    errorMessage += 'GPS unavailable. Try enabling GPS or enter coordinates manually below.';
-                } else {
-                    errorMessage += 'Request timed out. Try again or enter coordinates manually below.';
+        // Helper to get position as a promise
+        const getPosition = (highAccuracy: boolean, timeout: number): Promise<GeolocationPosition> => {
+            return new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: highAccuracy,
+                    timeout,
+                    maximumAge: 60000
+                });
+            });
+        };
+
+        try {
+            // Try 1: Network location (fast)
+            let position: GeolocationPosition;
+            try {
+                position = await getPosition(false, 10000);
+            } catch (err1: any) {
+                if (err1?.code === 1) {
+                    // Permission denied — try to re-request by building a fresh prompt
+                    // On some browsers, we can trigger re-prompt by catching and retrying
+                    throw err1; // Don't retry if denied
                 }
-                setLocationError(errorMessage);
-                toast({ title: 'Location Error', description: 'Use manual entry below if location keeps failing.', variant: 'destructive' });
-            },
-            {
-                enableHighAccuracy: false, // Use network location first (faster, works without GPS)
-                timeout: 15000,
-                maximumAge: 60000 // Accept cached location up to 1 minute old
+                // Try 2: GPS (more accurate, slower)
+                try {
+                    position = await getPosition(true, 20000);
+                } catch (err2: any) {
+                    throw err2;
+                }
             }
-        );
+
+            setShopLatitude(position.coords.latitude);
+            setShopLongitude(position.coords.longitude);
+            setLocationLoading(false);
+            setLocationError(null);
+            toast({ title: '📍 Location Pinned!', description: `Lat: ${position.coords.latitude.toFixed(5)}, Lng: ${position.coords.longitude.toFixed(5)}` });
+            setTimeout(() => saveSettings(), 500);
+        } catch (error: any) {
+            setLocationLoading(false);
+            if (error?.code === 1) {
+                // Permission denied
+                setLocationError('Location permission denied. Please allow location access:');
+                toast({
+                    title: 'Permission Denied',
+                    description: 'Tap the lock icon (🔒) in your browser address bar → Permissions → Location → Allow, then try again.',
+                    variant: 'destructive',
+                    duration: 8000
+                });
+            } else if (error?.code === 2) {
+                setLocationError('GPS unavailable. Please enable GPS/Location in your phone settings, or use manual entry below.');
+                toast({ title: 'GPS Unavailable', description: 'Enable GPS in phone settings or enter manually.', variant: 'destructive' });
+            } else {
+                setLocationError('Location request timed out. Ensure GPS is enabled, then try again. Or use manual entry.');
+                toast({ title: 'Timeout', description: 'Please try again or enter coordinates manually.', variant: 'destructive' });
+            }
+        }
     };
 
     const clearLocation = () => {
