@@ -1,4 +1,3 @@
-```
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -190,8 +189,8 @@ const TableManagement: React.FC = () => {
         .eq('id', tableId);
 
       if (error) throw error;
-      
-      toast({ title: "Updated", description: `Table status changed to ${ newStatus } ` });
+
+      toast({ title: "Updated", description: `Table status changed to ${newStatus}` });
       fetchTables();
     } catch (error) {
       console.error('Error updating status:', error);
@@ -209,7 +208,7 @@ const TableManagement: React.FC = () => {
         .eq('id', tableToDelete);
 
       if (error) throw error;
-      
+
       toast({ title: "Deleted", description: "Table removed successfully" });
       setDeleteDialogOpen(false);
       setTableToDelete(null);
@@ -287,8 +286,8 @@ const TableManagement: React.FC = () => {
               const Icon = config.icon;
 
               return (
-                <Card 
-                  key={table.id} 
+                <Card
+                  key={table.id}
                   className={cn(
                     "relative overflow-hidden transition-all hover:shadow-md cursor-pointer",
                     table.status === 'occupied' && "ring-2 ring-red-200"
@@ -296,7 +295,7 @@ const TableManagement: React.FC = () => {
                 >
                   {/* Status indicator */}
                   <div className={cn("absolute top-0 left-0 right-0 h-1", config.color)} />
-                  
+
                   <CardContent className="p-3 pt-4">
                     <div className="flex items-start justify-between mb-2">
                       <div>
@@ -324,8 +323,8 @@ const TableManagement: React.FC = () => {
 
                     {/* Quick Actions */}
                     <div className="flex gap-1">
-                      <Select 
-                        value={table.status} 
+                      <Select
+                        value={table.status}
                         onValueChange={(value: Table['status']) => handleStatusChange(table.id, value)}
                       >
                         <SelectTrigger className="h-7 text-xs flex-1">
@@ -338,18 +337,18 @@ const TableManagement: React.FC = () => {
                           <SelectItem value="cleaning">Cleaning</SelectItem>
                         </SelectContent>
                       </Select>
-                      
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         className="h-7 w-7 p-0"
                         onClick={() => handleOpenDialog(table)}
                       >
                         <Edit className="w-3 h-3" />
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         className="h-7 w-7 p-0 text-red-600 hover:text-red-700"
                         onClick={() => {
                           setTableToDelete(table.id);
