@@ -36,6 +36,7 @@ interface Bill {
   payment_details?: Record<string, number>;
   additional_charges?: Array<{ name: string; amount: number }>;
   bill_items: BillItem[];
+  table_no?: string;
 }
 
 interface BillItem {
@@ -1267,6 +1268,11 @@ const Reports: React.FC = () => {
                         <div className="flex-1 min-w-0 mr-2">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="font-semibold text-sm">{bill.bill_no}</h3>
+                            {(bill as any).table_no && (
+                              <Badge className="bg-purple-100 text-purple-700 text-[10px] px-1.5">
+                                {(bill as any).table_no}
+                              </Badge>
+                            )}
                             {bill.is_deleted && (
                               <Badge variant="destructive" className="text-xs">
                                 Deleted

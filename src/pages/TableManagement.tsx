@@ -1,3 +1,4 @@
+```
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { LayoutGrid, Plus, Edit, Trash2, Users, Utensils, Clock, CheckCircle2, Sparkles } from 'lucide-react';
+import { LayoutGrid, Plus, Edit, Trash2, Users, Utensils, Clock, CheckCircle2, Sparkles, ShoppingCart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Table {
@@ -39,6 +40,9 @@ const TableManagement: React.FC = () => {
   const [editingTable, setEditingTable] = useState<Table | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [tableToDelete, setTableToDelete] = useState<string | null>(null);
+
+  // Active table orders count per table
+  const [tableOrderCounts, setTableOrderCounts] = useState<Record<string, number>>({});
 
   // Form state
   const [tableNumber, setTableNumber] = useState('');
@@ -70,6 +74,56 @@ const TableManagement: React.FC = () => {
   useEffect(() => {
     fetchTables();
   }, [fetchTables]);
+
+  // Fetch active table order counts
+  const fetchTableOrderCounts = useCallback(async () => {
+    try {
+      const { data, error } = await (supabase as any)
+        .from('table_orders')
+        .select('table_number')
+        .in('status', ['pending', 'preparing', 'ready'])
+        .eq('is_billed', false);
+
+      if (!error && data) {
+        const counts: Record<string, number> = {};
+        (data as any[]).forEach((order: any) => {
+          counts[order.table_number] = (counts[order.table_number] || 0) + 1;
+        });
+        setTableOrderCounts(counts);
+      }
+    } catch (e) {
+      console.warn('Error fetching table order counts:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTableOrderCounts();
+    const interval = setInterval(fetchTableOrderCounts, 30000);
+    return () => clearInterval(interval);
+  }, [fetchTableOrderCounts]);
+
+  // Real-time subscription for table orders
+  useEffect(() => {
+    const channel = supabase.channel('table-orders-mgmt-sync', {
+      config: { broadcast: { self: true } }
+    })
+      .on('broadcast', { event: 'new-table-order' }, () => {
+        fetchTableOrderCounts();
+        fetchTables(); // Auto-update table status
+      })
+      .subscribe();
+
+    const pgChannel = supabase.channel('table-orders-mgmt-pg')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'table_orders' }, () => {
+        fetchTableOrderCounts();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      supabase.removeChannel(pgChannel);
+    };
+  }, [fetchTableOrderCounts, fetchTables]);
 
   const handleOpenDialog = (table?: Table) => {
     if (table) {
@@ -137,7 +191,7 @@ const TableManagement: React.FC = () => {
 
       if (error) throw error;
       
-      toast({ title: "Updated", description: `Table status changed to ${newStatus}` });
+      toast({ title: "Updated", description: `Table status changed to ${ newStatus } ` });
       fetchTables();
     } catch (error) {
       console.error('Error updating status:', error);
@@ -260,6 +314,12 @@ const TableManagement: React.FC = () => {
                     <div className="flex items-center gap-1 mb-3">
                       <Icon className="w-3 h-3" />
                       <span className="text-xs font-medium">{config.label}</span>
+                      {tableOrderCounts[table.table_number] > 0 && (
+                        <Badge className="bg-purple-100 text-purple-700 text-[10px] ml-auto px-1.5 h-5">
+                          <ShoppingCart className="w-2.5 h-2.5 mr-0.5" />
+                          {tableOrderCounts[table.table_number]} order{tableOrderCounts[table.table_number] > 1 ? 's' : ''}
+                        </Badge>
+                      )}
                     </div>
 
                     {/* Quick Actions */}

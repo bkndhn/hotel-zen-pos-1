@@ -45,6 +45,28 @@ interface ServiceBill {
     bill_items: BillItem[];
 }
 
+// Type for table QR orders
+interface ServiceTableOrder {
+    id: string;
+    admin_id: string;
+    table_number: string;
+    session_id: string;
+    order_number: number;
+    items: Array<{
+        item_id: string;
+        name: string;
+        price: number;
+        quantity: number;
+        unit?: string;
+        base_value?: number;
+        instructions?: string;
+    }>;
+    total_amount: number;
+    status: 'pending' | 'preparing' | 'ready' | 'served' | 'cancelled';
+    customer_note?: string;
+    created_at: string;
+}
+
 const ServiceArea = () => {
     const { profile } = useAuth();
     const [bills, setBills] = useState<ServiceBill[]>([]);
@@ -57,6 +79,9 @@ const ServiceArea = () => {
     const lastFetchRef = useRef<number>(0);
     const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
     const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Table orders state
+    const [tableOrders, setTableOrders] = useState<ServiceTableOrder[]>([]);
 
     // Debounced fetch to prevent multiple rapid calls
     const debouncedFetch = useCallback((silent = true) => {
@@ -145,6 +170,24 @@ const ServiceArea = () => {
         }
     }, []);
 
+    // Fetch table orders ready to serve
+    const fetchTableOrders = useCallback(async () => {
+        try {
+            const { data, error } = await (supabase as any)
+                .from('table_orders')
+                .select('*')
+                .in('status', ['ready', 'preparing'])
+                .eq('is_billed', false)
+                .order('created_at', { ascending: false });
+
+            if (!error && data) {
+                setTableOrders(data as ServiceTableOrder[]);
+            }
+        } catch (e) {
+            console.warn('[ServiceArea] Table orders fetch error:', e);
+        }
+    }, []);
+
     // === LAYER 1: Supabase Broadcast (Cross-device, <100ms) ===
     useEffect(() => {
         const channel = supabase.channel('pos-global-broadcast', {
@@ -230,13 +273,39 @@ const ServiceArea = () => {
     // Initial fetch + polling fallback
     useEffect(() => {
         fetchBills();
-        const pollInterval = setInterval(() => fetchBills(true), 30000); // 30s fallback
+        fetchTableOrders();
+        const pollInterval = setInterval(() => {
+            fetchBills(true);
+            fetchTableOrders();
+        }, 30000); // 30s fallback
         return () => {
             clearInterval(pollInterval);
             if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current);
             if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
         };
-    }, [fetchBills]);
+    }, [fetchBills, fetchTableOrders]);
+
+    // Listen for table order broadcasts
+    useEffect(() => {
+        const channel = supabase.channel('table-order-service-sync', {
+            config: { broadcast: { self: true } }
+        })
+            .on('broadcast', { event: 'new-table-order' }, () => {
+                fetchTableOrders();
+            })
+            .subscribe();
+
+        const pgChannel = supabase.channel('table-order-service-pg')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'table_orders' }, () => {
+                fetchTableOrders();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+            supabase.removeChannel(pgChannel);
+        };
+    }, [fetchTableOrders]);
 
     /**
      * OPTIMISTIC UPDATE: Instant (0ms) response with multi-layer broadcast
@@ -337,6 +406,37 @@ const ServiceArea = () => {
         return <Badge variant="secondary">PENDING</Badge>;
     };
 
+    // Update table order status (mark as served)
+    const updateTableOrderStatus = async (orderId: string, sessionId: string, status: 'served') => {
+        setTableOrders(prev => prev.map(o =>
+            o.id === orderId ? { ...o, status } : o
+        ));
+
+        try {
+            const { error } = await supabase
+                .from('table_orders')
+                .update({ status })
+                .eq('id', orderId);
+
+            if (error) throw error;
+
+            // Broadcast status update to customer
+            const channel = supabase.channel(`table-order-status-${sessionId}`);
+            await channel.send({
+                type: 'broadcast',
+                event: 'order-status-update',
+                payload: { order_id: orderId, status }
+            });
+            supabase.removeChannel(channel);
+
+            toast({ title: '✅ Served', description: 'Table order marked as served' });
+        } catch (error) {
+            console.error('Table order update failed:', error);
+            fetchTableOrders();
+            toast({ title: 'Update Failed', variant: 'destructive' });
+        }
+    };
+
     // Only show loading on initial load
     if (loading && !initialLoadDone) {
         return (
@@ -377,7 +477,7 @@ const ServiceArea = () => {
                         </div>
                     </div>
                     <p className="text-xs sm:text-sm text-muted-foreground">
-                        {bills.length} bill{bills.length !== 1 ? 's' : ''} waiting
+                        {bills.length + tableOrders.filter(o => o.status === 'ready').length} bill{(bills.length + tableOrders.filter(o => o.status === 'ready').length) !== 1 ? 's' : ''} waiting
                     </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => fetchBills()}>
@@ -464,6 +564,64 @@ const ServiceArea = () => {
                                 </Button>
                             </div>
 
+                        </Card>
+                    ))}
+
+                    {/* Table QR Orders - Ready to Serve */}
+                    {tableOrders.filter(o => o.status === 'ready').map((order) => (
+                        <Card
+                            key={`to-${order.id}`}
+                            className="p-3 flex flex-col transition-all duration-300 shadow-sm hover:shadow-md ring-2 ring-purple-500 bg-purple-50/50 dark:bg-purple-950/20 border-l-4 border-l-purple-500"
+                        >
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                    <h3 className="text-xl font-black text-foreground">T{order.table_number}</h3>
+                                    <Badge className="bg-purple-100 text-purple-700 text-[10px]">QR #{order.order_number}</Badge>
+                                    <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium">
+                                        {getTimeElapsed(order.created_at)}
+                                    </span>
+                                </div>
+                                <Badge className="bg-green-500 text-white animate-pulse text-[10px]">
+                                    READY
+                                </Badge>
+                            </div>
+
+                            <div className="flex-1 mb-3 space-y-1">
+                                {order.items.map((item, idx) => (
+                                    <div key={idx}>
+                                        <div className="flex items-center text-sm">
+                                            <span className="font-bold text-primary mr-2">
+                                                {formatQuantityWithUnit(item.quantity, item.unit)}
+                                            </span>
+                                            <span className="text-muted-foreground text-xs mr-1">×</span>
+                                            <span className="font-medium truncate">{item.name}</span>
+                                        </div>
+                                        {item.instructions && (
+                                            <p className="text-xs text-amber-600 ml-6">📝 {item.instructions}</p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {order.customer_note && (
+                                <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg px-3 py-2 mb-3 text-xs text-amber-700">
+                                    💬 {order.customer_note}
+                                </div>
+                            )}
+
+                            <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground border-t pt-2 mb-3">
+                                <span>Items: {order.items.length}</span>
+                                <span>₹{order.total_amount}</span>
+                            </div>
+
+                            <Button
+                                size="sm"
+                                className="w-full h-10 bg-green-600 hover:bg-green-700 text-white font-bold"
+                                onClick={() => updateTableOrderStatus(order.id, order.session_id, 'served')}
+                            >
+                                <Check className="w-4 h-4 mr-1.5" />
+                                Mark Served
+                            </Button>
                         </Card>
                     ))}
                 </div>

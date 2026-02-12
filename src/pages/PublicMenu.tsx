@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Utensils, Phone, MapPin, Wifi, WifiOff, Search, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, MessageCircle } from 'lucide-react';
+import { Utensils, Phone, MapPin, Wifi, WifiOff, Search, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, MessageCircle, ShoppingCart, Plus, Minus, Send, Clock, CheckCircle2, Loader2, ChefHat, Trash2, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getShortUnit } from '@/utils/timeUtils';
 
@@ -53,6 +53,35 @@ interface ShopSettings {
 }
 
 
+// Table ordering types
+interface CartItem {
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    unit?: string;
+    base_value?: number;
+    instructions: string;
+}
+
+interface TableOrder {
+    id: string;
+    order_number: number;
+    items: Array<{
+        item_id: string;
+        name: string;
+        price: number;
+        quantity: number;
+        unit?: string;
+        base_value?: number;
+        instructions?: string;
+    }>;
+    total_amount: number;
+    status: 'pending' | 'preparing' | 'ready' | 'served' | 'cancelled';
+    customer_note?: string;
+    created_at: string;
+}
+
 
 interface ItemCategory {
     id: string;
@@ -97,6 +126,33 @@ const PublicMenu = () => {
 
     // Collapsible categories state
     const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+
+    // ========== TABLE ORDERING STATE (only active when ?table=N) ==========
+    const isTableMode = !!tableNo;
+
+    // Session ID: groups orders from same table visit
+    const [sessionId] = useState<string | null>(() => {
+        if (!tableNo) return null;
+        const key = `table-session-${urlParam}-${tableNo}`;
+        let sid = sessionStorage.getItem(key);
+        if (!sid) {
+            sid = crypto.randomUUID();
+            sessionStorage.setItem(key, sid);
+        }
+        return sid;
+    });
+
+    // Cart
+    const [cart, setCart] = useState<CartItem[]>([]);
+    const [orderNote, setOrderNote] = useState('');
+    const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+    const [showCart, setShowCart] = useState(false);
+    const [showMyOrders, setShowMyOrders] = useState(false);
+    const [instructionItemId, setInstructionItemId] = useState<string | null>(null);
+
+    // Orders for this session
+    const [sessionOrders, setSessionOrders] = useState<TableOrder[]>([]);
+    const orderChannelRef = useRef<any>(null);
 
     // Online/Offline detection
     useEffect(() => {
@@ -474,6 +530,249 @@ const PublicMenu = () => {
             return next;
         });
     }, []);
+
+    // ========== TABLE ORDERING FUNCTIONS ==========
+
+    // Cart total
+    const cartTotal = useMemo(() => {
+        return cart.reduce((sum, item) => {
+            const bv = item.base_value || 1;
+            return sum + (item.quantity / bv) * item.price;
+        }, 0);
+    }, [cart]);
+
+    const cartItemCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
+
+    // Add item to cart
+    const addToCart = useCallback((item: MenuItem) => {
+        setCart(prev => {
+            const existing = prev.find(c => c.id === item.id);
+            if (existing) {
+                return prev.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c);
+            }
+            return [...prev, {
+                id: item.id,
+                name: item.name,
+                price: item.price,
+                quantity: 1,
+                unit: item.unit,
+                base_value: item.base_value,
+                instructions: ''
+            }];
+        });
+    }, []);
+
+    // Remove item from cart
+    const removeFromCart = useCallback((itemId: string) => {
+        setCart(prev => prev.filter(c => c.id !== itemId));
+    }, []);
+
+    // Update quantity
+    const updateQuantity = useCallback((itemId: string, delta: number) => {
+        setCart(prev => {
+            return prev.map(c => {
+                if (c.id !== itemId) return c;
+                const newQty = c.quantity + delta;
+                return newQty <= 0 ? c : { ...c, quantity: newQty };
+            }).filter(c => c.quantity > 0);
+        });
+    }, []);
+
+    // Get cart quantity for an item
+    const getCartQuantity = useCallback((itemId: string) => {
+        return cart.find(c => c.id === itemId)?.quantity || 0;
+    }, [cart]);
+
+    // Set instructions for a cart item
+    const setItemInstructions = useCallback((itemId: string, instructions: string) => {
+        setCart(prev => prev.map(c => c.id === itemId ? { ...c, instructions } : c));
+    }, []);
+
+    // Place order
+    const placeOrder = useCallback(async () => {
+        if (!adminId || !tableNo || !sessionId || cart.length === 0) return;
+        setIsPlacingOrder(true);
+        try {
+            const orderItems = cart.map(c => ({
+                item_id: c.id,
+                name: c.name,
+                price: c.price,
+                quantity: c.quantity,
+                unit: c.unit || 'pcs',
+                base_value: c.base_value || 1,
+                instructions: c.instructions || undefined
+            }));
+            const totalAmount = cartTotal;
+            const orderNumber = sessionOrders.length + 1;
+
+            const { data, error: insertError } = await supabase
+                .from('table_orders')
+                .insert({
+                    admin_id: adminId,
+                    table_number: tableNo,
+                    session_id: sessionId,
+                    order_number: orderNumber,
+                    items: orderItems,
+                    total_amount: totalAmount,
+                    customer_note: orderNote || null,
+                    status: 'pending'
+                })
+                .select()
+                .single();
+
+            if (insertError) throw insertError;
+
+            // Auto update table status to occupied
+            const { error: tableErr } = await supabase
+                .from('tables')
+                .update({ status: 'occupied' })
+                .eq('admin_id', adminId)
+                .eq('table_number', tableNo);
+            if (tableErr) console.warn('Table status update failed:', tableErr);
+
+            // Broadcast new order to kitchen
+            const channel = supabase.channel('table-order-sync');
+            await channel.send({
+                type: 'broadcast',
+                event: 'new-table-order',
+                payload: {
+                    id: data.id,
+                    admin_id: adminId,
+                    table_number: tableNo,
+                    order_number: orderNumber,
+                    items: orderItems,
+                    total_amount: totalAmount,
+                    customer_note: orderNote || null,
+                    status: 'pending',
+                    session_id: sessionId,
+                    created_at: data.created_at
+                }
+            });
+            supabase.removeChannel(channel);
+
+            // Add to local orders
+            setSessionOrders(prev => [...prev, {
+                id: data.id,
+                order_number: orderNumber,
+                items: orderItems,
+                total_amount: totalAmount,
+                status: 'pending',
+                customer_note: orderNote || undefined,
+                created_at: data.created_at
+            }]);
+
+            // Clear cart
+            setCart([]);
+            setOrderNote('');
+            setShowCart(false);
+            setShowMyOrders(true);
+        } catch (err) {
+            console.error('Order placement error:', err);
+            alert('Failed to place order. Please try again.');
+        } finally {
+            setIsPlacingOrder(false);
+        }
+    }, [adminId, tableNo, sessionId, cart, cartTotal, orderNote, sessionOrders.length]);
+
+    // Fetch existing session orders on load
+    useEffect(() => {
+        if (!adminId || !sessionId || !isTableMode) return;
+
+        const fetchOrders = async () => {
+            const { data, error: fetchErr } = await supabase
+                .from('table_orders')
+                .select('id, order_number, items, total_amount, status, customer_note, created_at')
+                .eq('admin_id', adminId)
+                .eq('session_id', sessionId)
+                .eq('is_billed', false)
+                .order('order_number');
+
+            if (!fetchErr && data) {
+                setSessionOrders(data as TableOrder[]);
+                if (data.length > 0) setShowMyOrders(true);
+            }
+        };
+        fetchOrders();
+    }, [adminId, sessionId, isTableMode]);
+
+    // Real-time subscription for order status updates
+    useEffect(() => {
+        if (!adminId || !sessionId || !isTableMode) return;
+
+        // Subscribe to broadcast for instant updates
+        const channel = supabase.channel(`table-order-status-${sessionId}`)
+            .on('broadcast', { event: 'order-status-update' }, (payload: any) => {
+                const { order_id, status } = payload.payload || {};
+                if (order_id && status) {
+                    setSessionOrders(prev => prev.map(o =>
+                        o.id === order_id ? { ...o, status } : o
+                    ));
+                }
+            })
+            .subscribe();
+
+        // Also subscribe to postgres_changes as fallback
+        const pgChannel = supabase.channel(`table-order-pg-${sessionId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'table_orders',
+                    filter: `session_id=eq.${sessionId}`
+                },
+                (payload: any) => {
+                    const updated = payload.new;
+                    if (updated) {
+                        setSessionOrders(prev => prev.map(o =>
+                            o.id === updated.id ? { ...o, status: updated.status } : o
+                        ));
+                    }
+                }
+            )
+            .subscribe();
+
+        orderChannelRef.current = channel;
+
+        return () => {
+            supabase.removeChannel(channel);
+            supabase.removeChannel(pgChannel);
+        };
+    }, [adminId, sessionId, isTableMode]);
+
+    // Status helpers
+    const getStatusIcon = (status: string) => {
+        switch (status) {
+            case 'pending': return <Clock className="w-4 h-4 text-amber-500" />;
+            case 'preparing': return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
+            case 'ready': return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+            case 'served': return <CheckCircle2 className="w-4 h-4 text-gray-400" />;
+            case 'cancelled': return <X className="w-4 h-4 text-red-500" />;
+            default: return <Clock className="w-4 h-4 text-gray-400" />;
+        }
+    };
+    const getStatusLabel = (status: string) => {
+        switch (status) {
+            case 'pending': return 'Waiting';
+            case 'preparing': return 'Being Prepared 👨‍🍳';
+            case 'ready': return 'Ready! 🔔';
+            case 'served': return 'Served ✅';
+            case 'cancelled': return 'Cancelled';
+            default: return status;
+        }
+    };
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case 'pending': return 'bg-amber-100 text-amber-700 border-amber-200';
+            case 'preparing': return 'bg-blue-100 text-blue-700 border-blue-200 animate-pulse';
+            case 'ready': return 'bg-green-100 text-green-700 border-green-200';
+            case 'served': return 'bg-gray-100 text-gray-500 border-gray-200';
+            case 'cancelled': return 'bg-red-100 text-red-700 border-red-200';
+            default: return 'bg-gray-100 text-gray-500';
+        }
+    };
+
+    const sessionTotal = useMemo(() => sessionOrders.reduce((sum, o) => sum + o.total_amount, 0), [sessionOrders]);
 
     if (loading) {
         return (
@@ -856,13 +1155,30 @@ const PublicMenu = () => {
                                                         <h3 className="font-semibold text-gray-900 text-sm leading-tight">
                                                             {item.name}
                                                         </h3>
-                                                        <div className="flex-shrink-0 text-right">
+                                                        <div className="flex items-center gap-2 flex-shrink-0">
                                                             <span className="text-base font-bold" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>
                                                                 ₹{item.price}
                                                                 <span className="text-xs font-medium text-gray-400 ml-0.5">
                                                                     /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
                                                                 </span>
                                                             </span>
+                                                            {isTableMode && (
+                                                                getCartQuantity(item.id) > 0 ? (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <button onClick={() => updateQuantity(item.id, -1)} className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200">
+                                                                            <Minus className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                        <span className="text-sm font-bold w-5 text-center">{getCartQuantity(item.id)}</span>
+                                                                        <button onClick={() => addToCart(item)} className="w-7 h-7 rounded-full flex items-center justify-center text-white" style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                                                            <Plus className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <button onClick={() => addToCart(item)} className="px-3 py-1.5 rounded-full text-white text-xs font-semibold shadow-sm" style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                                                        ADD
+                                                                    </button>
+                                                                )
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </>
@@ -912,7 +1228,7 @@ const PublicMenu = () => {
                                                         )}>
                                                             {item.name}
                                                         </h3>
-                                                        <div className="mt-1.5">
+                                                        <div className="mt-1.5 flex items-center justify-center gap-2">
                                                             <span
                                                                 className={cn(
                                                                     "font-extrabold",
@@ -926,6 +1242,28 @@ const PublicMenu = () => {
                                                                 </span>
                                                             </span>
                                                         </div>
+                                                        {isTableMode && (
+                                                            <div className="mt-2">
+                                                                {getCartQuantity(item.id) > 0 ? (
+                                                                    <div className="flex items-center justify-center gap-1">
+                                                                        <button onClick={() => updateQuantity(item.id, -1)} className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200">
+                                                                            <Minus className="w-3 h-3" />
+                                                                        </button>
+                                                                        <span className="text-xs font-bold w-5 text-center">{getCartQuantity(item.id)}</span>
+                                                                        <button onClick={() => addToCart(item)} className="w-6 h-6 rounded-full flex items-center justify-center text-white" style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                                                            <Plus className="w-3 h-3" />
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <button onClick={() => addToCart(item)} className={cn(
+                                                                        "px-3 py-1 rounded-full text-white font-semibold shadow-sm",
+                                                                        shopSettings?.menu_items_per_row === 3 ? "text-[10px]" : "text-xs"
+                                                                    )} style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                                                        ADD
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </>
                                             )}
@@ -938,9 +1276,210 @@ const PublicMenu = () => {
                 )}
             </main>
 
+            {/* ========== TABLE ORDERING UI ========== */}
+
+            {/* My Orders Section (when table mode + has orders) */}
+            {isTableMode && sessionOrders.length > 0 && showMyOrders && (
+                <div className="max-w-2xl mx-auto px-4 pb-4">
+                    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                        <button
+                            onClick={() => setShowMyOrders(!showMyOrders)}
+                            className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50"
+                        >
+                            <div className="flex items-center gap-2">
+                                <ChefHat className="w-5 h-5 text-blue-600" />
+                                <span className="font-bold text-blue-900">Your Orders — Table {tableNo}</span>
+                                <Badge className="bg-blue-100 text-blue-700 text-xs">{sessionOrders.length}</Badge>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold text-blue-700">₹{sessionTotal.toFixed(0)}</span>
+                                <ChevronUp className="w-4 h-4 text-blue-500" />
+                            </div>
+                        </button>
+
+                        <div className="divide-y divide-gray-50">
+                            {sessionOrders.map(order => (
+                                <div key={order.id} className="p-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="font-semibold text-gray-800 text-sm">Order #{order.order_number}</span>
+                                        <div className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border", getStatusColor(order.status))}>
+                                            {getStatusIcon(order.status)}
+                                            <span>{getStatusLabel(order.status)}</span>
+                                        </div>
+                                    </div>
+                                    {order.items.map((item: any, idx: number) => (
+                                        <div key={idx} className="flex justify-between text-sm text-gray-600 py-0.5">
+                                            <div>
+                                                <span>{item.name} ×{item.quantity}</span>
+                                                {item.instructions && (
+                                                    <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
+                                                        <MessageSquare className="w-3 h-3" /> {item.instructions}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <span className="font-medium">₹{((item.quantity / (item.base_value || 1)) * item.price).toFixed(0)}</span>
+                                        </div>
+                                    ))}
+                                    {order.customer_note && (
+                                        <p className="text-xs text-gray-400 mt-1 italic">Note: {order.customer_note}</p>
+                                    )}
+                                    <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-100">
+                                        <span className="text-xs text-gray-400">
+                                            {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                        <span className="font-bold text-sm" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>₹{order.total_amount.toFixed(0)}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Cart Overlay */}
+            {isTableMode && showCart && cart.length > 0 && (
+                <div className="fixed inset-0 z-[60] bg-black/50 flex items-end" onClick={() => setShowCart(false)}>
+                    <div className="w-full max-w-2xl mx-auto bg-white rounded-t-3xl shadow-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-4 border-b">
+                            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                <ShoppingCart className="w-5 h-5" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }} />
+                                Your Cart
+                            </h2>
+                            <button onClick={() => setShowCart(false)} className="p-1 rounded-full hover:bg-gray-100">
+                                <X className="w-5 h-5 text-gray-500" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                            {cart.map(item => (
+                                <div key={item.id} className="bg-gray-50 rounded-xl p-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-semibold text-sm text-gray-800 truncate">{item.name}</h4>
+                                            <span className="text-xs text-gray-500">₹{item.price}/{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={() => updateQuantity(item.id, -1)} className="w-7 h-7 rounded-full bg-white border flex items-center justify-center hover:bg-gray-100">
+                                                <Minus className="w-3.5 h-3.5" />
+                                            </button>
+                                            <span className="text-sm font-bold w-5 text-center">{item.quantity}</span>
+                                            <button onClick={() => updateQuantity(item.id, 1)} className="w-7 h-7 rounded-full flex items-center justify-center text-white" style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                                <Plus className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button onClick={() => removeFromCart(item.id)} className="w-7 h-7 rounded-full bg-red-50 flex items-center justify-center hover:bg-red-100">
+                                                <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {/* Per-item instructions */}
+                                    <div className="mt-2">
+                                        {instructionItemId === item.id ? (
+                                            <div className="flex gap-1">
+                                                <Input
+                                                    placeholder="e.g. Extra spicy, no onion..."
+                                                    value={item.instructions}
+                                                    onChange={e => setItemInstructions(item.id, e.target.value)}
+                                                    className="h-8 text-xs"
+                                                    autoFocus
+                                                />
+                                                <button onClick={() => setInstructionItemId(null)} className="px-2 py-1 text-xs rounded bg-gray-200 hover:bg-gray-300">
+                                                    Done
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => setInstructionItemId(item.id)}
+                                                className="text-xs text-amber-600 flex items-center gap-1 hover:text-amber-700"
+                                            >
+                                                <MessageSquare className="w-3 h-3" />
+                                                {item.instructions || 'Add instructions'}
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="text-right mt-1">
+                                        <span className="font-bold text-sm" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                            ₹{((item.quantity / (item.base_value || 1)) * item.price).toFixed(0)}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* General order note */}
+                            <div className="pt-2">
+                                <label className="text-xs font-medium text-gray-500 mb-1 block">Note for kitchen (optional)</label>
+                                <Input
+                                    placeholder="Any general instructions..."
+                                    value={orderNote}
+                                    onChange={e => setOrderNote(e.target.value)}
+                                    className="h-9 text-sm"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Cart summary + Place Order */}
+                        <div className="p-4 border-t bg-white">
+                            <div className="flex justify-between items-center mb-3">
+                                <span className="text-sm text-gray-600">{cartItemCount} item{cartItemCount !== 1 ? 's' : ''}</span>
+                                <span className="text-lg font-bold" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>₹{cartTotal.toFixed(0)}</span>
+                            </div>
+                            <Button
+                                onClick={placeOrder}
+                                disabled={isPlacingOrder || cart.length === 0}
+                                className="w-full h-12 text-base font-bold rounded-xl text-white"
+                                style={{ background: shopSettings?.menu_primary_color ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})` : 'linear-gradient(135deg, #ea580c, #dc2626)' }}
+                            >
+                                {isPlacingOrder ? (
+                                    <><Loader2 className="w-5 h-5 animate-spin mr-2" /> Placing Order...</>
+                                ) : (
+                                    <><Send className="w-5 h-5 mr-2" /> Place Order ₹{cartTotal.toFixed(0)}</>
+                                )}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Floating Cart Bar (when table mode + items in cart) */}
+            {isTableMode && cartItemCount > 0 && !showCart && (
+                <div className="fixed bottom-[76px] left-0 right-0 z-50 px-4">
+                    <button
+                        onClick={() => setShowCart(true)}
+                        className="w-full max-w-2xl mx-auto flex items-center justify-between px-5 py-3.5 rounded-2xl shadow-xl text-white transition-transform active:scale-[0.98]"
+                        style={{ background: shopSettings?.menu_primary_color ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})` : 'linear-gradient(135deg, #ea580c, #dc2626)' }}
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="relative">
+                                <ShoppingCart className="w-5 h-5" />
+                                <span className="absolute -top-2 -right-2 bg-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                    {cartItemCount}
+                                </span>
+                            </div>
+                            <span className="font-semibold">{cartItemCount} item{cartItemCount !== 1 ? 's' : ''} in cart</span>
+                        </div>
+                        <span className="font-bold text-lg">₹{cartTotal.toFixed(0)} →</span>
+                    </button>
+                </div>
+            )}
+
+            {/* My Orders Toggle Button (table mode, no cart) */}
+            {isTableMode && sessionOrders.length > 0 && cartItemCount === 0 && !showMyOrders && (
+                <div className="fixed bottom-[76px] left-0 right-0 z-50 px-4">
+                    <button
+                        onClick={() => setShowMyOrders(true)}
+                        className="w-full max-w-2xl mx-auto flex items-center justify-between px-5 py-3 rounded-2xl shadow-lg bg-blue-600 text-white"
+                    >
+                        <div className="flex items-center gap-2">
+                            <ChefHat className="w-5 h-5" />
+                            <span className="font-semibold">My Orders ({sessionOrders.length})</span>
+                        </div>
+                        <span className="font-bold">₹{sessionTotal.toFixed(0)}</span>
+                    </button>
+                </div>
+            )}
+
             {/* Footer with Contact Info */}
             <footer
-                className="fixed bottom-0 left-0 right-0 text-white py-3.5 shadow-2xl backdrop-blur-sm"
+                className="fixed bottom-0 left-0 right-0 text-white py-2 shadow-2xl backdrop-blur-sm"
                 style={{
                     background: shopSettings?.menu_primary_color
                         ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}ee, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color}dd)`
@@ -949,26 +1488,28 @@ const PublicMenu = () => {
             >
                 <div className="max-w-2xl mx-auto px-4">
                     {(showPhone || showAddress) && (
-                        <div className="flex flex-wrap items-center justify-center gap-4 text-xs">
+                        <div className="flex items-center justify-center gap-3 text-xs">
                             {showPhone && shopSettings?.contact_number && (
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
                                     {/* Call Button */}
                                     <a
                                         href={`tel:${shopSettings.contact_number}`}
-                                        className="flex items-center justify-center w-11 h-11 bg-white/15 hover:bg-white/25 rounded-xl transition-all duration-200 backdrop-blur-sm border border-white/20 hover:scale-105"
+                                        className="flex items-center justify-center w-9 h-9 bg-white/15 hover:bg-white/25 rounded-xl transition-all duration-200 backdrop-blur-sm border border-white/20 hover:scale-105"
                                         aria-label="Call us"
                                     >
-                                        <Phone className="w-5 h-5" />
+                                        <Phone className="w-4 h-4" />
                                     </a>
-                                    {/* WhatsApp Button */}
+                                    {/* WhatsApp Button - Official Logo */}
                                     <a
                                         href={`https://wa.me/${shopSettings.contact_number.replace(/[^0-9]/g, '')}?text=Hi! I visited your restaurant and have a query.`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="flex items-center justify-center w-11 h-11 bg-green-500/90 hover:bg-green-500 rounded-xl transition-all duration-200 border border-green-400/30 hover:scale-105 shadow-md"
+                                        className="flex items-center justify-center w-9 h-9 bg-[#25D366] hover:bg-[#20BD5A] rounded-xl transition-all duration-200 border border-[#25D366]/40 hover:scale-105 shadow-md"
                                         aria-label="WhatsApp us"
                                     >
-                                        <MessageCircle className="w-5 h-5" />
+                                        <svg viewBox="0 0 32 32" className="w-5 h-5" fill="white">
+                                            <path d="M16.004 0h-.008C7.174 0 0 7.176 0 16c0 3.5 1.132 6.744 3.054 9.378L1.054 31.29l6.166-1.964C9.79 30.988 12.79 32 16.004 32 24.826 32 32 24.822 32 16S24.826 0 16.004 0zm9.31 22.608c-.39 1.1-1.932 2.014-3.166 2.28-.846.18-1.95.322-5.668-1.218-4.762-1.97-7.824-6.8-8.062-7.114-.228-.314-1.918-2.554-1.918-4.872s1.214-3.456 1.644-3.928c.43-.472.94-.59 1.254-.59.312 0 .626.002.9.016.288.016.676-.11 1.058.808.39.94 1.328 3.242 1.446 3.476.118.234.196.508.04.82-.158.314-.236.508-.47.784-.236.274-.496.614-.708.824-.236.234-.482.49-.208.962.274.47 1.22 2.014 2.62 3.264 1.8 1.606 3.316 2.104 3.786 2.338.472.234.748.196 1.022-.118.274-.314 1.176-1.372 1.49-1.844.314-.47.626-.39 1.058-.234.43.156 2.736 1.292 3.206 1.526.47.234.784.352.9.548.118.196.118 1.138-.27 2.238z" />
+                                        </svg>
                                     </a>
                                 </div>
                             )}
@@ -980,17 +1521,17 @@ const PublicMenu = () => {
                                     }
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="flex items-center gap-1.5 text-white/90 hover:text-white transition-colors"
+                                    className="flex items-center gap-1 text-white/90 hover:text-white transition-colors"
                                 >
-                                    <MapPin className="w-3.5 h-3.5" />
-                                    <span className="truncate max-w-[200px] text-[11px]">{shopSettings.address}</span>
+                                    <MapPin className="w-3 h-3 flex-shrink-0" />
+                                    <span className="truncate max-w-[180px] text-[10px]">{shopSettings.address}</span>
                                 </a>
                             )}
                         </div>
                     )}
                     <p className={cn(
-                        "text-center text-[8px] text-white/30 tracking-wider uppercase",
-                        (showPhone || showAddress) && "mt-2"
+                        "text-center text-[7px] text-white/25 tracking-wider uppercase",
+                        (showPhone || showAddress) ? "mt-1" : ""
                     )}>
                         Powered by Hotel Zen POS
                     </p>

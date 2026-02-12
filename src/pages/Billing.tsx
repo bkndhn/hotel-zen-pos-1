@@ -11,6 +11,7 @@ import { CompletePaymentDialog } from '@/components/CompletePaymentDialog';
 import { PrinterErrorDialog } from '@/components/PrinterErrorDialog';
 import { TableSelector } from '@/components/TableSelector';
 import { getCachedImageUrl, cacheImageUrl } from '@/utils/imageUtils';
+import { getInstantBillNumber } from '@/utils/billNumberGenerator';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
 import { printReceipt, PrintData } from '@/utils/bluetoothPrinter';
@@ -1145,39 +1146,9 @@ const Billing = () => {
       const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
 
       // ======= ZERO-LATENCY BILL NUMBER GENERATION =======
-      // Use localStorage counter + timestamp for INSTANT bill numbers (no DB query!)
-      // This runs in 0ms instead of 500-1000ms
-      const getInstantBillNumber = (): string => {
-        const continueBillFromYesterday = localStorage.getItem('hotel_pos_continue_bill_number') !== 'false';
-        const counterKey = `bill_counter_${adminId || 'default'}`;
-        const dateKey = `bill_date_${adminId || 'default'}`;
+      // Uses shared utility for unified bill numbering across POS and table orders
 
-        const today = new Date();
-        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-        const savedDate = localStorage.getItem(dateKey);
-
-        if (continueBillFromYesterday) {
-          // Sequential numbering - increment forever
-          const counter = parseInt(localStorage.getItem(counterKey) || '0') + 1;
-          localStorage.setItem(counterKey, counter.toString());
-          return `BILL-${String(counter).padStart(6, '0')}`;
-        } else {
-          // Daily reset numbering
-          let counter: number;
-          if (savedDate !== todayStr) {
-            // New day - reset counter
-            counter = 1;
-            localStorage.setItem(dateKey, todayStr);
-          } else {
-            counter = parseInt(localStorage.getItem(counterKey) || '0') + 1;
-          }
-          localStorage.setItem(counterKey, counter.toString());
-          const datePrefix = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getFullYear()).slice(-2)}`;
-          return `${datePrefix}-${String(counter).padStart(3, '0')}`;
-        }
-      };
-
-      const billNumber = isOffline ? `BILL-OFF-${Date.now()}` : getInstantBillNumber();
+      const billNumber = isOffline ? `BILL-OFF-${Date.now()}` : getInstantBillNumber(adminId);
 
       const now = new Date();
       const subtotal = validCart.reduce((sum, item) => {
