@@ -901,7 +901,7 @@ const PublicMenu = () => {
             className="min-h-screen"
             style={{
                 background: shopSettings?.menu_background_color
-                    ? `linear - gradient(135deg, ${shopSettings.menu_background_color}15 0 %, ${shopSettings.menu_background_color}08 50 %, ${shopSettings.menu_background_color}15 100 %)`
+                    ? `linear-gradient(135deg, ${shopSettings.menu_background_color}15 0%, ${shopSettings.menu_background_color}08 50%, ${shopSettings.menu_background_color}15 100%)`
                     : 'linear-gradient(135deg, #fef7ed 0%, #fff7ed 25%, #fefce8 50%, #f0fdf4 75%, #fef7ed 100%)'
             }}
         >
@@ -910,7 +910,7 @@ const PublicMenu = () => {
                 className="sticky top-0 z-50 text-white shadow-xl"
                 style={{
                     background: shopSettings?.menu_primary_color
-                        ? `linear - gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color}cc)`
+                        ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color}cc)`
                         : 'linear-gradient(135deg, #ea580c, #dc2626)'
                 }}
             >
@@ -1011,7 +1011,7 @@ const PublicMenu = () => {
                                 )}
                                 style={selectedCategory === 'all' ? {
                                     background: shopSettings?.menu_primary_color
-                                        ? `linear - gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})`
+                                        ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})`
                                         : 'linear-gradient(135deg, #ea580c, #dc2626)'
                                 } : {}}
                             >
@@ -1031,7 +1031,7 @@ const PublicMenu = () => {
                                         )}
                                         style={selectedCategory === cat ? {
                                             background: shopSettings?.menu_primary_color
-                                                ? `linear - gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})`
+                                                ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})`
                                                 : 'linear-gradient(135deg, #ea580c, #dc2626)'
                                         } : {}}
                                     >

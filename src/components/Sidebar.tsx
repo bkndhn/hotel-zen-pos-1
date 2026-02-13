@@ -26,6 +26,7 @@ const allNavItems = [
   { to: '/service-area', icon: ClipboardList, label: 'Service Area', page: 'serviceArea' as const },
   { to: '/kitchen', icon: ChefHat, label: 'Kitchen Display', page: 'kitchen' as const },
   { to: '/tables', icon: LayoutGrid, label: 'Tables', page: 'tables' as const },
+  { to: '/table-billing', icon: Receipt, label: 'Table Billing', page: 'billing' as const },
   { to: '/items', icon: Package, label: 'Items', page: 'items' as const },
   { to: '/expenses', icon: Receipt, label: 'Expenses', page: 'expenses' as const },
   { to: '/reports', icon: BarChart3, label: 'Reports', page: 'reports' as const },

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { LayoutGrid, Plus, Edit, Trash2, Users, Utensils, Clock, CheckCircle2, Sparkles, ShoppingCart } from 'lucide-react';
+import { LayoutGrid, Plus, Edit, Trash2, Users, Utensils, Clock, CheckCircle2, Sparkles, ShoppingCart, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Table {
@@ -34,6 +35,7 @@ const statusConfig = {
 const TableManagement: React.FC = () => {
   const { profile } = useAuth();
   const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+  const navigate = useNavigate();
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -337,6 +339,18 @@ const TableManagement: React.FC = () => {
                         </Badge>
                       )}
                     </div>
+
+                    {/* Generate Bill button for occupied tables with orders */}
+                    {table.status === 'occupied' && tableOrderCounts[table.table_number] > 0 && (
+                      <Button
+                        size="sm"
+                        className="w-full h-7 text-xs mb-2 bg-purple-600 hover:bg-purple-700 text-white"
+                        onClick={() => navigate(`/table-billing?table=${table.table_number}`)}
+                      >
+                        <Receipt className="w-3 h-3 mr-1" />
+                        Generate Bill
+                      </Button>
+                    )}
 
                     {/* Quick Actions */}
                     <div className="flex gap-1">
