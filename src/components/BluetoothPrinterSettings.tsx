@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Printer, Bluetooth, AlertCircle, CheckCircle2, RefreshCw, FileText, Zap, Upload, Image as ImageIcon, X, WifiOff, Loader2 } from 'lucide-react';
+import { Printer, Bluetooth, AlertCircle, CheckCircle2, RefreshCw, FileText, Zap, Upload, Image as ImageIcon, X, WifiOff, Loader2, Usb } from 'lucide-react';
 import { usePrinter } from '@/hooks/usePrinter';
 
 
@@ -38,8 +38,11 @@ export const BluetoothPrinterSettings: React.FC = () => {
     deviceName: connectedDeviceName,
     isConnected,
     isBluetoothSupported,
+    isUSBSupported,
+    printerType,
     queueSize,
     connect,
+    connectUSB,
     disconnect,
     print
   } = usePrinter();
@@ -199,6 +202,45 @@ export const BluetoothPrinterSettings: React.FC = () => {
     });
   };
 
+  const connectUSBPrinter = async () => {
+    if (!isUSBSupported) {
+      toast({
+        title: "Not Supported",
+        description: "USB printing is not supported in this browser. Use Chrome or Edge.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setConnecting(true);
+    try {
+      const success = await connectUSB(true);
+
+      if (success) {
+        await updateSettings({
+          printer_name: connectedDeviceName || 'USB Printer',
+          is_enabled: true
+        });
+
+        toast({
+          title: "USB Printer Connected!",
+          description: `Successfully connected to ${connectedDeviceName || 'USB Printer'}. Connection is persistent.`,
+        });
+      }
+    } catch (error: any) {
+      if (error.name !== 'NotFoundError') {
+        console.error('USB Printer error:', error);
+        toast({
+          title: "Connection Failed",
+          description: error.message || "Failed to connect to USB printer.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setConnecting(false);
+    }
+  };
+
   const printTestPage = async () => {
     if (!isConnected) {
       toast({
@@ -270,12 +312,12 @@ export const BluetoothPrinterSettings: React.FC = () => {
             )}
           </div>
           <div>
-            <h3 className="font-semibold text-sm">Bluetooth Printer</h3>
+            <h3 className="font-semibold text-sm">{printerType === 'usb' ? 'USB Printer' : 'Bluetooth Printer'}</h3>
             <p className="text-xs text-muted-foreground">
               {connectionState === 'connecting' ? (
                 <span className="text-blue-600 flex items-center gap-1">● Connecting...</span>
               ) : isConnected ? (
-                <span className="text-green-600 flex items-center gap-1">● Connected to {connectedDeviceName || settings.printer_name} (Persistent)</span>
+                <span className="text-green-600 flex items-center gap-1">● Connected to {connectedDeviceName || settings.printer_name} ({printerType === 'usb' ? 'USB' : 'Bluetooth'} — Persistent)</span>
               ) : connectionState === 'error' ? (
                 <span className="text-red-600 flex items-center gap-1">● Connection error</span>
               ) : (
@@ -383,6 +425,38 @@ export const BluetoothPrinterSettings: React.FC = () => {
                         Bluetooth not supported. Use Chrome or Edge browser.
                       </p>
                     )}
+
+                    {/* USB / Wired Printer Option */}
+                    <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                      <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
+                        <Usb className="w-4 h-4" />
+                        USB / Wired Printer
+                      </h4>
+                      <p className="text-xs text-slate-500 mb-3">Connect a wired printer via USB cable. No Bluetooth required.</p>
+                      <Button
+                        onClick={connectUSBPrinter}
+                        disabled={connecting || !isUSBSupported}
+                        variant="outline"
+                        className="w-full h-11 rounded-xl border-slate-300 dark:border-slate-700 font-medium"
+                      >
+                        {connecting ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            Searching...
+                          </>
+                        ) : (
+                          <>
+                            <Usb className="w-4 h-4 mr-2" />
+                            Connect USB Printer
+                          </>
+                        )}
+                      </Button>
+                      {!isUSBSupported && (
+                        <p className="text-xs text-red-500 mt-1">
+                          WebUSB not supported. Use Chrome or Edge.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

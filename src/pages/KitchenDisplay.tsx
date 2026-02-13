@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -57,6 +58,8 @@ interface KitchenTableOrder {
 }
 
 const KitchenDisplay = () => {
+    const { profile } = useAuth();
+    const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
     const [bills, setBills] = useState<KitchenBill[]>([]);
     const [loading, setLoading] = useState(true);
     const [initialLoadDone, setInitialLoadDone] = useState(false);
@@ -134,6 +137,7 @@ const KitchenDisplay = () => {
                         id, quantity, items (id, name, unit, base_value)
                     )
                 `)
+                .eq('admin_id', adminId)
                 .eq('date', today)
                 .or('is_deleted.is.null,is_deleted.eq.false')
                 .in('kitchen_status', ['pending', 'preparing', 'ready'])
@@ -185,10 +189,12 @@ const KitchenDisplay = () => {
 
     // Fetch table orders (from table QR ordering)
     const fetchTableOrders = useCallback(async () => {
+        if (!adminId) return;
         try {
             const { data, error } = await (supabase as any)
                 .from('table_orders')
                 .select('*')
+                .eq('admin_id', adminId)
                 .in('status', ['pending', 'preparing', 'ready'])
                 .eq('is_billed', false)
                 .order('created_at', { ascending: false });

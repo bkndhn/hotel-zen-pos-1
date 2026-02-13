@@ -1,15 +1,16 @@
 /**
- * usePrinter - React hook for Bluetooth printer connection
+ * usePrinter - React hook for printer connection (Bluetooth + USB)
  * 
  * Provides:
  * - Connection state (connected/disconnected/connecting/error)
  * - Device name when connected
- * - Connect/disconnect functions
- * - Print function
+ * - Printer type (bluetooth/usb/none)
+ * - Connect/disconnect functions for both Bluetooth and USB
+ * - Print function (routes to active transport)
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { printerManager, PrinterConnectionState } from '@/utils/printerManager';
+import { printerManager, PrinterConnectionState, PrinterType } from '@/utils/printerManager';
 import { PrintData } from '@/utils/bluetoothPrinter';
 
 interface UsePrinterResult {
@@ -18,12 +19,15 @@ interface UsePrinterResult {
     deviceName: string;
     isConnected: boolean;
     isBluetoothSupported: boolean;
+    isUSBSupported: boolean;
+    printerType: PrinterType;
 
     // Queue info
     queueSize: number;
 
     // Actions
     connect: (forceNewDevice?: boolean) => Promise<boolean>;
+    connectUSB: (forceNewDevice?: boolean) => Promise<boolean>;
     disconnect: () => void;
     print: (data: PrintData) => Promise<boolean>;
     clearQueue: () => void;
@@ -33,6 +37,7 @@ export const usePrinter = (): UsePrinterResult => {
     const [connectionState, setConnectionState] = useState<PrinterConnectionState>('disconnected');
     const [deviceName, setDeviceName] = useState<string>('');
     const [queueSize, setQueueSize] = useState<number>(0);
+    const [printerType, setPrinterType] = useState<PrinterType>(printerManager.printerType);
 
     // Subscribe to printer manager state changes
     useEffect(() => {
@@ -40,19 +45,26 @@ export const usePrinter = (): UsePrinterResult => {
             setConnectionState(state);
             setDeviceName(name || '');
             setQueueSize(printerManager.getQueueSize());
+            setPrinterType(printerManager.printerType);
         });
 
         // Check initial state
         setConnectionState(printerManager.getState());
         setDeviceName(printerManager.getDeviceName());
         setQueueSize(printerManager.getQueueSize());
+        setPrinterType(printerManager.printerType);
 
         return unsubscribe;
     }, []);
 
-    // Connect to printer
+    // Connect to Bluetooth printer
     const connect = useCallback(async (forceNewDevice: boolean = false): Promise<boolean> => {
         return printerManager.connect(forceNewDevice);
+    }, []);
+
+    // Connect to USB printer
+    const connectUSB = useCallback(async (forceNewDevice: boolean = false): Promise<boolean> => {
+        return printerManager.connectUSB(forceNewDevice);
     }, []);
 
     // Disconnect from printer
@@ -63,7 +75,6 @@ export const usePrinter = (): UsePrinterResult => {
     // Print receipt
     const print = useCallback(async (data: PrintData): Promise<boolean> => {
         const result = await printerManager.print(data);
-        // Update queue size after print attempt
         setQueueSize(printerManager.getQueueSize());
         return result;
     }, []);
@@ -79,8 +90,11 @@ export const usePrinter = (): UsePrinterResult => {
         deviceName,
         isConnected: connectionState === 'connected',
         isBluetoothSupported: printerManager.isBluetoothSupported(),
+        isUSBSupported: printerManager.isUSBSupported(),
+        printerType,
         queueSize,
         connect,
+        connectUSB,
         disconnect,
         print,
         clearQueue

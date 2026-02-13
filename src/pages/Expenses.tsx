@@ -29,6 +29,7 @@ interface Expense {
 
 const Expenses: React.FC = () => {
   const { profile } = useAuth();
+  const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [filteredExpenses, setFilteredExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,21 +39,23 @@ const Expenses: React.FC = () => {
   const [dateFilter, setDateFilter] = useState('today');
 
   useEffect(() => {
-    fetchExpenses();
-  }, []);
+    if (adminId) fetchExpenses();
+  }, [adminId]);
 
   useEffect(() => {
     applyFilters();
   }, [searchTerm, expenses, startDate, endDate, dateFilter]);
 
   const fetchExpenses = async () => {
+    if (!adminId) return;
     try {
       const data = await cachedFetch(
-        `${CACHE_KEYS.EXPENSES}_list`,
+        `${CACHE_KEYS.EXPENSES}_${adminId}_list`,
         async () => {
           const { data, error } = await supabase
             .from('expenses')
             .select('*')
+            .eq('admin_id', adminId)
             .order('date', { ascending: false });
 
           if (error) throw error;

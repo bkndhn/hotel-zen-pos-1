@@ -69,6 +69,7 @@ interface ServiceTableOrder {
 
 const ServiceArea = () => {
     const { profile } = useAuth();
+    const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
     const [bills, setBills] = useState<ServiceBill[]>([]);
     const [recentBills, setRecentBills] = useState<ServiceBill[]>([]);
     const [loading, setLoading] = useState(true);
@@ -125,6 +126,7 @@ const ServiceArea = () => {
                         items (id, name, price, unit, base_value)
                     )
                 `)
+                .eq('admin_id', adminId)
                 .eq('date', today)
                 .or('is_deleted.is.null,is_deleted.eq.false')
                 .in('service_status', ['pending', 'ready', 'preparing'])
@@ -134,6 +136,7 @@ const ServiceArea = () => {
             const recentQuery = (supabase as any)
                 .from('bills')
                 .select('id, bill_no, service_status, status_updated_at')
+                .eq('admin_id', adminId)
                 .eq('date', today)
                 .in('service_status', ['completed', 'rejected'])
                 .gte('status_updated_at', fiveMinutesAgo)
@@ -172,10 +175,12 @@ const ServiceArea = () => {
 
     // Fetch table orders ready to serve
     const fetchTableOrders = useCallback(async () => {
+        if (!adminId) return;
         try {
             const { data, error } = await (supabase as any)
                 .from('table_orders')
                 .select('*')
+                .eq('admin_id', adminId)
                 .in('status', ['ready', 'preparing'])
                 .eq('is_billed', false)
                 .order('created_at', { ascending: false });

@@ -33,6 +33,7 @@ const statusConfig = {
 
 const TableManagement: React.FC = () => {
   const { profile } = useAuth();
+  const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -50,9 +51,11 @@ const TableManagement: React.FC = () => {
 
   const fetchTables = useCallback(async () => {
     try {
+      if (!adminId) return;
       const { data, error } = await (supabase as any)
         .from('tables')
         .select('*')
+        .eq('admin_id', adminId)
         .eq('is_active', true)
         .order('display_order', { ascending: true });
 

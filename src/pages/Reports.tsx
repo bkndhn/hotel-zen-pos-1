@@ -70,6 +70,7 @@ interface ItemReport {
 
 const Reports: React.FC = () => {
   const { profile } = useAuth();
+  const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState('today');
   const [hourRange, setHourRange] = useState(12);
@@ -463,7 +464,7 @@ const Reports: React.FC = () => {
       }
 
       // ONLINE MODE - Fetch from Supabase with caching
-      const cacheKey = `${CACHE_KEYS.REPORTS}_${billFilter}_${start}_${end}_${dateRange === 'hourly' ? hourRange : ''}`;
+      const cacheKey = `${CACHE_KEYS.REPORTS}_${adminId}_${billFilter}_${start}_${end}_${dateRange === 'hourly' ? hourRange : ''}`;
 
       const reportData = await cachedFetch(
         cacheKey,
@@ -483,6 +484,7 @@ const Reports: React.FC = () => {
                 )
               )
             `)
+            .eq('admin_id', adminId)
             .gte('date', start)
             .lte('date', end)
             .order('created_at', { ascending: false });
@@ -519,6 +521,7 @@ const Reports: React.FC = () => {
             const { data: expensesResult, error: expensesError } = await supabase
               .from('expenses')
               .select('*')
+              .eq('admin_id', adminId)
               .gte('date', start)
               .lte('date', end)
               .order('date', { ascending: false });

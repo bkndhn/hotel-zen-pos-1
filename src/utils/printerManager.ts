@@ -1,31 +1,43 @@
 /**
- * Printer Manager - Singleton for persistent Bluetooth printer connection
+ * Printer Manager - Singleton for persistent printer connection
+ * Supports both Bluetooth and USB (wired) thermal printers.
  * 
  * Key Features:
- * - Caches Bluetooth device and GATT connection
+ * - Caches Bluetooth/USB device and connection
  * - Auto-reconnects on disconnect
- * - Only asks for device once per session
+ * - Only asks for device once per session (persistent pairing)
  * - Provides connection status observable
+ * - Remembers printer type in localStorage
  */
 
 import { generateReceiptBytes, PrintData } from './bluetoothPrinter';
+import { USBPrinterTransport } from './usbPrinterTransport';
 
 // Connection states
 export type PrinterConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
+export type PrinterType = 'bluetooth' | 'usb' | 'none';
 
 // Event types
 type ConnectionListener = (state: PrinterConnectionState, deviceName?: string) => void;
+
+const PRINTER_TYPE_KEY = 'hotel_pos_printer_type';
 
 // Printer Manager Singleton
 class PrinterManager {
     private static instance: PrinterManager;
 
-    // Connection state
+    // Bluetooth connection state
     private device: BluetoothDevice | null = null;
     private server: BluetoothRemoteGATTServer | null = null;
     private characteristic: BluetoothRemoteGATTCharacteristic | null = null;
+
+    // USB connection state
+    private usbTransport: USBPrinterTransport = new USBPrinterTransport();
+
+    // Shared state
     private connectionState: PrinterConnectionState = 'disconnected';
     private deviceName: string = '';
+    private _printerType: PrinterType = 'none';
 
     // Listeners for React components
     private listeners: Set<ConnectionListener> = new Set();
@@ -40,7 +52,11 @@ class PrinterManager {
     private isProcessingQueue: boolean = false;
 
     private constructor() {
-        // Private constructor for singleton
+        // Restore saved printer type
+        const saved = localStorage.getItem(PRINTER_TYPE_KEY);
+        if (saved === 'bluetooth' || saved === 'usb') {
+            this._printerType = saved;
+        }
     }
 
     public static getInstance(): PrinterManager {
@@ -76,7 +92,14 @@ class PrinterManager {
         return this.deviceName;
     }
 
+    public get printerType(): PrinterType {
+        return this._printerType;
+    }
+
     public isConnected(): boolean {
+        if (this._printerType === 'usb') {
+            return this.connectionState === 'connected' && this.usbTransport.isConnected();
+        }
         return this.connectionState === 'connected' &&
             this.server !== null &&
             this.server.connected === true;
@@ -88,7 +111,14 @@ class PrinterManager {
         return 'bluetooth' in nav;
     }
 
-    // Connect to printer (will use cached device if available)
+    // Check if USB is supported
+    public isUSBSupported(): boolean {
+        return USBPrinterTransport.isSupported();
+    }
+
+    // =============== BLUETOOTH CONNECTION ===============
+
+    // Connect to Bluetooth printer (will use cached device if available)
     public async connect(forceNewDevice: boolean = false): Promise<boolean> {
         const nav = navigator as any;
 
@@ -98,10 +128,15 @@ class PrinterManager {
             return false;
         }
 
-        // If already connected, return true
-        if (this.isConnected() && !forceNewDevice) {
+        // If already connected via BT, return true
+        if (this._printerType === 'bluetooth' && this.isConnected() && !forceNewDevice) {
             console.log('Already connected to:', this.deviceName);
             return true;
+        }
+
+        // Disconnect USB if switching
+        if (this._printerType === 'usb' && this.usbTransport.isConnected()) {
+            await this.usbTransport.close();
         }
 
         this.setState('connecting');
@@ -112,9 +147,10 @@ class PrinterManager {
                 console.log('Attempting to reconnect to cached device:', this.device.name);
                 const reconnected = await this.reconnectToDevice();
                 if (reconnected) {
+                    this._printerType = 'bluetooth';
+                    localStorage.setItem(PRINTER_TYPE_KEY, 'bluetooth');
                     return true;
                 }
-                // If reconnection failed, request new device
             }
 
             // Request new device from user
@@ -122,8 +158,8 @@ class PrinterManager {
             this.device = await nav.bluetooth.requestDevice({
                 acceptAllDevices: true,
                 optionalServices: [
-                    '000018f0-0000-1000-8000-00805f9b34fb', // Common thermal printer service
-                    '49535343-fe7d-4ae5-8fa9-9fafd205e455', // Alternative service UUID
+                    '000018f0-0000-1000-8000-00805f9b34fb',
+                    '49535343-fe7d-4ae5-8fa9-9fafd205e455',
                     '18f0',
                     'e7810a71-73ae-499d-8c15-faa9aef0c3f2'
                 ]
@@ -145,9 +181,10 @@ class PrinterManager {
             const connected = await this.connectToGATT();
 
             if (connected) {
+                this._printerType = 'bluetooth';
+                localStorage.setItem(PRINTER_TYPE_KEY, 'bluetooth');
                 this.reconnectAttempts = 0;
                 this.setState('connected');
-                // Process any queued prints
                 this.processQueue();
                 return true;
             } else {
@@ -157,7 +194,6 @@ class PrinterManager {
         } catch (error: any) {
             console.error('Connection error:', error);
 
-            // Don't show error state if user cancelled
             if (error.name === 'NotFoundError' || error.message?.includes('cancelled')) {
                 this.setState('disconnected');
             } else {
@@ -167,7 +203,92 @@ class PrinterManager {
         }
     }
 
-    // Reconnect to cached device
+    // =============== USB CONNECTION ===============
+
+    /** Connect to a USB/wired printer */
+    public async connectUSB(forceNewDevice: boolean = false): Promise<boolean> {
+        if (!USBPrinterTransport.isSupported()) {
+            console.error('[USB] WebUSB not supported in this browser');
+            this.setState('error');
+            return false;
+        }
+
+        // If already connected via USB, return true
+        if (this._printerType === 'usb' && this.usbTransport.isConnected() && !forceNewDevice) {
+            console.log('[USB] Already connected to:', this.usbTransport.getDeviceName());
+            return true;
+        }
+
+        // Disconnect BT if switching
+        if (this._printerType === 'bluetooth' && this.server?.connected) {
+            this.server.disconnect();
+            this.server = null;
+            this.characteristic = null;
+        }
+
+        this.setState('connecting');
+
+        try {
+            let success = false;
+
+            // Try reconnecting to a previously paired device first
+            if (!forceNewDevice) {
+                success = await this.usbTransport.reconnect();
+            }
+
+            // If no paired device or reconnect failed, prompt user
+            if (!success) {
+                success = await this.usbTransport.requestDevice();
+            }
+
+            if (success) {
+                this._printerType = 'usb';
+                localStorage.setItem(PRINTER_TYPE_KEY, 'usb');
+                this.deviceName = this.usbTransport.getDeviceName() || 'USB Printer';
+                this.reconnectAttempts = 0;
+                this.setState('connected');
+                this.processQueue();
+                return true;
+            } else {
+                this.setState('disconnected');
+                return false;
+            }
+        } catch (error: any) {
+            console.error('[USB] connectUSB error:', error);
+            if (error.name === 'NotFoundError' || error.message?.includes('cancelled')) {
+                this.setState('disconnected');
+            } else {
+                this.setState('error');
+            }
+            return false;
+        }
+    }
+
+    /**
+     * Auto-connect: tries to reconnect to last used printer type
+     * without showing any picker / requiring user gesture.
+     * Call this on app startup.
+     */
+    public async autoReconnect(): Promise<boolean> {
+        if (this._printerType === 'usb') {
+            const ok = await this.usbTransport.reconnect();
+            if (ok) {
+                this.deviceName = this.usbTransport.getDeviceName() || 'USB Printer';
+                this.setState('connected');
+                return true;
+            }
+        } else if (this._printerType === 'bluetooth' && this.device) {
+            const ok = await this.reconnectToDevice();
+            if (ok) {
+                this.setState('connected');
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // =============== BLUETOOTH INTERNALS ===============
+
     private async reconnectToDevice(): Promise<boolean> {
         if (!this.device || !this.device.gatt) {
             return false;
@@ -181,7 +302,6 @@ class PrinterManager {
         }
     }
 
-    // Connect to GATT server and find writable characteristic
     private async connectToGATT(): Promise<boolean> {
         if (!this.device || !this.device.gatt) {
             return false;
@@ -194,14 +314,12 @@ class PrinterManager {
                 throw new Error('Failed to get GATT server');
             }
 
-            // Get primary services
             const services = await this.server.getPrimaryServices();
 
             if (services.length === 0) {
                 throw new Error('No services found');
             }
 
-            // Find writable characteristic
             for (const service of services) {
                 const characteristics = await service.getCharacteristics();
 
@@ -228,7 +346,6 @@ class PrinterManager {
         this.characteristic = null;
         this.setState('disconnected');
 
-        // Attempt auto-reconnect if we have queued prints
         if (this.printQueue.length > 0 && this.reconnectAttempts < this.maxReconnectAttempts) {
             this.attemptAutoReconnect();
         }
@@ -248,8 +365,17 @@ class PrinterManager {
 
         await new Promise(resolve => setTimeout(resolve, delay));
 
-        if (this.device && this.connectionState !== 'connected') {
-            const success = await this.reconnectToDevice();
+        if (this.connectionState !== 'connected') {
+            let success = false;
+            if (this._printerType === 'usb') {
+                success = await this.usbTransport.reconnect();
+                if (success) {
+                    this.deviceName = this.usbTransport.getDeviceName() || 'USB Printer';
+                }
+            } else if (this.device) {
+                success = await this.reconnectToDevice();
+            }
+
             if (success) {
                 this.setState('connected');
                 this.reconnectAttempts = 0;
@@ -260,57 +386,73 @@ class PrinterManager {
         }
     }
 
+    // =============== SHARED OPERATIONS ===============
+
     // Disconnect from printer
     public disconnect(): void {
-        if (this.server && this.server.connected) {
-            this.server.disconnect();
+        if (this._printerType === 'usb') {
+            this.usbTransport.close();
+        } else {
+            if (this.server && this.server.connected) {
+                this.server.disconnect();
+            }
+            this.device = null;
+            this.server = null;
+            this.characteristic = null;
         }
-        this.device = null;
-        this.server = null;
-        this.characteristic = null;
         this.deviceName = '';
+        this._printerType = 'none';
+        localStorage.removeItem(PRINTER_TYPE_KEY);
         this.setState('disconnected');
         console.log('Printer disconnected manually');
     }
 
-    // Print receipt - uses cached connection
+    // Print receipt — works with both BT and USB
     public async print(data: PrintData): Promise<boolean> {
         // If not connected, try to connect first
         if (!this.isConnected()) {
             console.log('Not connected, attempting to connect...');
-            const connected = await this.connect();
+            let connected = false;
+            if (this._printerType === 'usb') {
+                connected = await this.connectUSB();
+            } else {
+                connected = await this.connect();
+            }
 
             if (!connected) {
-                // Queue the print for later if connection fails
                 console.log('Connection failed, queueing print job');
                 this.printQueue.push(data);
                 return false;
             }
         }
 
-        // Now we should be connected
-        if (!this.characteristic) {
-            console.error('No characteristic available');
-            this.printQueue.push(data);
-            return false;
-        }
-
         try {
             const receiptBytes = await generateReceiptBytes(data);
 
-            // Send in chunks (max 512 bytes per write for stability)
-            const chunkSize = 512;
-            for (let i = 0; i < receiptBytes.length; i += chunkSize) {
-                const chunk = receiptBytes.slice(i, Math.min(i + chunkSize, receiptBytes.length));
-
-                if (this.characteristic.properties.writeWithoutResponse) {
-                    await this.characteristic.writeValueWithoutResponse(chunk);
-                } else {
-                    await this.characteristic.writeValue(chunk);
+            if (this._printerType === 'usb') {
+                // USB: use transport
+                const ok = await this.usbTransport.write(receiptBytes);
+                if (!ok) throw new Error('USB write failed');
+            } else {
+                // Bluetooth: use characteristic
+                if (!this.characteristic) {
+                    console.error('No characteristic available');
+                    this.printQueue.push(data);
+                    return false;
                 }
 
-                // Small delay between chunks for printer buffer
-                await new Promise(resolve => setTimeout(resolve, 30));
+                const chunkSize = 512;
+                for (let i = 0; i < receiptBytes.length; i += chunkSize) {
+                    const chunk = receiptBytes.slice(i, Math.min(i + chunkSize, receiptBytes.length));
+
+                    if (this.characteristic.properties.writeWithoutResponse) {
+                        await this.characteristic.writeValueWithoutResponse(chunk);
+                    } else {
+                        await this.characteristic.writeValue(chunk);
+                    }
+
+                    await new Promise(resolve => setTimeout(resolve, 30));
+                }
             }
 
             console.log('Print successful!');
@@ -319,12 +461,9 @@ class PrinterManager {
         } catch (error: any) {
             console.error('Print error:', error);
 
-            // If it's a connection error, try to reconnect and retry once
-            if (error.message?.includes('GATT') || error.name === 'NetworkError') {
+            if (error.message?.includes('GATT') || error.name === 'NetworkError' || error.message?.includes('USB')) {
                 console.log('Connection lost during print, attempting reconnect...');
                 this.handleDisconnect();
-
-                // Queue the job and try to reconnect
                 this.printQueue.push(data);
                 this.attemptAutoReconnect();
             }
@@ -346,7 +485,6 @@ class PrinterManager {
             const job = this.printQueue.shift();
             if (job) {
                 await this.print(job);
-                // Small delay between prints
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
         }

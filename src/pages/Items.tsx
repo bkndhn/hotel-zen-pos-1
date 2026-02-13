@@ -38,6 +38,7 @@ interface Item {
 
 const Items: React.FC = () => {
   const { profile } = useAuth();
+  const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
   const [items, setItems] = useState<Item[]>([]);
   const [filteredItems, setFilteredItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,9 +63,11 @@ const Items: React.FC = () => {
   useRealTimeUpdates();
 
   useEffect(() => {
-    fetchItems();
-    fetchCategories();
-  }, []);
+    if (adminId) {
+      fetchItems();
+      fetchCategories();
+    }
+  }, [adminId]);
 
   // Listen for real-time update events
   useEffect(() => {
@@ -92,9 +95,10 @@ const Items: React.FC = () => {
   }, [searchTerm, selectedCategory, items]);
 
   const fetchItems = async () => {
+    if (!adminId) return;
     try {
       // Try with display_order first, fallback to name only if column doesn't exist
-      let query = supabase.from('items').select('*');
+      let query = supabase.from('items').select('*').eq('admin_id', adminId);
 
       const { data, error } = await query.order('name');
 
@@ -184,6 +188,7 @@ const Items: React.FC = () => {
       const { data, error } = await supabase
         .from('item_categories')
         .select('name')
+        .eq('admin_id', adminId)
         .eq('is_deleted', false)
         .order('name');
 

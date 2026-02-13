@@ -31,6 +31,7 @@ interface AdditionalCharge {
 
 const Settings = () => {
   const { profile } = useAuth();
+  const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
   const [additionalCharges, setAdditionalCharges] = useState<AdditionalCharge[]>([]);
   const [chargeDialogOpen, setChargeDialogOpen] = useState(false);
   const [editChargeDialogOpen, setEditChargeDialogOpen] = useState(false);
@@ -94,10 +95,12 @@ const Settings = () => {
   }, [profile]);
 
   const fetchAdditionalCharges = async () => {
+    if (!adminId) return;
     try {
       const { data, error } = await supabase
         .from('additional_charges')
         .select('*')
+        .eq('admin_id', adminId)
         .order('name');
 
       if (error) throw error;
