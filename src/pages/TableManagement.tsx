@@ -127,6 +127,20 @@ const TableManagement: React.FC = () => {
     };
   }, [fetchTableOrderCounts, fetchTables]);
 
+  // Listen for table status broadcasts from Billing/PublicMenu/TableOrderBilling/ServiceArea
+  useEffect(() => {
+    const channel = supabase.channel('table-status-sync-mgmt', {
+      config: { broadcast: { self: true } }
+    })
+      .on('broadcast', { event: 'table-status-updated' }, () => {
+        fetchTables();
+        fetchTableOrderCounts();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchTables, fetchTableOrderCounts]);
+
   const handleOpenDialog = (table?: Table) => {
     if (table) {
       setEditingTable(table);

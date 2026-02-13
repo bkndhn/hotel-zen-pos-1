@@ -379,6 +379,28 @@ const ServiceArea = () => {
                 payload: { bill_id: billId, status, action: 'undo', timestamp: Date.now() }
             });
 
+            // Auto-free table when bill is completed and had a table assigned
+            if (status === 'completed') {
+                const completedBill = prevActive.find(b => b.id === billId);
+                const tableNo = (completedBill as any)?.table_no;
+                if (tableNo) {
+                    const tableNum = tableNo.replace(/^T/i, '');
+                    (supabase as any)
+                        .from('tables')
+                        .update({ status: 'available', current_bill_id: null })
+                        .eq('table_number', tableNum)
+                        .then(() => {
+                            broadcastChannelRef.current?.send({
+                                type: 'broadcast',
+                                event: 'table-status-updated',
+                                payload: { table_number: tableNum, status: 'available', timestamp: Date.now() }
+                            });
+                            console.log(`[ServiceArea] Table ${tableNum} freed after bill completion`);
+                        })
+                        .catch((err: any) => console.warn('[ServiceArea] Failed to free table:', err));
+                }
+            }
+
             // Background refresh
             fetchBills(true);
         } catch (error) {
@@ -485,7 +507,7 @@ const ServiceArea = () => {
                         </div>
                     </div>
                     <p className="text-xs sm:text-sm text-muted-foreground">
-                        {bills.length + tableOrders.filter(o => o.status === 'ready').length} bill{(bills.length + tableOrders.filter(o => o.status === 'ready').length) !== 1 ? 's' : ''} waiting
+                        {bills.filter(b => b.kitchen_status === 'ready').length + tableOrders.filter(o => o.status === 'ready').length} ready to serve
                     </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => fetchBills()}>

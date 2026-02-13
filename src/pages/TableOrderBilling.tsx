@@ -264,6 +264,13 @@ const TableOrderBilling: React.FC = () => {
                 console.warn('Failed to free table:', tableError);
             }
 
+            // Broadcast table freed to TableManagement
+            syncChannelRef.current?.send({
+                type: 'broadcast',
+                event: 'table-status-updated',
+                payload: { table_number: tableNumber, status: 'available', timestamp: Date.now() }
+            });
+
             // 5. Broadcast bill creation (4-layer sync)
             window.dispatchEvent(new CustomEvent('bills-updated'));
 

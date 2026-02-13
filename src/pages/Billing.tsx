@@ -1392,7 +1392,29 @@ const Billing = () => {
           // 2. Save bill to database
           await saveBillToDatabase(billPayload, validCart, billNumber);
 
-          // 3. WhatsApp share (if requested)
+          // 3. Auto-free table if one was selected
+          if (selectedTableNumber && adminId) {
+            try {
+              await (supabase as any)
+                .from('tables')
+                .update({ status: 'available', current_bill_id: null })
+                .eq('admin_id', adminId)
+                .eq('table_number', selectedTableNumber);
+
+              // Broadcast table status change to all devices/tabs
+              syncChannelRef.current?.send({
+                type: 'broadcast',
+                event: 'table-status-updated',
+                payload: { table_number: selectedTableNumber, status: 'available', timestamp: Date.now() }
+              });
+
+              console.log(`[Billing] Table ${selectedTableNumber} freed after payment`);
+            } catch (tableErr) {
+              console.warn('[Billing] Failed to free table:', tableErr);
+            }
+          }
+
+          // 4. WhatsApp share (if requested)
           if (paymentData.sendWhatsApp) {
             handleWhatsAppShare(billNumber, paymentData.customerMobile || '', validCart, totalAmount, paymentData.paymentMethod, adminId, paymentData.paymentAmounts, {
               taxSummary: billPayload.tax_summary,

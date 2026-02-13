@@ -630,6 +630,15 @@ const PublicMenu = () => {
                 .eq('table_number', tableNo);
             if (tableErr) console.warn('Table status update failed:', tableErr);
 
+            // Broadcast table status change to TableManagement
+            const tableStatusChannel = supabase.channel('table-status-broadcast-pub');
+            await tableStatusChannel.send({
+                type: 'broadcast',
+                event: 'table-status-updated',
+                payload: { table_number: tableNo, status: 'occupied', timestamp: Date.now() }
+            });
+            supabase.removeChannel(tableStatusChannel);
+
             // Broadcast new order to kitchen
             const channel = supabase.channel('table-order-sync');
             await channel.send({
