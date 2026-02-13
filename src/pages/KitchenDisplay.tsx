@@ -454,6 +454,15 @@ const KitchenDisplay = () => {
             });
             supabase.removeChannel(channel);
 
+            // Broadcast to Service Area and other displays via shared channel
+            const syncChannel = supabase.channel('table-order-sync');
+            await syncChannel.send({
+                type: 'broadcast',
+                event: 'table-order-status-update',
+                payload: { order_id: orderId, table_number: tableNumber, status }
+            });
+            supabase.removeChannel(syncChannel);
+
             // Also broadcast to other kitchen/service displays
             syncChannelRef.current?.send({
                 type: 'broadcast',

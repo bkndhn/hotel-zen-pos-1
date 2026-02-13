@@ -287,10 +287,13 @@ const ServiceArea = () => {
 
     // Listen for table order broadcasts
     useEffect(() => {
-        const channel = supabase.channel('table-order-service-sync', {
+        const channel = supabase.channel('table-order-sync', {
             config: { broadcast: { self: true } }
         })
             .on('broadcast', { event: 'new-table-order' }, () => {
+                fetchTableOrders();
+            })
+            .on('broadcast', { event: 'table-order-status-update' }, () => {
                 fetchTableOrders();
             })
             .subscribe();

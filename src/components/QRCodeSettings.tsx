@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -40,8 +40,8 @@ const QRCodeSettings = () => {
     const { profile } = useAuth();
     const [copied, setCopied] = useState(false);
     const [tableMode, setTableMode] = useState(false);
-    const [tableCount, setTableCount] = useState(10);
-    const [tableCountInput, setTableCountInput] = useState('10');
+    const [dbTables, setDbTables] = useState<{ id: string; table_number: string }[]>([]);
+    const [tablesLoading, setTablesLoading] = useState(false);
     const [selectedTable, setSelectedTable] = useState<number | null>(null);
     const qrRef = useRef<HTMLImageElement>(null);
 
@@ -123,6 +123,28 @@ const QRCodeSettings = () => {
         };
         loadSettings();
     }, [profile?.user_id]);
+
+    // Fetch tables from database (single source of truth = Table Management)
+    const fetchTables = useCallback(async () => {
+        if (!adminId) return;
+        setTablesLoading(true);
+        try {
+            const { data } = await (supabase as any)
+                .from('tables')
+                .select('id, table_number')
+                .eq('admin_id', adminId)
+                .order('table_number', { ascending: true });
+            if (data) setDbTables(data);
+        } catch (e) {
+            console.warn('[QRSettings] Failed to fetch tables:', e);
+        } finally {
+            setTablesLoading(false);
+        }
+    }, [adminId]);
+
+    useEffect(() => {
+        if (tableMode) fetchTables();
+    }, [tableMode, fetchTables]);
 
     // Save settings when changed
     const saveSettings = async () => {
@@ -461,9 +483,10 @@ const QRCodeSettings = () => {
 
     // Download all table QR codes as premium branded cards
     const handleDownloadAllTableQRs = async () => {
+        if (dbTables.length === 0) return;
         toast({
             title: "Downloading...",
-            description: `Generating ${tableCount} premium QR cards with table numbers`,
+            description: `Generating ${dbTables.length} premium QR cards with table numbers`,
         });
 
         let successCount = 0;
@@ -490,9 +513,11 @@ const QRCodeSettings = () => {
             } catch { }
         }
 
-        for (let i = 1; i <= tableCount; i++) {
-            const tableUrl = `${baseUrl}?table=${i}`;
-            const colors = tableColors[(i - 1) % tableColors.length];
+        for (let idx = 0; idx < dbTables.length; idx++) {
+            const tbl = dbTables[idx];
+            const tableNum = parseInt(tbl.table_number) || (idx + 1);
+            const tableUrl = `${baseUrl}?table=${tableNum}`;
+            const colors = tableColors[idx % tableColors.length];
             try {
                 const qrUrl = generateQRCodeUrl(tableUrl, 350, colors.qr);
 
@@ -557,7 +582,7 @@ const QRCodeSettings = () => {
                 ctx.fillStyle = '#ffffff';
                 ctx.font = 'bold 30px Arial, sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText(`Table ${i}`, cardWidth / 2, 40);
+                ctx.fillText(`Table ${tableNum}`, cardWidth / 2, 40);
                 ctx.font = '14px Arial, sans-serif';
                 ctx.fillStyle = 'rgba(255,255,255,0.8)';
                 ctx.fillText(displayName, cardWidth / 2, 62);
@@ -577,7 +602,7 @@ const QRCodeSettings = () => {
                             const url = URL.createObjectURL(blob);
                             const a = document.createElement('a');
                             a.href = url;
-                            a.download = `menu-qr-table-${i}.png`;
+                            a.download = `menu-qr-table-${tableNum}.png`;
                             document.body.appendChild(a);
                             a.click();
                             document.body.removeChild(a);
@@ -591,14 +616,14 @@ const QRCodeSettings = () => {
                 // Small delay between downloads
                 await new Promise(r => setTimeout(r, 300));
             } catch (err) {
-                console.error(`Failed to download QR for table ${i}`, err);
+                console.error(`Failed to download QR for table ${tableNum}`, err);
             }
         }
 
         toast({
             title: successCount > 0 ? "Download Complete!" : "Download Failed",
             description: successCount > 0
-                ? `${successCount} of ${tableCount} premium QR cards saved`
+                ? `${successCount} of ${dbTables.length} premium QR cards saved`
                 : "Could not download QR codes. Try downloading individually.",
             variant: successCount > 0 ? "default" : "destructive"
         });
@@ -983,62 +1008,47 @@ const QRCodeSettings = () => {
 
                         {tableMode && (
                             <div className="space-y-3 bg-muted/50 rounded-lg p-4">
-                                {/* Table Count */}
-                                <div className="flex items-center gap-2">
-                                    <Label className="text-sm">Number of Tables:</Label>
-                                    <Input
-                                        type="number"
-                                        min={1}
-                                        max={100}
-                                        value={tableCountInput}
-                                        onChange={(e) => {
-                                            setTableCountInput(e.target.value);
-                                        }}
-                                        onBlur={(e) => {
-                                            const val = e.target.value;
-                                            const num = parseInt(val);
-                                            if (!val || isNaN(num) || num < 1) {
-                                                setTableCount(1);
-                                                setTableCountInput('1');
-                                            } else if (num > 100) {
-                                                setTableCount(100);
-                                                setTableCountInput('100');
-                                            } else {
-                                                setTableCount(num);
-                                                setTableCountInput(num.toString());
-                                            }
-                                        }}
-                                        className="w-20"
-                                    />
-                                </div>
-
-                                {/* Table Selector */}
-                                <div className="space-y-2">
-                                    <Label className="text-sm">Select table to preview QR:</Label>
-                                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                                        {Array.from({ length: tableCount }, (_, i) => i + 1).map(num => (
-                                            <Button
-                                                key={num}
-                                                variant={selectedTable === num ? 'default' : 'outline'}
-                                                size="sm"
-                                                className="w-10 h-10"
-                                                onClick={() => setSelectedTable(selectedTable === num ? null : num)}
-                                            >
-                                                {num}
-                                            </Button>
-                                        ))}
+                                {tablesLoading ? (
+                                    <p className="text-sm text-muted-foreground text-center py-2">Loading tables...</p>
+                                ) : dbTables.length === 0 ? (
+                                    <div className="text-center py-3">
+                                        <p className="text-sm text-muted-foreground">No tables found.</p>
+                                        <p className="text-xs text-muted-foreground mt-1">Add tables in <strong>Table Management</strong> first, then come back here to generate QR codes.</p>
                                     </div>
-                                </div>
+                                ) : (
+                                    <>
+                                        {/* Table Selector */}
+                                        <div className="space-y-2">
+                                            <Label className="text-sm">Select table to preview QR ({dbTables.length} tables):</Label>
+                                            <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                                                {dbTables.map(tbl => {
+                                                    const num = parseInt(tbl.table_number) || 0;
+                                                    return (
+                                                        <Button
+                                                            key={tbl.id}
+                                                            variant={selectedTable === num ? 'default' : 'outline'}
+                                                            size="sm"
+                                                            className="w-10 h-10"
+                                                            onClick={() => setSelectedTable(selectedTable === num ? null : num)}
+                                                        >
+                                                            {tbl.table_number}
+                                                        </Button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
 
-                                {/* Download All */}
-                                <Button
-                                    variant="secondary"
-                                    className="w-full"
-                                    onClick={handleDownloadAllTableQRs}
-                                >
-                                    <Download className="w-4 h-4 mr-2" />
-                                    Download All {tableCount} Table QR Codes
-                                </Button>
+                                        {/* Download All */}
+                                        <Button
+                                            variant="secondary"
+                                            className="w-full"
+                                            onClick={handleDownloadAllTableQRs}
+                                        >
+                                            <Download className="w-4 h-4 mr-2" />
+                                            Download All {dbTables.length} Table QR Codes
+                                        </Button>
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>

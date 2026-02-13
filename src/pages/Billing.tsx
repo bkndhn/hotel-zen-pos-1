@@ -11,7 +11,7 @@ import { CompletePaymentDialog } from '@/components/CompletePaymentDialog';
 import { PrinterErrorDialog } from '@/components/PrinterErrorDialog';
 import { TableSelector } from '@/components/TableSelector';
 import { getCachedImageUrl, cacheImageUrl } from '@/utils/imageUtils';
-import { getInstantBillNumber } from '@/utils/billNumberGenerator';
+import { getInstantBillNumber, initBillCounter } from '@/utils/billNumberGenerator';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
 import { printReceipt, PrintData } from '@/utils/bluetoothPrinter';
@@ -187,6 +187,11 @@ const Billing = () => {
     }).subscribe();
 
     syncChannelRef.current = channel;
+
+    // Seed bill counter from DB on first use (prevents 0001 on new device)
+    const adminId = profile?.role === 'admin' ? profile.id : profile?.admin_id;
+    initBillCounter(adminId).catch(console.warn);
+
     return () => { supabase.removeChannel(channel); };
   }, []);
   const [billSettings, setBillSettings] = useState<{

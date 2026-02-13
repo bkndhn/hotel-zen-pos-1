@@ -537,24 +537,25 @@ const PublicMenu = () => {
     const cartTotal = useMemo(() => {
         return cart.reduce((sum, item) => {
             const bv = item.base_value || 1;
-            return sum + (item.quantity / bv) * item.price;
+            return sum + Math.round(((item.quantity / bv) * item.price) * 100) / 100;
         }, 0);
     }, [cart]);
 
-    const cartItemCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
+    const cartItemCount = useMemo(() => cart.reduce((sum, item) => sum + (item.quantity / (item.base_value || 1)), 0), [cart]);
 
     // Add item to cart
     const addToCart = useCallback((item: MenuItem) => {
+        const step = item.base_value || 1;
         setCart(prev => {
             const existing = prev.find(c => c.id === item.id);
             if (existing) {
-                return prev.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c);
+                return prev.map(c => c.id === item.id ? { ...c, quantity: c.quantity + step } : c);
             }
             return [...prev, {
                 id: item.id,
                 name: item.name,
                 price: item.price,
-                quantity: 1,
+                quantity: step,
                 unit: item.unit,
                 base_value: item.base_value,
                 instructions: ''
@@ -572,7 +573,8 @@ const PublicMenu = () => {
         setCart(prev => {
             return prev.map(c => {
                 if (c.id !== itemId) return c;
-                const newQty = c.quantity + delta;
+                const step = c.base_value || 1;
+                const newQty = c.quantity + (delta * step);
                 return newQty <= 0 ? c : { ...c, quantity: newQty };
             }).filter(c => c.quantity > 0);
         });
@@ -580,7 +582,9 @@ const PublicMenu = () => {
 
     // Get cart quantity for an item
     const getCartQuantity = useCallback((itemId: string) => {
-        return cart.find(c => c.id === itemId)?.quantity || 0;
+        const item = cart.find(c => c.id === itemId);
+        if (!item) return 0;
+        return item.quantity / (item.base_value || 1);
     }, [cart]);
 
     // Set instructions for a cart item
@@ -1362,7 +1366,7 @@ const PublicMenu = () => {
                                             <button onClick={() => updateQuantity(item.id, -1)} className="w-7 h-7 rounded-full bg-white border flex items-center justify-center hover:bg-gray-100">
                                                 <Minus className="w-3.5 h-3.5" />
                                             </button>
-                                            <span className="text-sm font-bold w-5 text-center">{item.quantity}</span>
+                                            <span className="text-sm font-bold w-5 text-center">{item.quantity / (item.base_value || 1)}</span>
                                             <button onClick={() => updateQuantity(item.id, 1)} className="w-7 h-7 rounded-full flex items-center justify-center text-white" style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
                                                 <Plus className="w-3.5 h-3.5" />
                                             </button>

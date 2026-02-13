@@ -4,7 +4,41 @@
  * to ensure ONE unified sequential bill number series.
  *
  * Uses localStorage counter keyed by adminId for instant (0ms) generation.
+ * On first use, seeds from the latest bill in Supabase to avoid resetting.
  */
+
+import { supabase } from '@/integrations/supabase/client';
+
+/**
+ * Seed the localStorage counter from the last bill in the database.
+ * Call this on mount in Billing.tsx / TableOrderBilling.tsx to ensure
+ * the counter doesn't reset to 0 on a new device/browser.
+ */
+export const initBillCounter = async (adminId: string | null | undefined): Promise<void> => {
+    if (!adminId) return;
+    const counterKey = `bill_counter_${adminId}`;
+    // If counter already exists in localStorage, we're good
+    if (localStorage.getItem(counterKey) !== null) return;
+
+    try {
+        const { data } = await (supabase as any)
+            .from('bills')
+            .select('bill_no')
+            .eq('admin_id', adminId)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+        if (data?.[0]?.bill_no) {
+            // Extract the numeric part from the end of the bill number
+            const match = data[0].bill_no.match(/(\d+)$/);
+            if (match) {
+                localStorage.setItem(counterKey, match[1]);
+            }
+        }
+    } catch (e) {
+        console.warn('[BillCounter] Failed to seed from DB:', e);
+    }
+};
 
 export const getInstantBillNumber = (adminId: string | null | undefined): string => {
     const continueBillFromYesterday = localStorage.getItem('hotel_pos_continue_bill_number') !== 'false';
@@ -35,3 +69,4 @@ export const getInstantBillNumber = (adminId: string | null | undefined): string
         return `${datePrefix}-${String(counter).padStart(3, '0')}`;
     }
 };
+
