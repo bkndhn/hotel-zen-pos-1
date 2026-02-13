@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Utensils, Phone, MapPin, Wifi, WifiOff, Search, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, MessageCircle, ShoppingCart, Plus, Minus, Send, Clock, CheckCircle2, Loader2, ChefHat, Trash2, MessageSquare } from 'lucide-react';
+import { Utensils, Phone, MapPin, Wifi, WifiOff, Search, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, MessageCircle, ShoppingCart, Plus, Minus, Send, Clock, CheckCircle2, Loader2, ChefHat, Trash2, MessageSquare, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getShortUnit } from '@/utils/timeUtils';
 
@@ -130,17 +130,13 @@ const PublicMenu = () => {
     // ========== TABLE ORDERING STATE (only active when ?table=N) ==========
     const isTableMode = !!tableNo;
 
-    // Session ID: groups orders from same table visit
-    const [sessionId] = useState<string | null>(() => {
-        if (!tableNo) return null;
-        const key = `table-session-${urlParam}-${tableNo}`;
-        let sid = sessionStorage.getItem(key);
-        if (!sid) {
-            sid = crypto.randomUUID();
-            sessionStorage.setItem(key, sid);
-        }
-        return sid;
+    // Session ID: persisted in localStorage so it survives app close/reopen
+    const sessionStorageKey = isTableMode ? `table - session - ${urlParam} -${tableNo} ` : null;
+    const [sessionId, setSessionId] = useState<string | null>(() => {
+        if (!sessionStorageKey) return null;
+        return localStorage.getItem(sessionStorageKey) || null;
     });
+    const [sessionReady, setSessionReady] = useState(false);
 
     // Cart
     const [cart, setCart] = useState<CartItem[]>([]);
@@ -319,14 +315,14 @@ const PublicMenu = () => {
         if (!adminId) return;
 
         const channel = supabase
-            .channel(`public-menu-${adminId}`)
+            .channel(`public - menu - ${adminId} `)
             .on(
                 'postgres_changes',
                 {
                     event: '*',
                     schema: 'public',
                     table: 'items',
-                    filter: `admin_id=eq.${adminId}`
+                    filter: `admin_id = eq.${adminId} `
                 },
                 (payload) => {
                     console.log('Menu item update:', payload);
@@ -678,33 +674,88 @@ const PublicMenu = () => {
         }
     }, [adminId, tableNo, sessionId, cart, cartTotal, orderNote, sessionOrders.length]);
 
-    // Fetch existing session orders on load
+    // Smart session initialization: check for active orders on this table
     useEffect(() => {
-        if (!adminId || !sessionId || !isTableMode) return;
+        if (!adminId || !isTableMode || !tableNo || !sessionStorageKey) return;
 
-        const fetchOrders = async () => {
-            const { data, error: fetchErr } = await supabase
-                .from('table_orders')
-                .select('id, order_number, items, total_amount, status, customer_note, created_at')
-                .eq('admin_id', adminId)
-                .eq('session_id', sessionId)
-                .eq('is_billed', false)
-                .order('order_number');
+        const initSession = async () => {
+            // Step 1: If we have a stored session, check if it still has active orders
+            const storedSid = localStorage.getItem(sessionStorageKey);
+            if (storedSid) {
+                const { data: existingOrders } = await supabase
+                    .from('table_orders')
+                    .select('id, order_number, items, total_amount, status, customer_note, created_at, is_billed')
+                    .eq('admin_id', adminId)
+                    .eq('session_id', storedSid)
+                    .order('order_number');
 
-            if (!fetchErr && data) {
-                setSessionOrders(data as TableOrder[]);
-                if (data.length > 0) setShowMyOrders(true);
+                if (existingOrders && existingOrders.length > 0) {
+                    // Check if ANY order is still active (not terminal)
+                    const hasActive = existingOrders.some(
+                        (o: any) => !['served', 'cancelled'].includes(o.status) || !o.is_billed
+                    );
+                    if (hasActive) {
+                        // Resume this session
+                        setSessionId(storedSid);
+                        setSessionOrders(existingOrders as TableOrder[]);
+                        setShowMyOrders(true);
+                        setSessionReady(true);
+                        return;
+                    }
+                    // All orders are terminal+billed → clear old session
+                    localStorage.removeItem(sessionStorageKey);
+                }
             }
+
+            // Step 2: No stored session or old one expired. Check DB for ANY active order on this table.
+            const { data: tableActiveOrders } = await supabase
+                .from('table_orders')
+                .select('session_id, id, order_number, items, total_amount, status, customer_note, created_at, is_billed')
+                .eq('admin_id', adminId)
+                .eq('table_number', tableNo)
+                .in('status', ['pending', 'preparing', 'ready'])
+                .eq('is_billed', false)
+                .order('created_at', { ascending: false })
+                .limit(20);
+
+            if (tableActiveOrders && tableActiveOrders.length > 0) {
+                // Adopt the session of the most recent active order
+                const adoptSid = (tableActiveOrders[0] as any).session_id;
+                localStorage.setItem(sessionStorageKey, adoptSid);
+                setSessionId(adoptSid);
+
+                // Fetch all orders for that session
+                const { data: allSessionOrders } = await supabase
+                    .from('table_orders')
+                    .select('id, order_number, items, total_amount, status, customer_note, created_at')
+                    .eq('admin_id', adminId)
+                    .eq('session_id', adoptSid)
+                    .order('order_number');
+
+                if (allSessionOrders) {
+                    setSessionOrders(allSessionOrders as TableOrder[]);
+                    setShowMyOrders(true);
+                }
+                setSessionReady(true);
+                return;
+            }
+
+            // Step 3: No active orders at all → generate new session
+            const newSid = crypto.randomUUID();
+            localStorage.setItem(sessionStorageKey, newSid);
+            setSessionId(newSid);
+            setSessionReady(true);
         };
-        fetchOrders();
-    }, [adminId, sessionId, isTableMode]);
+
+        initSession();
+    }, [adminId, isTableMode, tableNo, sessionStorageKey]);
 
     // Real-time subscription for order status updates
     useEffect(() => {
         if (!adminId || !sessionId || !isTableMode) return;
 
         // Subscribe to broadcast for instant updates
-        const channel = supabase.channel(`table-order-status-${sessionId}`)
+        const channel = supabase.channel(`table - order - status - ${sessionId} `)
             .on('broadcast', { event: 'order-status-update' }, (payload: any) => {
                 const { order_id, status } = payload.payload || {};
                 if (order_id && status) {
@@ -716,14 +767,14 @@ const PublicMenu = () => {
             .subscribe();
 
         // Also subscribe to postgres_changes as fallback
-        const pgChannel = supabase.channel(`table-order-pg-${sessionId}`)
+        const pgChannel = supabase.channel(`table - order - pg - ${sessionId} `)
             .on(
                 'postgres_changes',
                 {
                     event: 'UPDATE',
                     schema: 'public',
                     table: 'table_orders',
-                    filter: `session_id=eq.${sessionId}`
+                    filter: `session_id = eq.${sessionId} `
                 },
                 (payload: any) => {
                     const updated = payload.new;
@@ -778,6 +829,27 @@ const PublicMenu = () => {
 
     const sessionTotal = useMemo(() => sessionOrders.reduce((sum, o) => sum + o.total_amount, 0), [sessionOrders]);
 
+    // Check if session is complete (all orders terminal + billed)
+    const isSessionComplete = useMemo(() => {
+        if (sessionOrders.length === 0) return false;
+        return sessionOrders.every(
+            o => ['served', 'cancelled'].includes(o.status) && (o as any).is_billed === true
+        );
+    }, [sessionOrders]);
+
+    // Reset session when complete
+    const startNewOrder = useCallback(() => {
+        if (!sessionStorageKey) return;
+        localStorage.removeItem(sessionStorageKey);
+        const newSid = crypto.randomUUID();
+        localStorage.setItem(sessionStorageKey, newSid);
+        setSessionId(newSid);
+        setSessionOrders([]);
+        setShowMyOrders(false);
+        setCart([]);
+        setOrderNote('');
+    }, [sessionStorageKey]);
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center">
@@ -820,7 +892,7 @@ const PublicMenu = () => {
             className="min-h-screen"
             style={{
                 background: shopSettings?.menu_background_color
-                    ? `linear-gradient(135deg, ${shopSettings.menu_background_color}15 0%, ${shopSettings.menu_background_color}08 50%, ${shopSettings.menu_background_color}15 100%)`
+                    ? `linear - gradient(135deg, ${shopSettings.menu_background_color}15 0 %, ${shopSettings.menu_background_color}08 50 %, ${shopSettings.menu_background_color}15 100 %)`
                     : 'linear-gradient(135deg, #fef7ed 0%, #fff7ed 25%, #fefce8 50%, #f0fdf4 75%, #fef7ed 100%)'
             }}
         >
@@ -829,7 +901,7 @@ const PublicMenu = () => {
                 className="sticky top-0 z-50 text-white shadow-xl"
                 style={{
                     background: shopSettings?.menu_primary_color
-                        ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color}cc)`
+                        ? `linear - gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color}cc)`
                         : 'linear-gradient(135deg, #ea580c, #dc2626)'
                 }}
             >
@@ -916,7 +988,7 @@ const PublicMenu = () => {
                     "sticky z-40 bg-white/95 backdrop-blur-md border-b shadow-sm",
                     showSearch ? "top-[120px]" : "top-[72px]"
                 )}
-                    style={{ borderColor: shopSettings?.menu_primary_color ? `${shopSettings.menu_primary_color}20` : '#fed7aa' }}
+                    style={{ borderColor: shopSettings?.menu_primary_color ? `${shopSettings.menu_primary_color} 20` : '#fed7aa' }}
                 >
                     <div className="max-w-2xl mx-auto px-4 py-2.5">
                         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
@@ -930,7 +1002,7 @@ const PublicMenu = () => {
                                 )}
                                 style={selectedCategory === 'all' ? {
                                     background: shopSettings?.menu_primary_color
-                                        ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})`
+                                        ? `linear - gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})`
                                         : 'linear-gradient(135deg, #ea580c, #dc2626)'
                                 } : {}}
                             >
@@ -950,7 +1022,7 @@ const PublicMenu = () => {
                                         )}
                                         style={selectedCategory === cat ? {
                                             background: shopSettings?.menu_primary_color
-                                                ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})`
+                                                ? `linear - gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})`
                                                 : 'linear-gradient(135deg, #ea580c, #dc2626)'
                                         } : {}}
                                     >
@@ -992,108 +1064,110 @@ const PublicMenu = () => {
                         <MapPin className="w-4 h-4" />
                         <span>Get Directions to Our Shop</span>
                         <ChevronRight className="w-4 h-4" />
-                    </a>
-                </div>
+                    </a >
+                </div >
             )}
 
             {/* Promotional Banners Carousel */}
-            {banners.length > 0 && (
-                <div className="max-w-2xl mx-auto px-4 pt-4">
-                    <div className="relative rounded-xl overflow-hidden shadow-lg">
-                        <div
-                            className="flex transition-transform duration-500 ease-in-out touch-pan-y"
-                            style={{ transform: `translateX(-${currentBannerIndex * 100}%)` }}
-                            onTouchStart={handleTouchStart}
-                            onTouchMove={handleTouchMove}
-                            onTouchEnd={handleTouchEnd}
-                        >
-                            {banners.map((banner) => (
-                                <div
-                                    key={banner.id}
-                                    className="w-full flex-shrink-0"
-                                    onContextMenu={(e) => e.preventDefault()}
-                                >
-                                    {banner.is_text_only ? (
-                                        // Text-only banner with solid color background
-                                        <div
-                                            className="relative aspect-[16/7] flex items-center justify-center"
-                                            style={{ backgroundColor: banner.bg_color || '#22c55e' }}
-                                        >
-                                            <div className="text-center px-6">
-                                                <h3
-                                                    className="font-bold text-xl md:text-2xl drop-shadow-lg"
-                                                    style={{ color: banner.text_color || '#ffffff' }}
-                                                >
-                                                    {banner.title}
-                                                </h3>
-                                                {banner.description && (
-                                                    <p
-                                                        className="text-sm md:text-base mt-1 opacity-90"
+            {
+                banners.length > 0 && (
+                    <div className="max-w-2xl mx-auto px-4 pt-4">
+                        <div className="relative rounded-xl overflow-hidden shadow-lg">
+                            <div
+                                className="flex transition-transform duration-500 ease-in-out touch-pan-y"
+                                style={{ transform: `translateX(-${currentBannerIndex * 100}%)` }}
+                                onTouchStart={handleTouchStart}
+                                onTouchMove={handleTouchMove}
+                                onTouchEnd={handleTouchEnd}
+                            >
+                                {banners.map((banner) => (
+                                    <div
+                                        key={banner.id}
+                                        className="w-full flex-shrink-0"
+                                        onContextMenu={(e) => e.preventDefault()}
+                                    >
+                                        {banner.is_text_only ? (
+                                            // Text-only banner with solid color background
+                                            <div
+                                                className="relative aspect-[16/7] flex items-center justify-center"
+                                                style={{ backgroundColor: banner.bg_color || '#22c55e' }}
+                                            >
+                                                <div className="text-center px-6">
+                                                    <h3
+                                                        className="font-bold text-xl md:text-2xl drop-shadow-lg"
                                                         style={{ color: banner.text_color || '#ffffff' }}
                                                     >
-                                                        {banner.description}
-                                                    </p>
-                                                )}
+                                                        {banner.title}
+                                                    </h3>
+                                                    {banner.description && (
+                                                        <p
+                                                            className="text-sm md:text-base mt-1 opacity-90"
+                                                            style={{ color: banner.text_color || '#ffffff' }}
+                                                        >
+                                                            {banner.description}
+                                                        </p>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                    ) : (
-                                        // Image banner
-                                        <div className="relative aspect-[16/7] bg-gradient-to-r from-orange-400 to-amber-400">
-                                            <img
-                                                src={banner.image_url}
-                                                alt={banner.title}
-                                                className="w-full h-full object-cover"
-                                                draggable={false}
+                                        ) : (
+                                            // Image banner
+                                            <div className="relative aspect-[16/7] bg-gradient-to-r from-orange-400 to-amber-400">
+                                                <img
+                                                    src={banner.image_url}
+                                                    alt={banner.title}
+                                                    className="w-full h-full object-cover"
+                                                    draggable={false}
+                                                />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                                                <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
+                                                    <h3 className="font-bold text-sm drop-shadow-lg">{banner.title}</h3>
+                                                    {banner.description && (
+                                                        <p className="text-xs opacity-90 line-clamp-1">{banner.description}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            {banners.length > 1 && (
+                                <>
+                                    {/* Arrow Navigation */}
+                                    <button
+                                        onClick={goToPrevBanner}
+                                        className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center text-white transition-colors"
+                                        aria-label="Previous banner"
+                                    >
+                                        <ChevronLeft className="w-5 h-5" />
+                                    </button>
+                                    <button
+                                        onClick={goToNextBanner}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center text-white transition-colors"
+                                        aria-label="Next banner"
+                                    >
+                                        <ChevronRight className="w-5 h-5" />
+                                    </button>
+                                    {/* Dot Indicators */}
+                                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                        {banners.map((_, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => { setCurrentBannerIndex(idx); setIsPaused(true); }}
+                                                className={cn(
+                                                    "w-2 h-2 rounded-full transition-all",
+                                                    idx === currentBannerIndex
+                                                        ? "bg-white w-4"
+                                                        : "bg-white/50 hover:bg-white/70"
+                                                )}
                                             />
-                                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                                            <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-                                                <h3 className="font-bold text-sm drop-shadow-lg">{banner.title}</h3>
-                                                {banner.description && (
-                                                    <p className="text-xs opacity-90 line-clamp-1">{banner.description}</p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
-                        {banners.length > 1 && (
-                            <>
-                                {/* Arrow Navigation */}
-                                <button
-                                    onClick={goToPrevBanner}
-                                    className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center text-white transition-colors"
-                                    aria-label="Previous banner"
-                                >
-                                    <ChevronLeft className="w-5 h-5" />
-                                </button>
-                                <button
-                                    onClick={goToNextBanner}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center text-white transition-colors"
-                                    aria-label="Next banner"
-                                >
-                                    <ChevronRight className="w-5 h-5" />
-                                </button>
-                                {/* Dot Indicators */}
-                                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
-                                    {banners.map((_, idx) => (
-                                        <button
-                                            key={idx}
-                                            onClick={() => { setCurrentBannerIndex(idx); setIsPaused(true); }}
-                                            className={cn(
-                                                "w-2 h-2 rounded-full transition-all",
-                                                idx === currentBannerIndex
-                                                    ? "bg-white w-4"
-                                                    : "bg-white/50 hover:bg-white/70"
-                                            )}
-                                        />
-                                    ))}
-                                </div>
-                            </>
-                        )}
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Menu Items */}
             <main className="max-w-2xl mx-auto px-4 py-4 pb-36">
@@ -1283,203 +1357,231 @@ const PublicMenu = () => {
             {/* ========== TABLE ORDERING UI ========== */}
 
             {/* My Orders Section (when table mode + has orders) */}
-            {isTableMode && sessionOrders.length > 0 && showMyOrders && (
-                <div className="max-w-2xl mx-auto px-4 pb-4">
-                    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-                        <button
-                            onClick={() => setShowMyOrders(!showMyOrders)}
-                            className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50"
-                        >
-                            <div className="flex items-center gap-2">
-                                <ChefHat className="w-5 h-5 text-blue-600" />
-                                <span className="font-bold text-blue-900">Your Orders — Table {tableNo}</span>
-                                <Badge className="bg-blue-100 text-blue-700 text-xs">{sessionOrders.length}</Badge>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold text-blue-700">₹{sessionTotal.toFixed(0)}</span>
-                                <ChevronUp className="w-4 h-4 text-blue-500" />
-                            </div>
-                        </button>
-
-                        <div className="divide-y divide-gray-50">
-                            {sessionOrders.map(order => (
-                                <div key={order.id} className="p-4">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="font-semibold text-gray-800 text-sm">Order #{order.order_number}</span>
-                                        <div className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border", getStatusColor(order.status))}>
-                                            {getStatusIcon(order.status)}
-                                            <span>{getStatusLabel(order.status)}</span>
-                                        </div>
-                                    </div>
-                                    {order.items.map((item: any, idx: number) => (
-                                        <div key={idx} className="flex justify-between text-sm text-gray-600 py-0.5">
-                                            <div>
-                                                <span>{item.name} ×{item.quantity}</span>
-                                                {item.instructions && (
-                                                    <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
-                                                        <MessageSquare className="w-3 h-3" /> {item.instructions}
-                                                    </p>
-                                                )}
-                                            </div>
-                                            <span className="font-medium">₹{((item.quantity / (item.base_value || 1)) * item.price).toFixed(0)}</span>
-                                        </div>
-                                    ))}
-                                    {order.customer_note && (
-                                        <p className="text-xs text-gray-400 mt-1 italic">Note: {order.customer_note}</p>
-                                    )}
-                                    <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-100">
-                                        <span className="text-xs text-gray-400">
-                                            {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        </span>
-                                        <span className="font-bold text-sm" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>₹{order.total_amount.toFixed(0)}</span>
-                                    </div>
+            {
+                isTableMode && sessionOrders.length > 0 && showMyOrders && (
+                    <div className="max-w-2xl mx-auto px-4 pb-4">
+                        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                            <button
+                                onClick={() => setShowMyOrders(!showMyOrders)}
+                                className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <ChefHat className="w-5 h-5 text-blue-600" />
+                                    <span className="font-bold text-blue-900">Your Orders — Table {tableNo}</span>
+                                    <Badge className="bg-blue-100 text-blue-700 text-xs">{sessionOrders.length}</Badge>
                                 </div>
-                            ))}
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-semibold text-blue-700">₹{sessionTotal.toFixed(0)}</span>
+                                    <ChevronUp className="w-4 h-4 text-blue-500" />
+                                </div>
+                            </button>
+
+                            <div className="divide-y divide-gray-50">
+                                {sessionOrders.map(order => (
+                                    <div key={order.id} className="p-4">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="font-semibold text-gray-800 text-sm">Order #{order.order_number}</span>
+                                            <div className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border", getStatusColor(order.status))}>
+                                                {getStatusIcon(order.status)}
+                                                <span>{getStatusLabel(order.status)}</span>
+                                            </div>
+                                        </div>
+                                        {order.items.map((item: any, idx: number) => (
+                                            <div key={idx} className="flex justify-between text-sm text-gray-600 py-0.5">
+                                                <div>
+                                                    <span>{item.name} ×{item.quantity}</span>
+                                                    {item.instructions && (
+                                                        <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
+                                                            <MessageSquare className="w-3 h-3" /> {item.instructions}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <span className="font-medium">₹{((item.quantity / (item.base_value || 1)) * item.price).toFixed(0)}</span>
+                                            </div>
+                                        ))}
+                                        {order.customer_note && (
+                                            <p className="text-xs text-gray-400 mt-1 italic">Note: {order.customer_note}</p>
+                                        )}
+                                        <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-100">
+                                            <span className="text-xs text-gray-400">
+                                                {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                            <span className="font-bold text-sm" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>₹{order.total_amount.toFixed(0)}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Cart Overlay */}
-            {isTableMode && showCart && cart.length > 0 && (
-                <div className="fixed inset-0 z-[60] bg-black/50 flex items-end" onClick={() => setShowCart(false)}>
-                    <div className="w-full max-w-2xl mx-auto bg-white rounded-t-3xl shadow-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between p-4 border-b">
-                            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                                <ShoppingCart className="w-5 h-5" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }} />
-                                Your Cart
-                            </h2>
-                            <button onClick={() => setShowCart(false)} className="p-1 rounded-full hover:bg-gray-100">
-                                <X className="w-5 h-5 text-gray-500" />
-                            </button>
-                        </div>
+            {
+                isTableMode && showCart && cart.length > 0 && (
+                    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end" onClick={() => setShowCart(false)}>
+                        <div className="w-full max-w-2xl mx-auto bg-white rounded-t-3xl shadow-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-between p-4 border-b">
+                                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                    <ShoppingCart className="w-5 h-5" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }} />
+                                    Your Cart
+                                </h2>
+                                <button onClick={() => setShowCart(false)} className="p-1 rounded-full hover:bg-gray-100">
+                                    <X className="w-5 h-5 text-gray-500" />
+                                </button>
+                            </div>
 
-                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                            {cart.map(item => (
-                                <div key={item.id} className="bg-gray-50 rounded-xl p-3">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex-1 min-w-0">
-                                            <h4 className="font-semibold text-sm text-gray-800 truncate">{item.name}</h4>
-                                            <span className="text-xs text-gray-500">₹{item.price}/{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <button onClick={() => updateQuantity(item.id, -1)} className="w-7 h-7 rounded-full bg-white border flex items-center justify-center hover:bg-gray-100">
-                                                <Minus className="w-3.5 h-3.5" />
-                                            </button>
-                                            <span className="text-sm font-bold w-5 text-center">{item.quantity / (item.base_value || 1)}</span>
-                                            <button onClick={() => updateQuantity(item.id, 1)} className="w-7 h-7 rounded-full flex items-center justify-center text-white" style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
-                                                <Plus className="w-3.5 h-3.5" />
-                                            </button>
-                                            <button onClick={() => removeFromCart(item.id)} className="w-7 h-7 rounded-full bg-red-50 flex items-center justify-center hover:bg-red-100">
-                                                <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                    {/* Per-item instructions */}
-                                    <div className="mt-2">
-                                        {instructionItemId === item.id ? (
-                                            <div className="flex gap-1">
-                                                <Input
-                                                    placeholder="e.g. Extra spicy, no onion..."
-                                                    value={item.instructions}
-                                                    onChange={e => setItemInstructions(item.id, e.target.value)}
-                                                    className="h-8 text-xs"
-                                                    autoFocus
-                                                />
-                                                <button onClick={() => setInstructionItemId(null)} className="px-2 py-1 text-xs rounded bg-gray-200 hover:bg-gray-300">
-                                                    Done
+                            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                                {cart.map(item => (
+                                    <div key={item.id} className="bg-gray-50 rounded-xl p-3">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="font-semibold text-sm text-gray-800 truncate">{item.name}</h4>
+                                                <span className="text-xs text-gray-500">₹{item.price}/{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => updateQuantity(item.id, -1)} className="w-7 h-7 rounded-full bg-white border flex items-center justify-center hover:bg-gray-100">
+                                                    <Minus className="w-3.5 h-3.5" />
+                                                </button>
+                                                <span className="text-sm font-bold w-5 text-center">{item.quantity / (item.base_value || 1)}</span>
+                                                <button onClick={() => updateQuantity(item.id, 1)} className="w-7 h-7 rounded-full flex items-center justify-center text-white" style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                                    <Plus className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button onClick={() => removeFromCart(item.id)} className="w-7 h-7 rounded-full bg-red-50 flex items-center justify-center hover:bg-red-100">
+                                                    <Trash2 className="w-3.5 h-3.5 text-red-500" />
                                                 </button>
                                             </div>
-                                        ) : (
-                                            <button
-                                                onClick={() => setInstructionItemId(item.id)}
-                                                className="text-xs text-amber-600 flex items-center gap-1 hover:text-amber-700"
-                                            >
-                                                <MessageSquare className="w-3 h-3" />
-                                                {item.instructions || 'Add instructions'}
-                                            </button>
-                                        )}
+                                        </div>
+                                        {/* Per-item instructions */}
+                                        <div className="mt-2">
+                                            {instructionItemId === item.id ? (
+                                                <div className="flex gap-1">
+                                                    <Input
+                                                        placeholder="e.g. Extra spicy, no onion..."
+                                                        value={item.instructions}
+                                                        onChange={e => setItemInstructions(item.id, e.target.value)}
+                                                        className="h-8 text-xs"
+                                                        autoFocus
+                                                    />
+                                                    <button onClick={() => setInstructionItemId(null)} className="px-2 py-1 text-xs rounded bg-gray-200 hover:bg-gray-300">
+                                                        Done
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => setInstructionItemId(item.id)}
+                                                    className="text-xs text-amber-600 flex items-center gap-1 hover:text-amber-700"
+                                                >
+                                                    <MessageSquare className="w-3 h-3" />
+                                                    {item.instructions || 'Add instructions'}
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="text-right mt-1">
+                                            <span className="font-bold text-sm" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                                ₹{((item.quantity / (item.base_value || 1)) * item.price).toFixed(0)}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="text-right mt-1">
-                                        <span className="font-bold text-sm" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>
-                                            ₹{((item.quantity / (item.base_value || 1)) * item.price).toFixed(0)}
-                                        </span>
-                                    </div>
+                                ))}
+
+                                {/* General order note */}
+                                <div className="pt-2">
+                                    <label className="text-xs font-medium text-gray-500 mb-1 block">Note for kitchen (optional)</label>
+                                    <Input
+                                        placeholder="Any general instructions..."
+                                        value={orderNote}
+                                        onChange={e => setOrderNote(e.target.value)}
+                                        className="h-9 text-sm"
+                                    />
                                 </div>
-                            ))}
-
-                            {/* General order note */}
-                            <div className="pt-2">
-                                <label className="text-xs font-medium text-gray-500 mb-1 block">Note for kitchen (optional)</label>
-                                <Input
-                                    placeholder="Any general instructions..."
-                                    value={orderNote}
-                                    onChange={e => setOrderNote(e.target.value)}
-                                    className="h-9 text-sm"
-                                />
                             </div>
-                        </div>
 
-                        {/* Cart summary + Place Order */}
-                        <div className="p-4 border-t bg-white">
-                            <div className="flex justify-between items-center mb-3">
-                                <span className="text-sm text-gray-600">{cartItemCount} item{cartItemCount !== 1 ? 's' : ''}</span>
-                                <span className="text-lg font-bold" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>₹{cartTotal.toFixed(0)}</span>
+                            {/* Cart summary + Place Order */}
+                            <div className="p-4 border-t bg-white">
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-sm text-gray-600">{cartItemCount} item{cartItemCount !== 1 ? 's' : ''}</span>
+                                    <span className="text-lg font-bold" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>₹{cartTotal.toFixed(0)}</span>
+                                </div>
+                                <Button
+                                    onClick={placeOrder}
+                                    disabled={isPlacingOrder || cart.length === 0}
+                                    className="w-full h-12 text-base font-bold rounded-xl text-white"
+                                    style={{ background: shopSettings?.menu_primary_color ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})` : 'linear-gradient(135deg, #ea580c, #dc2626)' }}
+                                >
+                                    {isPlacingOrder ? (
+                                        <><Loader2 className="w-5 h-5 animate-spin mr-2" /> Placing Order...</>
+                                    ) : (
+                                        <><Send className="w-5 h-5 mr-2" /> Place Order ₹{cartTotal.toFixed(0)}</>
+                                    )}
+                                </Button>
                             </div>
-                            <Button
-                                onClick={placeOrder}
-                                disabled={isPlacingOrder || cart.length === 0}
-                                className="w-full h-12 text-base font-bold rounded-xl text-white"
-                                style={{ background: shopSettings?.menu_primary_color ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})` : 'linear-gradient(135deg, #ea580c, #dc2626)' }}
-                            >
-                                {isPlacingOrder ? (
-                                    <><Loader2 className="w-5 h-5 animate-spin mr-2" /> Placing Order...</>
-                                ) : (
-                                    <><Send className="w-5 h-5 mr-2" /> Place Order ₹{cartTotal.toFixed(0)}</>
-                                )}
-                            </Button>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Floating Cart Bar (when table mode + items in cart) */}
-            {isTableMode && cartItemCount > 0 && !showCart && (
-                <div className="fixed bottom-[76px] left-0 right-0 z-50 px-4">
-                    <button
-                        onClick={() => setShowCart(true)}
-                        className="w-full max-w-2xl mx-auto flex items-center justify-between px-5 py-3.5 rounded-2xl shadow-xl text-white transition-transform active:scale-[0.98]"
-                        style={{ background: shopSettings?.menu_primary_color ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})` : 'linear-gradient(135deg, #ea580c, #dc2626)' }}
-                    >
-                        <div className="flex items-center gap-3">
-                            <div className="relative">
-                                <ShoppingCart className="w-5 h-5" />
-                                <span className="absolute -top-2 -right-2 bg-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>
-                                    {cartItemCount}
-                                </span>
+            {
+                isTableMode && cartItemCount > 0 && !showCart && (
+                    <div className="fixed bottom-[76px] left-0 right-0 z-50 px-4">
+                        <button
+                            onClick={() => setShowCart(true)}
+                            className="w-full max-w-2xl mx-auto flex items-center justify-between px-5 py-3.5 rounded-2xl shadow-xl text-white transition-transform active:scale-[0.98]"
+                            style={{ background: shopSettings?.menu_primary_color ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})` : 'linear-gradient(135deg, #ea580c, #dc2626)' }}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="relative">
+                                    <ShoppingCart className="w-5 h-5" />
+                                    <span className="absolute -top-2 -right-2 bg-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                        {cartItemCount}
+                                    </span>
+                                </div>
+                                <span className="font-semibold">{cartItemCount} item{cartItemCount !== 1 ? 's' : ''} in cart</span>
                             </div>
-                            <span className="font-semibold">{cartItemCount} item{cartItemCount !== 1 ? 's' : ''} in cart</span>
-                        </div>
-                        <span className="font-bold text-lg">₹{cartTotal.toFixed(0)} →</span>
-                    </button>
-                </div>
-            )}
+                            <span className="font-bold text-lg">₹{cartTotal.toFixed(0)} →</span>
+                        </button>
+                    </div>
+                )
+            }
 
             {/* My Orders Toggle Button (table mode, no cart) */}
-            {isTableMode && sessionOrders.length > 0 && cartItemCount === 0 && !showMyOrders && (
-                <div className="fixed bottom-[76px] left-0 right-0 z-50 px-4">
-                    <button
-                        onClick={() => setShowMyOrders(true)}
-                        className="w-full max-w-2xl mx-auto flex items-center justify-between px-5 py-3 rounded-2xl shadow-lg bg-blue-600 text-white"
-                    >
-                        <div className="flex items-center gap-2">
-                            <ChefHat className="w-5 h-5" />
-                            <span className="font-semibold">My Orders ({sessionOrders.length})</span>
+            {
+                isTableMode && sessionOrders.length > 0 && cartItemCount === 0 && !showMyOrders && !isSessionComplete && (
+                    <div className="fixed bottom-[76px] left-0 right-0 z-50 px-4">
+                        <button
+                            onClick={() => setShowMyOrders(true)}
+                            className="w-full max-w-2xl mx-auto flex items-center justify-between px-5 py-3 rounded-2xl shadow-lg bg-blue-600 text-white"
+                        >
+                            <div className="flex items-center gap-2">
+                                <ChefHat className="w-5 h-5" />
+                                <span className="font-semibold">My Orders ({sessionOrders.length})</span>
+                            </div>
+                            <span className="font-bold">₹{sessionTotal.toFixed(0)}</span>
+                        </button>
+                    </div>
+                )
+            }
+
+            {/* Session Complete — Start New Order */}
+            {
+                isTableMode && isSessionComplete && (
+                    <div className="fixed bottom-[76px] left-0 right-0 z-50 px-4">
+                        <div className="w-full max-w-2xl mx-auto bg-green-50 border border-green-200 rounded-2xl shadow-lg p-4 text-center">
+                            <CheckCircle2 className="w-8 h-8 text-green-500 mx-auto mb-2" />
+                            <p className="text-green-800 font-semibold text-sm mb-1">All orders completed & paid!</p>
+                            <p className="text-green-600 text-xs mb-3">Thank you for dining with us 🙏</p>
+                            <button
+                                onClick={startNewOrder}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-xl font-semibold text-sm shadow hover:bg-green-700 transition-colors"
+                            >
+                                <RefreshCw className="w-4 h-4" />
+                                Start New Order
+                            </button>
                         </div>
-                        <span className="font-bold">₹{sessionTotal.toFixed(0)}</span>
-                    </button>
-                </div>
-            )}
+                    </div>
+                )
+            }
 
             {/* Footer with Contact Info */}
             <footer
@@ -1541,7 +1643,7 @@ const PublicMenu = () => {
                     </p>
                 </div>
             </footer>
-        </div>
+        </div >
     );
 };
 
