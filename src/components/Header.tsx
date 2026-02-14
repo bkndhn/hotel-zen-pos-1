@@ -74,8 +74,8 @@ export const Header: React.FC = () => {
                     <Menu className="h-5 w-5" />
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-72 p-0">
-                  <SheetHeader className="p-4 border-b bg-gradient-to-br from-primary/10 to-primary/5">
+                <SheetContent side="left" className="w-72 p-0 flex flex-col">
+                  <SheetHeader className="p-4 border-b bg-gradient-to-br from-primary/10 to-primary/5 shrink-0">
                     <SheetTitle className="flex items-center gap-2">
                       <div className="w-9 h-9 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center">
                         <Hotel className="h-5 w-5 text-primary-foreground" />
@@ -86,7 +86,7 @@ export const Header: React.FC = () => {
                       </div>
                     </SheetTitle>
                   </SheetHeader>
-                  <nav className="flex-1 p-3">
+                  <nav className="flex-1 p-3 overflow-y-auto">
                     <ul className="space-y-1">
                       {navItems.map(({ to, icon: Icon, label }) => {
                         const isActive = location.pathname === to ||
