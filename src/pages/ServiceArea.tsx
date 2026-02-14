@@ -93,7 +93,7 @@ const ServiceArea = () => {
         fetchDebounceRef.current = setTimeout(() => {
             fetchBills(silent);
         }, 50); // 50ms debounce
-    }, []);
+    }, [adminId]);
 
     // Fetch bills that need service AND recently processed ones
     const fetchBills = useCallback(async (silent = false) => {
@@ -172,7 +172,7 @@ const ServiceArea = () => {
             if (!silent) setLoading(false);
             setInitialLoadDone(true);
         }
-    }, []);
+    }, [adminId]);
 
     // Fetch table orders ready to serve
     const fetchTableOrders = useCallback(async () => {
@@ -192,7 +192,7 @@ const ServiceArea = () => {
         } catch (e) {
             console.warn('[ServiceArea] Table orders fetch error:', e);
         }
-    }, []);
+    }, [adminId]);
 
     // === LAYER 1: Supabase Broadcast (Cross-device, <100ms) ===
     useEffect(() => {
