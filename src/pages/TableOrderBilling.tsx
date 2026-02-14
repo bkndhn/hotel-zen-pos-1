@@ -499,7 +499,7 @@ const TableOrderBilling: React.FC = () => {
                 }
             });
 
-            // 6. Broadcast status update to customer sessions
+            // 6. Broadcast status update to customer sessions (include is_billed for instant hide)
             const sessionIds = [...new Set(orders.map(o => o.session_id))];
             for (const sid of sessionIds) {
                 const channel = supabase.channel(`table-order-status-${sid}`);
@@ -507,7 +507,7 @@ const TableOrderBilling: React.FC = () => {
                     await channel.send({
                         type: 'broadcast',
                         event: 'order-status-update',
-                        payload: { order_id: order.id, status: 'served' }
+                        payload: { order_id: order.id, status: 'served', is_billed: true }
                     });
                 }
                 supabase.removeChannel(channel);

@@ -782,11 +782,26 @@ const PublicMenu = () => {
         // Subscribe to broadcast for instant updates
         const channel = supabase.channel(`table-order-status-${sessionId}`)
             .on('broadcast', { event: 'order-status-update' }, (payload: any) => {
-                const { order_id, status } = payload.payload || {};
+                const { order_id, status, is_billed } = payload.payload || {};
                 if (order_id && status) {
-                    setSessionOrders(prev => prev.map(o =>
-                        o.id === order_id ? { ...o, status } : o
-                    ));
+                    setSessionOrders(prev => {
+                        const updated = prev.map(o =>
+                            o.id === order_id ? { ...o, status, ...(is_billed !== undefined ? { is_billed } : {}) } : o
+                        );
+                        // Auto-clear session when ALL orders are served+billed
+                        const allDone = updated.length > 0 && updated.every(
+                            o => (['served', 'cancelled'].includes(o.status)) && (o as any).is_billed
+                        );
+                        if (allDone && sessionStorageKey) {
+                            // Delay slightly to let UI show final status
+                            setTimeout(() => {
+                                localStorage.removeItem(sessionStorageKey);
+                                setSessionOrders([]);
+                                setShowMyOrders(false);
+                            }, 2000);
+                        }
+                        return updated;
+                    });
                 }
             })
             .subscribe();
@@ -818,7 +833,7 @@ const PublicMenu = () => {
             supabase.removeChannel(channel);
             supabase.removeChannel(pgChannel);
         };
-    }, [adminId, sessionId, isTableMode]);
+    }, [adminId, sessionId, isTableMode, sessionStorageKey]);
 
     // Status helpers
     const getStatusIcon = (status: string) => {

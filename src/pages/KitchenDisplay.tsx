@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChefHat, Clock, Bell, Volume2, VolumeX, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { ChefHat, Clock, Bell, Volume2, VolumeX, Wifi, WifiOff, RefreshCw, Undo2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { getTimeElapsed, formatTimeAMPM, formatQuantityWithUnit } from '@/utils/timeUtils';
 import { cn } from '@/lib/utils';
@@ -76,6 +76,16 @@ const KitchenDisplay = () => {
     // Table orders state
     const [tableOrders, setTableOrders] = useState<KitchenTableOrder[]>([]);
     const knownTableOrderIds = useRef<Set<string>>(new Set());
+
+    // Recently processed bills/orders for undo (last 5 minutes)
+    const [recentlyProcessed, setRecentlyProcessed] = useState<Array<{
+        id: string;
+        type: 'bill' | 'table-order';
+        label: string;
+        previousStatus: string;
+        newStatus: string;
+        timestamp: string;
+    }>>([]);
 
     // Update current time every minute
     useEffect(() => {
@@ -350,6 +360,18 @@ const KitchenDisplay = () => {
         status: 'preparing' | 'ready'
     ) => {
         const prevBills = [...bills];
+        const targetBill = bills.find(b => b.id === billId);
+        const previousStatus = targetBill?.kitchen_status || 'pending';
+
+        // Track for undo
+        setRecentlyProcessed(prev => [{
+            id: billId,
+            type: 'bill',
+            label: `#${billNo}`,
+            previousStatus,
+            newStatus: status,
+            timestamp: new Date().toISOString(),
+        }, ...prev.filter(p => p.id !== billId)].slice(0, 10));
 
         // 1. Instant local update (Optimistic UI)
         setBills(prev => prev.map(bill =>
@@ -441,6 +463,19 @@ const KitchenDisplay = () => {
 
     // Update table order status
     const updateTableOrderStatus = async (orderId: string, tableNumber: string, sessionId: string, status: 'preparing' | 'ready' | 'served') => {
+        const targetOrder = tableOrders.find(o => o.id === orderId);
+        const previousStatus = targetOrder?.status || 'pending';
+
+        // Track for undo
+        setRecentlyProcessed(prev => [{
+            id: orderId,
+            type: 'table-order',
+            label: `T${tableNumber}`,
+            previousStatus,
+            newStatus: status,
+            timestamp: new Date().toISOString(),
+        }, ...prev.filter(p => p.id !== orderId)].slice(0, 10));
+
         // Optimistic update
         setTableOrders(prev => prev.map(o =>
             o.id === orderId ? { ...o, status } : o
@@ -801,8 +836,56 @@ const KitchenDisplay = () => {
                     </div>
 
                 </div>
+
+                {/* Recently Processed - Undo Section */}
+                {recentlyProcessed.filter(p => {
+                    const elapsed = Date.now() - new Date(p.timestamp).getTime();
+                    return elapsed < 5 * 60 * 1000; // 5 min window
+                }).length > 0 && (
+                        <div className="mt-6 pt-4 border-t border-dashed">
+                            <h3 className="text-sm font-bold text-muted-foreground mb-3 flex items-center gap-2 uppercase tracking-widest">
+                                <Undo2 className="w-4 h-4" />
+                                Recently Processed (Undo)
+                            </h3>
+                            <div className="flex flex-wrap gap-2">
+                                {recentlyProcessed.filter(p => {
+                                    const elapsed = Date.now() - new Date(p.timestamp).getTime();
+                                    return elapsed < 5 * 60 * 1000;
+                                }).map((p) => (
+                                    <Button
+                                        key={p.id}
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            if (p.type === 'bill') {
+                                                updateKitchenStatus(p.id, p.label.replace('#', ''), p.previousStatus as any);
+                                            } else {
+                                                const order = tableOrders.find(o => o.id === p.id);
+                                                if (order) {
+                                                    updateTableOrderStatus(p.id, order.table_number, order.session_id, p.previousStatus as any);
+                                                }
+                                            }
+                                            setRecentlyProcessed(prev => prev.filter(x => x.id !== p.id));
+                                        }}
+                                        className="gap-2 h-10 border-2 hover:bg-muted/50"
+                                    >
+                                        <Undo2 className="w-3 h-3 text-muted-foreground" />
+                                        <span className="font-bold">{p.label}</span>
+                                        <Badge
+                                            variant={p.newStatus === 'ready' ? 'default' : 'secondary'}
+                                            className="h-5 px-1.5 min-w-[20px] justify-center text-[10px]"
+                                        >
+                                            {p.previousStatus} ← {p.newStatus}
+                                        </Badge>
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
             </div>
         </div>
+    </div >
     );
 };
 
