@@ -106,20 +106,34 @@ const TableManagement: React.FC = () => {
     return () => clearInterval(interval);
   }, [fetchTableOrderCounts]);
 
-  // Real-time subscription for table orders
+  // Real-time subscription for table orders + status via shared channel
   useEffect(() => {
-    const channel = supabase.channel('table-orders-mgmt-sync', {
+    // Listen on the SAME channel that PublicMenu, Kitchen, ServiceArea all broadcast on
+    const channel = supabase.channel('table-order-sync', {
       config: { broadcast: { self: true } }
     })
       .on('broadcast', { event: 'new-table-order' }, () => {
         fetchTableOrderCounts();
-        fetchTables(); // Auto-update table status
+        fetchTables();
+      })
+      .on('broadcast', { event: 'table-order-status-update' }, () => {
+        fetchTableOrderCounts();
+        fetchTables();
+      })
+      .on('broadcast', { event: 'table-status-updated' }, () => {
+        fetchTables();
+        fetchTableOrderCounts();
       })
       .subscribe();
 
+    // Postgres changes as reliable backup
     const pgChannel = supabase.channel('table-orders-mgmt-pg')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'table_orders' }, () => {
         fetchTableOrderCounts();
+        fetchTables();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tables' }, () => {
+        fetchTables();
       })
       .subscribe();
 
@@ -128,20 +142,6 @@ const TableManagement: React.FC = () => {
       supabase.removeChannel(pgChannel);
     };
   }, [fetchTableOrderCounts, fetchTables]);
-
-  // Listen for table status broadcasts from Billing/PublicMenu/TableOrderBilling/ServiceArea
-  useEffect(() => {
-    const channel = supabase.channel('table-status-sync-mgmt', {
-      config: { broadcast: { self: true } }
-    })
-      .on('broadcast', { event: 'table-status-updated' }, () => {
-        fetchTables();
-        fetchTableOrderCounts();
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [fetchTables, fetchTableOrderCounts]);
 
   const handleOpenDialog = (table?: Table) => {
     if (table) {

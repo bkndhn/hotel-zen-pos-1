@@ -229,10 +229,13 @@ const TableOrderBilling: React.FC = () => {
 
         const interval = setInterval(fetchTableOrders, 15000);
 
-        const channel = supabase.channel('table-billing-sync', {
+        // Listen on the SAME shared channel that PublicMenu/Kitchen/ServiceArea use
+        const channel = supabase.channel('table-order-sync', {
             config: { broadcast: { self: true } }
         })
             .on('broadcast', { event: 'new-table-order' }, () => fetchTableOrders())
+            .on('broadcast', { event: 'table-order-status-update' }, () => fetchTableOrders())
+            .on('broadcast', { event: 'table-status-updated' }, () => fetchTableOrders())
             .subscribe();
 
         const pgChannel = supabase.channel('table-billing-pg')
@@ -457,12 +460,21 @@ const TableOrderBilling: React.FC = () => {
                 console.warn('Failed to free table:', tableError);
             }
 
-            // Broadcast table freed to TableManagement
+            // Broadcast table freed to TableManagement via shared channel
+            // syncChannelRef is pos-global-sync (for Kitchen/ServiceArea)
             syncChannelRef.current?.send({
                 type: 'broadcast',
                 event: 'table-status-updated',
                 payload: { table_number: tableNumber, status: 'available', timestamp: Date.now() }
             });
+            // Also send on the shared table-order-sync channel (for Tables/TableBilling)
+            const tableChannel = supabase.channel('table-order-sync');
+            await tableChannel.send({
+                type: 'broadcast',
+                event: 'table-status-updated',
+                payload: { table_number: tableNumber, status: 'available', timestamp: Date.now() }
+            });
+            supabase.removeChannel(tableChannel);
 
             // 5. Broadcast bill creation (4-layer sync)
             window.dispatchEvent(new CustomEvent('bills-updated'));

@@ -389,12 +389,20 @@ const ServiceArea = () => {
                         .from('tables')
                         .update({ status: 'available', current_bill_id: null })
                         .eq('table_number', tableNum)
-                        .then(() => {
+                        .then(async () => {
                             broadcastChannelRef.current?.send({
                                 type: 'broadcast',
                                 event: 'table-status-updated',
                                 payload: { table_number: tableNum, status: 'available', timestamp: Date.now() }
                             });
+                            // Also broadcast on shared table-order-sync channel
+                            const sharedChannel = supabase.channel('table-order-sync');
+                            await sharedChannel.send({
+                                type: 'broadcast',
+                                event: 'table-status-updated',
+                                payload: { table_number: tableNum, status: 'available', timestamp: Date.now() }
+                            });
+                            supabase.removeChannel(sharedChannel);
                             console.log(`[ServiceArea] Table ${tableNum} freed after bill completion`);
                         })
                         .catch((err: any) => console.warn('[ServiceArea] Failed to free table:', err));
