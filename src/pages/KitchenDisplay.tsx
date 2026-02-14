@@ -70,6 +70,7 @@ const KitchenDisplay = () => {
     const [pendingUpdatesCount, setPendingUpdatesCount] = useState(0);
     const [syncing, setSyncing] = useState(false);
     const syncChannelRef = useRef<any>(null);
+    const tableOrderChannelRef = useRef<any>(null);
     const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Table orders state
@@ -268,6 +269,8 @@ const KitchenDisplay = () => {
             })
             .subscribe();
 
+        tableOrderChannelRef.current = channel;
+
         // Also subscribe to postgres_changes for table_orders
         const pgChannel = supabase.channel('table-order-kitchen-pg')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'table_orders' }, () => {
@@ -460,14 +463,14 @@ const KitchenDisplay = () => {
             });
             supabase.removeChannel(channel);
 
-            // Broadcast to Service Area and other displays via shared channel
-            const syncChannel = supabase.channel('table-order-sync');
-            await syncChannel.send({
+            // Broadcast to Service Area and other displays via persistent shared channel
+            // IMPORTANT: Do NOT create a new channel('table-order-sync') — it returns the
+            // existing persistent listener and removeChannel would destroy it.
+            tableOrderChannelRef.current?.send({
                 type: 'broadcast',
                 event: 'table-order-status-update',
                 payload: { order_id: orderId, table_number: tableNumber, status }
             });
-            supabase.removeChannel(syncChannel);
 
             // Also broadcast to other kitchen/service displays
             syncChannelRef.current?.send({

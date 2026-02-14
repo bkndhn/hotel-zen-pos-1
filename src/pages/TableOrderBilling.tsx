@@ -91,6 +91,7 @@ const TableOrderBilling: React.FC = () => {
     const [whatsappShareMode, setWhatsappShareMode] = useState<'text' | 'image'>('text');
     const [billSettings, setBillSettings] = useState<any>(null);
     const syncChannelRef = useRef<any>(null);
+    const tableOrderChannelRef = useRef<any>(null);
 
     const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
 
@@ -237,6 +238,8 @@ const TableOrderBilling: React.FC = () => {
             .on('broadcast', { event: 'table-order-status-update' }, () => fetchTableOrders())
             .on('broadcast', { event: 'table-status-updated' }, () => fetchTableOrders())
             .subscribe();
+
+        tableOrderChannelRef.current = channel;
 
         const pgChannel = supabase.channel('table-billing-pg')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'table_orders' }, () => fetchTableOrders())
@@ -468,13 +471,12 @@ const TableOrderBilling: React.FC = () => {
                 payload: { table_number: tableNumber, status: 'available', timestamp: Date.now() }
             });
             // Also send on the shared table-order-sync channel (for Tables/TableBilling)
-            const tableChannel = supabase.channel('table-order-sync');
-            await tableChannel.send({
+            // Use persistent ref to avoid destroying the listener
+            tableOrderChannelRef.current?.send({
                 type: 'broadcast',
                 event: 'table-status-updated',
                 payload: { table_number: tableNumber, status: 'available', timestamp: Date.now() }
             });
-            supabase.removeChannel(tableChannel);
 
             // 5. Broadcast bill creation (4-layer sync)
             window.dispatchEvent(new CustomEvent('bills-updated'));

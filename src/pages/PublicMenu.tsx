@@ -315,7 +315,7 @@ const PublicMenu = () => {
         if (!adminId) return;
 
         const channel = supabase
-            .channel(`public - menu - ${adminId} `)
+            .channel(`public-menu-${adminId}`)
             .on(
                 'postgres_changes',
                 {
@@ -630,18 +630,15 @@ const PublicMenu = () => {
                 .eq('table_number', tableNo);
             if (tableErr) console.warn('Table status update failed:', tableErr);
 
-            // Broadcast table status change to TableManagement via shared channel
-            const tableStatusChannel = supabase.channel('table-order-sync');
-            await tableStatusChannel.send({
+            // Broadcast table status change + new order to Kitchen/ServiceArea via shared channel
+            // Use single channel instance for both sends to avoid create-remove-create race
+            const syncChannel = supabase.channel('table-order-sync');
+            await syncChannel.send({
                 type: 'broadcast',
                 event: 'table-status-updated',
                 payload: { table_number: tableNo, status: 'occupied', timestamp: Date.now() }
             });
-            supabase.removeChannel(tableStatusChannel);
-
-            // Broadcast new order to kitchen
-            const channel = supabase.channel('table-order-sync');
-            await channel.send({
+            await syncChannel.send({
                 type: 'broadcast',
                 event: 'new-table-order',
                 payload: {
@@ -657,7 +654,7 @@ const PublicMenu = () => {
                     created_at: data.created_at
                 }
             });
-            supabase.removeChannel(channel);
+            supabase.removeChannel(syncChannel);
 
             // Add to local orders
             setSessionOrders(prev => [...prev, {
@@ -764,7 +761,7 @@ const PublicMenu = () => {
         if (!adminId || !sessionId || !isTableMode) return;
 
         // Subscribe to broadcast for instant updates
-        const channel = supabase.channel(`table - order - status - ${sessionId} `)
+        const channel = supabase.channel(`table-order-status-${sessionId}`)
             .on('broadcast', { event: 'order-status-update' }, (payload: any) => {
                 const { order_id, status } = payload.payload || {};
                 if (order_id && status) {
@@ -776,14 +773,14 @@ const PublicMenu = () => {
             .subscribe();
 
         // Also subscribe to postgres_changes as fallback
-        const pgChannel = supabase.channel(`table - order - pg - ${sessionId} `)
+        const pgChannel = supabase.channel(`table-order-pg-${sessionId}`)
             .on(
                 'postgres_changes',
                 {
                     event: 'UPDATE',
                     schema: 'public',
                     table: 'table_orders',
-                    filter: `session_id = eq.${sessionId} `
+                    filter: `session_id=eq.${sessionId}`
                 },
                 (payload: any) => {
                     const updated = payload.new;

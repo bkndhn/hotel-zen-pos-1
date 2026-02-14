@@ -77,6 +77,7 @@ const ServiceArea = () => {
     const [processingBillId, setProcessingBillId] = useState<string | null>(null);
     const [isConnected, setIsConnected] = useState(true); // Start optimistic
     const broadcastChannelRef = useRef<any>(null);
+    const tableOrderChannelRef = useRef<any>(null);
     const lastFetchRef = useRef<number>(0);
     const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
     const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -303,6 +304,8 @@ const ServiceArea = () => {
             })
             .subscribe();
 
+        tableOrderChannelRef.current = channel;
+
         const pgChannel = supabase.channel('table-order-service-pg')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'table_orders' }, () => {
                 fetchTableOrders();
@@ -396,13 +399,12 @@ const ServiceArea = () => {
                                 payload: { table_number: tableNum, status: 'available', timestamp: Date.now() }
                             });
                             // Also broadcast on shared table-order-sync channel
-                            const sharedChannel = supabase.channel('table-order-sync');
-                            await sharedChannel.send({
+                            // Use persistent ref to avoid destroying the listener
+                            tableOrderChannelRef.current?.send({
                                 type: 'broadcast',
                                 event: 'table-status-updated',
                                 payload: { table_number: tableNum, status: 'available', timestamp: Date.now() }
                             });
-                            supabase.removeChannel(sharedChannel);
                             console.log(`[ServiceArea] Table ${tableNum} freed after bill completion`);
                         })
                         .catch((err: any) => console.warn('[ServiceArea] Failed to free table:', err));
