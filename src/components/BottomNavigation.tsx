@@ -23,6 +23,7 @@ const allNavItems = [
   { to: '/service-area', icon: ClipboardList, label: 'Service', page: 'serviceArea' as const },
   { to: '/kitchen', icon: ChefHat, label: 'Kitchen', page: 'kitchen' as const },
   { to: '/tables', icon: LayoutGrid, label: 'Tables', page: 'tables' as const },
+  { to: '/table-billing', icon: Receipt, label: 'Table Bill', page: 'tableBilling' as const },
   { to: '/items', icon: Package, label: 'Items', page: 'items' as const },
   { to: '/expenses', icon: Receipt, label: 'Expenses', page: 'expenses' as const },
   { to: '/reports', icon: BarChart3, label: 'Reports', page: 'reports' as const },
@@ -49,13 +50,13 @@ export const BottomNavigation: React.FC = () => {
           if (parsed.visiblePages && Array.isArray(parsed.visiblePages)) {
             setVisiblePages(parsed.visiblePages);
           } else {
-            setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'customers']);
+            setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'tableBilling', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'customers']);
           }
         } catch {
-          setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'customers']);
+          setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'tableBilling', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'customers']);
         }
       } else {
-        setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'customers']);
+        setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'tableBilling', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'customers']);
       }
 
       // Then sync from Supabase for latest data
@@ -73,13 +74,18 @@ export const BottomNavigation: React.FC = () => {
             .maybeSingle();
 
           if (data?.visible_nav_pages && Array.isArray(data.visible_nav_pages)) {
-            setVisiblePages(data.visible_nav_pages);
+            // Auto-inject any new pages that didn't exist when the user last saved
+            const savedPages = data.visible_nav_pages as string[];
+            const requiredNewPages = ['tableBilling'];
+            const updated = [...savedPages];
+            requiredNewPages.forEach(p => { if (!updated.includes(p)) updated.push(p); });
+            setVisiblePages(updated);
             // Update localStorage cache
             const cached = localStorage.getItem('hotel_pos_bill_header');
             if (cached) {
               try {
                 const parsed = JSON.parse(cached);
-                parsed.visiblePages = data.visible_nav_pages;
+                parsed.visiblePages = updated;
                 localStorage.setItem('hotel_pos_bill_header', JSON.stringify(parsed));
               } catch { }
             }

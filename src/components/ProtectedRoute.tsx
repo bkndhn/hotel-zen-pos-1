@@ -2,10 +2,11 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserPermissions } from '@/hooks/useUserPermissions';
+import type { UserPermissions } from '@/contexts/PermissionsContext';
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
-    requiredPermission: 'dashboard' | 'billing' | 'items' | 'expenses' | 'reports' | 'analytics' | 'settings' | 'users' | 'serviceArea' | 'kitchen' | 'tables';
+    requiredPermission: keyof UserPermissions;
     adminOnly?: boolean;
 }
 

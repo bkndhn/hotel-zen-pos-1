@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
-interface UserPermissions {
+export interface UserPermissions {
     dashboard: boolean;
     billing: boolean;
     items: boolean;
@@ -17,6 +17,7 @@ interface UserPermissions {
     tables: boolean;
     customers: boolean;
     qrMenu: boolean;
+    tableBilling: boolean;
 }
 
 const DEFAULT_PERMISSIONS: UserPermissions = {
@@ -34,6 +35,7 @@ const DEFAULT_PERMISSIONS: UserPermissions = {
     tables: false,
     customers: false,
     qrMenu: false,
+    tableBilling: false,
 };
 
 const ADMIN_PERMISSIONS: UserPermissions = {
@@ -51,6 +53,7 @@ const ADMIN_PERMISSIONS: UserPermissions = {
     tables: true,
     customers: true,
     qrMenu: true,
+    tableBilling: true,
 };
 
 interface PermissionsContextType {
@@ -252,7 +255,8 @@ export const PermissionsProvider: React.FC<{ children: ReactNode }> = ({ childre
             customerDisplay: '/customer-display',
             tables: '/tables',
             customers: '/crm',
-            qrMenu: '/qr-menu'
+            qrMenu: '/qr-menu',
+            tableBilling: '/table-billing'
         };
 
         const handlePermissionChange = (userId: string, pageName: string, hasAccess: boolean) => {

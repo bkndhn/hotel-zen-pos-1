@@ -5,12 +5,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Receipt, ChevronRight, Clock, Check, X, Loader2, Users, ShoppingCart } from 'lucide-react';
+import { Receipt, ChevronRight, Clock, Loader2, ShoppingCart } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getInstantBillNumber } from '@/utils/billNumberGenerator';
+import { getInstantBillNumber, initBillCounter } from '@/utils/billNumberGenerator';
 import { formatQuantityWithUnit } from '@/utils/timeUtils';
+import { CompletePaymentDialog } from '@/components/CompletePaymentDialog';
 
 // BroadcastChannel for instant cross-tab sync
 const billsChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('bills-updates') : null;
@@ -44,6 +44,23 @@ interface TableWithOrders {
     orderCount: number;
 }
 
+interface PaymentType {
+    id: string;
+    payment_type: string;
+    is_disabled: boolean;
+    is_default: boolean;
+}
+
+interface CartItem {
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    unit?: string;
+    base_value?: number;
+    quantity_step?: number;
+}
+
 const getTimeElapsed = (created: string) => {
     const diff = Date.now() - new Date(created).getTime();
     const mins = Math.floor(diff / 60000);
@@ -67,11 +84,99 @@ const TableOrderBilling: React.FC = () => {
     const [tables, setTables] = useState<TableWithOrders[]>([]);
     const [selectedTable, setSelectedTable] = useState<TableWithOrders | null>(null);
     const [isBilling, setIsBilling] = useState(false);
-    const [paymentMode, setPaymentMode] = useState<string>('cash');
-    const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+    const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+    const [paymentTypes, setPaymentTypes] = useState<PaymentType[]>([]);
+    const [additionalCharges, setAdditionalCharges] = useState<any[]>([]);
+    const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+    const [whatsappShareMode, setWhatsappShareMode] = useState<'text' | 'image'>('text');
+    const [billSettings, setBillSettings] = useState<any>(null);
     const syncChannelRef = useRef<any>(null);
 
     const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+
+    // Convert table orders into cart items for CompletePaymentDialog
+    const getCartForTable = useCallback((table: TableWithOrders): CartItem[] => {
+        const mergedItems: Record<string, CartItem> = {};
+
+        table.orders.forEach(order => {
+            order.items.forEach(item => {
+                if (mergedItems[item.item_id]) {
+                    mergedItems[item.item_id].quantity += item.quantity;
+                } else {
+                    mergedItems[item.item_id] = {
+                        id: item.item_id,
+                        name: item.name,
+                        price: item.price,
+                        quantity: item.quantity,
+                        unit: item.unit,
+                        base_value: item.base_value,
+                    };
+                }
+            });
+        });
+
+        return Object.values(mergedItems);
+    }, []);
+
+    // Fetch payment types
+    const fetchPaymentTypes = useCallback(async () => {
+        try {
+            const { data, error } = await supabase
+                .from('payments')
+                .select('*')
+                .eq('is_disabled', false)
+                .order('payment_type');
+            if (error) throw error;
+            setPaymentTypes(data || []);
+        } catch (error) {
+            console.error('Error fetching payment types:', error);
+        }
+    }, []);
+
+    // Fetch additional charges
+    const fetchAdditionalCharges = useCallback(async () => {
+        try {
+            const { data, error } = await supabase
+                .from('additional_charges')
+                .select('*')
+                .eq('is_active', true)
+                .order('name');
+            if (error) throw error;
+            setAdditionalCharges(data || []);
+        } catch (error) {
+            console.error('Error fetching additional charges:', error);
+        }
+    }, []);
+
+    // Fetch WhatsApp/shop settings
+    const fetchShopSettings = useCallback(async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { data } = await supabase
+                .from('shop_settings')
+                .select('*')
+                .eq('user_id', user.id)
+                .single();
+
+            if (data) {
+                setBillSettings({
+                    shopName: data.shop_name || '',
+                    address: data.address || '',
+                    contactNumber: data.contact_number || '',
+                    logoUrl: data.logo_url || '',
+                    whatsapp: data.whatsapp || '',
+                    showWhatsapp: data.show_whatsapp,
+                    printerWidth: data.printer_width as '58mm' | '80mm' || '58mm',
+                });
+                setWhatsappEnabled(data.whatsapp_bill_share_enabled || false);
+                setWhatsappShareMode((data as any).whatsapp_share_mode === 'image' ? 'image' : 'text');
+            }
+        } catch (error) {
+            console.error('Error fetching shop settings:', error);
+        }
+    }, []);
 
     // Fetch all unbilled table orders grouped by table
     const fetchTableOrders = useCallback(async () => {
@@ -115,6 +220,13 @@ const TableOrderBilling: React.FC = () => {
     // Setup real-time sync
     useEffect(() => {
         fetchTableOrders();
+        fetchPaymentTypes();
+        fetchAdditionalCharges();
+        fetchShopSettings();
+
+        // Seed bill counter
+        initBillCounter(adminId).catch(console.warn);
+
         const interval = setInterval(fetchTableOrders, 15000);
 
         const channel = supabase.channel('table-billing-sync', {
@@ -139,72 +251,153 @@ const TableOrderBilling: React.FC = () => {
             supabase.removeChannel(pgChannel);
             supabase.removeChannel(syncChannel);
         };
-    }, [fetchTableOrders]);
+    }, [fetchTableOrders, fetchPaymentTypes, fetchAdditionalCharges, fetchShopSettings, adminId]);
 
-    // Generate consolidated bill for selected table
-    const generateBill = async () => {
+    // Map payment mode string to database enum
+    const mapPaymentMode = (method: string): string => {
+        const lower = method.toLowerCase();
+        if (lower.includes('cash')) return 'cash';
+        if (lower.includes('upi')) return 'upi';
+        if (lower === 'card' || lower.includes('card')) return 'card';
+        return 'other';
+    };
+
+    // WhatsApp share handler
+    const handleWhatsAppShare = async (
+        customerMobile: string,
+        billNumber: string,
+        items: CartItem[],
+        totalAmount: number,
+        paymentMethod: string,
+        discount: number,
+        additionalChargesData: { name: string; amount: number }[]
+    ) => {
+        try {
+            const { formatBillMessage, shareViaWhatsApp, isValidPhoneNumber } = await import('@/utils/whatsappBillShare');
+
+            const isImageMode = whatsappShareMode === 'image';
+            if (!isImageMode && !isValidPhoneNumber(customerMobile)) {
+                toast({ title: "Invalid Phone", description: "Cannot send WhatsApp - invalid number", variant: "destructive" });
+                return;
+            }
+
+            if (isImageMode) {
+                const { shareBillImageViaWhatsApp, BillImageData } = await import('@/utils/billImageGenerator');
+                const billData: typeof BillImageData = {
+                    billNo: billNumber,
+                    date: new Date().toLocaleDateString('en-IN'),
+                    items: items.map(item => ({
+                        name: item.name,
+                        quantity: item.quantity,
+                        price: item.price,
+                        total: Math.round((item.quantity / (item.base_value || 1)) * item.price),
+                        unit: item.unit,
+                        base_value: item.base_value,
+                    })),
+                    subtotal: items.reduce((sum, item) => sum + Math.round((item.quantity / (item.base_value || 1)) * item.price), 0),
+                    discount,
+                    additionalCharges: additionalChargesData,
+                    total: totalAmount,
+                    paymentMethod,
+                    shopName: billSettings?.shopName || '',
+                    shopAddress: billSettings?.address || '',
+                    shopContact: billSettings?.contactNumber || '',
+                    shopLogo: billSettings?.logoUrl || '',
+                    whatsapp: billSettings?.showWhatsapp !== false ? billSettings?.whatsapp : undefined,
+                };
+
+                const result = await shareBillImageViaWhatsApp(customerMobile, billData);
+                toast({
+                    title: result.success ? "Shared!" : "Downloaded",
+                    description: result.success
+                        ? 'Bill image shared via WhatsApp'
+                        : 'Bill image downloaded. Attach it in WhatsApp chat.',
+                });
+            } else {
+                const message = formatBillMessage({
+                    billNo: billNumber,
+                    date: new Date().toLocaleDateString('en-IN'),
+                    items: items.map(item => ({
+                        name: item.name,
+                        quantity: item.quantity,
+                        price: item.price,
+                        total: Math.round((item.quantity / (item.base_value || 1)) * item.price),
+                        unit: item.unit,
+                        base_value: item.base_value,
+                    })),
+                    subtotal: items.reduce((sum, item) => sum + Math.round((item.quantity / (item.base_value || 1)) * item.price), 0),
+                    discount,
+                    additionalCharges: additionalChargesData,
+                    total: totalAmount,
+                    paymentMethod,
+                    shopName: billSettings?.shopName || '',
+                    shopAddress: billSettings?.address || '',
+                    shopContact: billSettings?.contactNumber || '',
+                    whatsapp: billSettings?.showWhatsapp !== false ? billSettings?.whatsapp : undefined,
+                });
+                shareViaWhatsApp(customerMobile, message);
+                toast({ title: "WhatsApp", description: "Opening WhatsApp to share bill..." });
+            }
+        } catch (err) {
+            console.error('WhatsApp share error:', err);
+            toast({ title: "WhatsApp Error", description: "Failed to share via WhatsApp", variant: "destructive" });
+        }
+    };
+
+    // Handle payment completion from CompletePaymentDialog
+    const handleCompletePayment = async (paymentData: {
+        paymentMethod: string;
+        paymentAmounts: Record<string, number>;
+        discount: number;
+        discountType: 'flat' | 'percentage';
+        additionalCharges: { name: string; amount: number; enabled: boolean }[];
+        finalItems?: CartItem[];
+        customerMobile?: string;
+        sendWhatsApp?: boolean;
+        customerGstin?: string;
+    }) => {
         if (!selectedTable || !adminId || isBilling) return;
 
+        setPaymentDialogOpen(false);
         setIsBilling(true);
-        setConfirmDialogOpen(false);
 
         try {
             const orders = selectedTable.orders;
             const tableNumber = selectedTable.table_number;
 
-            // Merge all order items - combine duplicates by item_id
-            const mergedItems: Record<string, {
-                item_id: string;
-                name: string;
-                price: number;
-                quantity: number;
-                unit?: string;
-                base_value?: number;
-            }> = {};
+            // Use final items from dialog (with any quantity/price overrides)
+            const cartItems = paymentData.finalItems || getCartForTable(selectedTable);
+            const validItems = cartItems.filter(item => item.quantity > 0);
 
-            orders.forEach(order => {
-                order.items.forEach(item => {
-                    if (mergedItems[item.item_id]) {
-                        mergedItems[item.item_id].quantity += item.quantity;
-                    } else {
-                        mergedItems[item.item_id] = {
-                            item_id: item.item_id,
-                            name: item.name,
-                            price: item.price,
-                            quantity: item.quantity,
-                            unit: item.unit,
-                            base_value: item.base_value,
-                        };
-                    }
-                });
-            });
+            if (validItems.length === 0) {
+                toast({ title: 'Error', description: 'No items to bill', variant: 'destructive' });
+                return;
+            }
 
-            const consolidatedItems = Object.values(mergedItems);
-            const totalAmount = consolidatedItems.reduce((sum, item) => {
+            // Calculate totals with rounding
+            const subtotal = validItems.reduce((sum, item) => {
                 const baseValue = item.base_value || 1;
-                return sum + (item.quantity / baseValue) * item.price;
+                return sum + Math.round((item.quantity / baseValue) * item.price);
             }, 0);
+
+            const totalAdditionalCharges = paymentData.additionalCharges.reduce((sum, charge) => sum + charge.amount, 0);
+            const totalAmount = Math.round(subtotal + totalAdditionalCharges - paymentData.discount);
 
             const billNumber = getInstantBillNumber(adminId);
             const now = new Date();
             const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-            // Map payment mode
-            const paymentModeMap: Record<string, string> = {
-                cash: 'cash',
-                upi: 'upi',
-                card: 'card',
-                other: 'other',
-            };
+            const paymentMode = mapPaymentMode(paymentData.paymentMethod);
+            const additionalChargesArray = paymentData.additionalCharges.map(c => ({ name: c.name, amount: c.amount }));
 
             // 1. Create Bill
             const billPayload = {
                 bill_no: billNumber,
                 total_amount: totalAmount,
-                discount: 0,
-                payment_mode: paymentModeMap[paymentMode] || 'cash',
-                payment_details: { [paymentMode]: totalAmount },
-                additional_charges: [],
+                discount: paymentData.discount,
+                payment_mode: paymentMode,
+                payment_details: paymentData.paymentAmounts,
+                additional_charges: additionalChargesArray,
                 created_by: profile?.user_id,
                 admin_id: adminId,
                 date: todayStr,
@@ -223,13 +416,13 @@ const TableOrderBilling: React.FC = () => {
             if (billError) throw billError;
             if (!billData) throw new Error('Failed to create bill');
 
-            // 2. Create Bill Items
-            const billItems = consolidatedItems.map(item => ({
+            // 2. Create Bill Items (with rounding)
+            const billItems = validItems.map(item => ({
                 bill_id: billData.id,
-                item_id: item.item_id,
+                item_id: item.id,
                 quantity: item.quantity,
                 price: item.price,
-                total: (item.quantity / (item.base_value || 1)) * item.price,
+                total: Math.round((item.quantity / (item.base_value || 1)) * item.price),
             }));
 
             const { error: itemsError } = await supabase
@@ -306,9 +499,22 @@ const TableOrderBilling: React.FC = () => {
                 supabase.removeChannel(channel);
             }
 
+            // 7. WhatsApp share (if requested)
+            if (paymentData.sendWhatsApp && paymentData.customerMobile) {
+                await handleWhatsAppShare(
+                    paymentData.customerMobile,
+                    billNumber,
+                    validItems,
+                    totalAmount,
+                    paymentData.paymentMethod.toUpperCase(),
+                    paymentData.discount,
+                    additionalChargesArray
+                );
+            }
+
             toast({
                 title: '✅ Bill Generated!',
-                description: `Bill ${billNumber} created for Table ${tableNumber} (₹${totalAmount.toFixed(0)})`,
+                description: `Bill ${billNumber} created for Table ${tableNumber} (₹${totalAmount})`,
             });
 
             setSelectedTable(null);
@@ -326,6 +532,12 @@ const TableOrderBilling: React.FC = () => {
         }
     };
 
+    // Handle opening payment dialog for a table
+    const handleTableSelect = (table: TableWithOrders) => {
+        setSelectedTable(table);
+        setPaymentDialogOpen(true);
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -333,6 +545,9 @@ const TableOrderBilling: React.FC = () => {
             </div>
         );
     }
+
+    // Build cart items for the currently selected table
+    const currentCart = selectedTable ? getCartForTable(selectedTable) : [];
 
     return (
         <div className="min-h-screen p-3 sm:p-4">
@@ -369,11 +584,8 @@ const TableOrderBilling: React.FC = () => {
                         {tables.map((table) => (
                             <Card
                                 key={table.table_number}
-                                className={cn(
-                                    "cursor-pointer transition-all hover:shadow-md border-l-4 border-l-purple-500",
-                                    selectedTable?.table_number === table.table_number && "ring-2 ring-purple-500"
-                                )}
-                                onClick={() => setSelectedTable(table)}
+                                className="cursor-pointer transition-all hover:shadow-md border-l-4 border-l-purple-500"
+                                onClick={() => handleTableSelect(table)}
                             >
                                 <CardContent className="p-4">
                                     <div className="flex items-center justify-between mb-3">
@@ -410,7 +622,7 @@ const TableOrderBilling: React.FC = () => {
                                     {/* Total */}
                                     <div className="flex items-center justify-between border-t pt-2">
                                         <span className="text-sm font-semibold">Total</span>
-                                        <span className="text-lg font-black text-primary">₹{table.total.toFixed(0)}</span>
+                                        <span className="text-lg font-black text-primary">₹{Math.round(table.total)}</span>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -418,154 +630,22 @@ const TableOrderBilling: React.FC = () => {
                     </div>
                 )}
 
-                {/* Selected Table Detail Dialog */}
-                <Dialog open={!!selectedTable} onOpenChange={(open) => !open && setSelectedTable(null)}>
-                    <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2 text-xl">
-                                <Receipt className="w-5 h-5 text-purple-600" />
-                                Table {selectedTable?.table_number} — Generate Bill
-                            </DialogTitle>
-                        </DialogHeader>
-
-                        {selectedTable && (
-                            <div className="space-y-4">
-                                {/* Orders list */}
-                                {selectedTable.orders.map((order) => (
-                                    <Card key={order.id} className="p-3 bg-muted/20">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="text-sm">{statusConfig[order.status]?.icon}</span>
-                                                <span className="text-sm font-semibold">Order #{order.order_number}</span>
-                                                <Badge variant="secondary" className="text-[10px]">
-                                                    {statusConfig[order.status]?.label}
-                                                </Badge>
-                                            </div>
-                                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                                <Clock className="w-3 h-3" />
-                                                {getTimeElapsed(order.created_at)}
-                                            </span>
-                                        </div>
-
-                                        <div className="space-y-1">
-                                            {order.items.map((item, idx) => (
-                                                <div key={idx} className="flex items-center justify-between text-sm">
-                                                    <div className="flex items-center gap-2">
-                                                        <Badge variant="secondary" className="text-xs font-bold min-w-[40px] justify-center">
-                                                            {formatQuantityWithUnit(item.quantity, item.unit)}
-                                                        </Badge>
-                                                        <span>{item.name}</span>
-                                                    </div>
-                                                    <span className="font-medium">
-                                                        ₹{((item.quantity / (item.base_value || 1)) * item.price).toFixed(0)}
-                                                    </span>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        {order.customer_note && (
-                                            <p className="text-xs text-amber-600 mt-2">💬 {order.customer_note}</p>
-                                        )}
-
-                                        <div className="flex items-center justify-end mt-2 border-t pt-1">
-                                            <span className="text-sm font-bold">₹{order.total_amount.toFixed(0)}</span>
-                                        </div>
-                                    </Card>
-                                ))}
-
-                                {/* Grand Total */}
-                                <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg border-2 border-primary/20">
-                                    <span className="text-lg font-bold">Grand Total</span>
-                                    <span className="text-2xl font-black text-primary">₹{selectedTable.total.toFixed(0)}</span>
-                                </div>
-
-                                {/* Payment Mode */}
-                                <div>
-                                    <label className="text-sm font-medium mb-1.5 block">Payment Method</label>
-                                    <Select value={paymentMode} onValueChange={setPaymentMode}>
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="cash">💵 Cash</SelectItem>
-                                            <SelectItem value="upi">📱 UPI</SelectItem>
-                                            <SelectItem value="card">💳 Card</SelectItem>
-                                            <SelectItem value="other">🔄 Other</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                        )}
-
-                        <DialogFooter className="gap-2">
-                            <Button
-                                variant="outline"
-                                onClick={() => setSelectedTable(null)}
-                                disabled={isBilling}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                className="bg-purple-600 hover:bg-purple-700 text-white"
-                                onClick={() => setConfirmDialogOpen(true)}
-                                disabled={isBilling}
-                            >
-                                {isBilling ? (
-                                    <>
-                                        <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-                                        Generating...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Receipt className="w-4 h-4 mr-1.5" />
-                                        Generate Bill
-                                    </>
-                                )}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-
-                {/* Confirmation Dialog */}
-                <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-                    <DialogContent className="max-w-sm">
-                        <DialogHeader>
-                            <DialogTitle>Confirm Bill Generation</DialogTitle>
-                        </DialogHeader>
-                        <div className="py-4 space-y-2">
-                            <p className="text-sm text-muted-foreground">
-                                This will generate a combined bill for <strong>Table {selectedTable?.table_number}</strong> with:
-                            </p>
-                            <ul className="text-sm space-y-1 ml-4">
-                                <li>• {selectedTable?.orderCount} order{(selectedTable?.orderCount || 0) > 1 ? 's' : ''} consolidated</li>
-                                <li>• Payment: <strong>{paymentMode.toUpperCase()}</strong></li>
-                                <li>• Total: <strong className="text-primary">₹{selectedTable?.total.toFixed(0)}</strong></li>
-                            </ul>
-                            <p className="text-xs text-muted-foreground mt-2">
-                                The table will be freed after billing.
-                            </p>
-                        </div>
-                        <DialogFooter className="gap-2">
-                            <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
-                                Cancel
-                            </Button>
-                            <Button
-                                className="bg-purple-600 hover:bg-purple-700 text-white"
-                                onClick={generateBill}
-                                disabled={isBilling}
-                            >
-                                {isBilling ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                    <>
-                                        <Check className="w-4 h-4 mr-1" />
-                                        Confirm & Generate
-                                    </>
-                                )}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
+                {/* Payment Dialog — reuse CompletePaymentDialog */}
+                <CompletePaymentDialog
+                    open={paymentDialogOpen}
+                    onOpenChange={(open) => {
+                        setPaymentDialogOpen(open);
+                        if (!open) setSelectedTable(null);
+                    }}
+                    cart={currentCart}
+                    paymentTypes={paymentTypes}
+                    additionalCharges={additionalCharges}
+                    onUpdateQuantity={() => { }}
+                    onRemoveItem={() => { }}
+                    onCompletePayment={handleCompletePayment}
+                    whatsappEnabled={whatsappEnabled}
+                    whatsappShareMode={whatsappShareMode}
+                />
             </div>
         </div>
     );
