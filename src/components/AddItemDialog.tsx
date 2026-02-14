@@ -51,6 +51,8 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
   const [open, setOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [hasPremiumAccess, setHasPremiumAccess] = useState(false);
+  const [itemLimit, setItemLimit] = useState<number | null>(null);
+  const [currentItemCount, setCurrentItemCount] = useState(0);
   const [gstEnabled, setGstEnabled] = useState(false);
   const [taxRates, setTaxRates] = useState<TaxRateOption[]>([]);
   const [formData, setFormData] = useState({
@@ -84,11 +86,19 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
 
       const { data } = await supabase
         .from('profiles')
-        .select('has_qr_menu_access')
+        .select('has_qr_menu_access, item_limit')
         .eq('id', adminId)
         .single();
 
       setHasPremiumAccess(data?.has_qr_menu_access || false);
+      setItemLimit((data as any)?.item_limit ?? null);
+
+      // Count all items for this admin
+      const { count } = await supabase
+        .from('items')
+        .select('*', { count: 'exact', head: true })
+        .eq('admin_id', adminId);
+      setCurrentItemCount(count ?? 0);
     };
     checkPremiumAccess();
   }, [profile]);
@@ -162,6 +172,16 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
       toast({
         title: "Error",
         description: "An item with this name already exists",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check item limit
+    if (itemLimit !== null && currentItemCount >= itemLimit) {
+      toast({
+        title: "Item Limit Reached",
+        description: `You have reached the maximum of ${itemLimit} items. Contact your administrator to increase the limit.`,
         variant: "destructive",
       });
       return;
@@ -243,6 +263,7 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
         hsn_code: ''
       });
       setOpen(false);
+      setCurrentItemCount(prev => prev + 1);
       onItemAdded();
     } catch (error) {
       console.error('Error adding item:', error);
@@ -259,10 +280,17 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Item
-        </Button>
+        <div className="flex items-center gap-2">
+          {itemLimit !== null && (
+            <span className={`text-xs font-medium px-2 py-1 rounded-full border ${currentItemCount >= itemLimit ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800' : 'bg-muted text-muted-foreground'}`}>
+              {currentItemCount}/{itemLimit} items
+            </span>
+          )}
+          <Button disabled={itemLimit !== null && currentItemCount >= itemLimit}>
+            <Plus className="w-4 h-4 mr-2" />
+            {itemLimit !== null && currentItemCount >= itemLimit ? 'Limit Reached' : 'Add Item'}
+          </Button>
+        </div>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

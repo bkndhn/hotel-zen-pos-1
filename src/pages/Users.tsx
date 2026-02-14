@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
-import { Users as UsersIcon, Search, User, Shield, ChevronDown, ChevronRight, Crown, QrCode } from 'lucide-react';
+import { Users as UsersIcon, Search, User, Shield, ChevronDown, ChevronRight, Crown, QrCode, Package, Save } from 'lucide-react';
 import { AddUserDialog } from '@/components/AddUserDialog';
 import { Switch } from '@/components/ui/switch';
 
@@ -21,6 +21,8 @@ interface ExtendedUserProfile extends UserProfile {
   last_login?: string | null;
   login_count?: number | null;
   has_qr_menu_access?: boolean;
+  item_limit?: number | null;
+  itemCount?: number;
 }
 
 const Users: React.FC = () => {
@@ -30,6 +32,8 @@ const Users: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedAdmins, setExpandedAdmins] = useState<Set<string>>(new Set());
+  const [editingLimits, setEditingLimits] = useState<Record<string, string>>({});
+  const [savingLimit, setSavingLimit] = useState<string | null>(null);
 
   const isSuperAdmin = profile?.role === 'super_admin';
   const isAdmin = profile?.role === 'admin';
@@ -96,7 +100,8 @@ const Users: React.FC = () => {
         admin_id: user.admin_id,
         last_login: user.last_login,
         login_count: user.login_count,
-        has_qr_menu_access: user.has_qr_menu_access ?? false
+        has_qr_menu_access: user.has_qr_menu_access ?? false,
+        item_limit: (user as any).item_limit ?? null
       })) as ExtendedUserProfile[];
 
       if (isSuperAdmin) {
@@ -108,6 +113,15 @@ const Users: React.FC = () => {
         admins.forEach(admin => {
           admin.subUsers = subUsers.filter(sub => sub.admin_id === admin.id);
         });
+
+        // Fetch item counts per admin
+        for (const admin of admins) {
+          const { count } = await supabase
+            .from('items')
+            .select('*', { count: 'exact', head: true })
+            .eq('admin_id', admin.id);
+          admin.itemCount = count ?? 0;
+        }
 
         setUsers(admins);
         setFilteredUsers(admins);
@@ -196,6 +210,37 @@ const Users: React.FC = () => {
     }
   };
 
+  const updateItemLimit = async (adminId: string) => {
+    setSavingLimit(adminId);
+    try {
+      const rawValue = editingLimits[adminId];
+      const newLimit = rawValue === '' || rawValue === undefined ? null : parseInt(rawValue, 10);
+
+      if (newLimit !== null && (isNaN(newLimit) || newLimit < 0)) {
+        toast({ title: 'Invalid Value', description: 'Item limit must be a positive number or empty for unlimited', variant: 'destructive' });
+        setSavingLimit(null);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ item_limit: newLimit } as any)
+        .eq('id', adminId);
+
+      if (error) throw error;
+
+      setUsers(prev => prev.map(u => u.id === adminId ? { ...u, item_limit: newLimit } : u));
+      setFilteredUsers(prev => prev.map(u => u.id === adminId ? { ...u, item_limit: newLimit } : u));
+      setEditingLimits(prev => { const n = { ...prev }; delete n[adminId]; return n; });
+
+      toast({ title: '✅ Saved', description: `Item limit ${newLimit === null ? 'set to unlimited' : `set to ${newLimit}`}` });
+    } catch (error) {
+      console.error('Error updating item limit:', error);
+      toast({ title: 'Error', description: 'Failed to update item limit', variant: 'destructive' });
+    } finally {
+      setSavingLimit(null);
+    }
+  };
 
   const getRoleIcon = (role: string) => {
     switch (role) {
@@ -380,6 +425,37 @@ const Users: React.FC = () => {
                               onCheckedChange={() => toggleQRMenuAccess(admin.id, admin.has_qr_menu_access ?? false)}
                               className="scale-90"
                             />
+                          </div>
+
+                          {/* Item Limit Control */}
+                          <div
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-muted/30"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Package className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-xs font-medium whitespace-nowrap">Items Limit</span>
+                            <Input
+                              type="number"
+                              min="0"
+                              placeholder="∞"
+                              value={editingLimits[admin.id] ?? (admin.item_limit === null || admin.item_limit === undefined ? '' : String(admin.item_limit))}
+                              onChange={(e) => setEditingLimits(prev => ({ ...prev, [admin.id]: e.target.value }))}
+                              className="w-20 h-7 text-xs px-2"
+                            />
+                            {editingLimits[admin.id] !== undefined && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                onClick={(e) => { e.stopPropagation(); updateItemLimit(admin.id); }}
+                                disabled={savingLimit === admin.id}
+                              >
+                                <Save className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                            <Badge variant="outline" className="text-[10px] whitespace-nowrap">
+                              {admin.itemCount ?? '?'}/{admin.item_limit === null || admin.item_limit === undefined ? '∞' : admin.item_limit}
+                            </Badge>
                           </div>
 
                           <Button
