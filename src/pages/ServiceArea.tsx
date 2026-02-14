@@ -526,7 +526,7 @@ const ServiceArea = () => {
             </div>
 
             {/* Active Bills Grid */}
-            {bills.length === 0 ? (
+            {bills.length === 0 && tableOrders.filter(o => o.status === 'ready' || o.status === 'preparing').length === 0 ? (
                 <Card className="p-12 text-center border-dashed bg-muted/20">
                     <div className="text-muted-foreground">
                         <Check className="w-16 h-16 mx-auto mb-4 opacity-20 text-green-500" />
@@ -536,6 +536,7 @@ const ServiceArea = () => {
                 </Card>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {/* Regular Bills */}
                     {bills.map((bill) => (
                         <Card
                             key={bill.id}
@@ -607,11 +608,16 @@ const ServiceArea = () => {
                         </Card>
                     ))}
 
-                    {/* Table QR Orders - Ready to Serve */}
-                    {tableOrders.filter(o => o.status === 'ready').map((order) => (
+                    {/* Table QR Orders - Ready & Preparing */}
+                    {tableOrders.filter(o => o.status === 'ready' || o.status === 'preparing').map((order) => (
                         <Card
                             key={`to-${order.id}`}
-                            className="p-3 flex flex-col transition-all duration-300 shadow-sm hover:shadow-md ring-2 ring-purple-500 bg-purple-50/50 dark:bg-purple-950/20 border-l-4 border-l-purple-500"
+                            className={cn(
+                                "p-3 flex flex-col transition-all duration-300 shadow-sm hover:shadow-md border-l-4",
+                                order.status === 'ready'
+                                    ? "ring-2 ring-purple-500 bg-purple-50/50 dark:bg-purple-950/20 border-l-purple-500"
+                                    : "bg-orange-50/50 dark:bg-orange-950/20 border-l-orange-500"
+                            )}
                         >
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
@@ -621,8 +627,11 @@ const ServiceArea = () => {
                                         {getTimeElapsed(order.created_at)}
                                     </span>
                                 </div>
-                                <Badge className="bg-green-500 text-white animate-pulse text-[10px]">
-                                    READY
+                                <Badge className={cn(
+                                    "text-white text-[10px]",
+                                    order.status === 'ready' ? "bg-green-500 animate-pulse" : "bg-orange-500"
+                                )}>
+                                    {order.status === 'ready' ? 'READY' : 'PREPARING'}
                                 </Badge>
                             </div>
 
@@ -654,14 +663,21 @@ const ServiceArea = () => {
                                 <span>₹{order.total_amount}</span>
                             </div>
 
-                            <Button
-                                size="sm"
-                                className="w-full h-10 bg-green-600 hover:bg-green-700 text-white font-bold"
-                                onClick={() => updateTableOrderStatus(order.id, order.session_id, 'served')}
-                            >
-                                <Check className="w-4 h-4 mr-1.5" />
-                                Mark Served
-                            </Button>
+                            {order.status === 'ready' ? (
+                                <Button
+                                    size="sm"
+                                    className="w-full h-10 bg-green-600 hover:bg-green-700 text-white font-bold"
+                                    onClick={() => updateTableOrderStatus(order.id, order.session_id, 'served')}
+                                >
+                                    <Check className="w-4 h-4 mr-1.5" />
+                                    Mark Served
+                                </Button>
+                            ) : (
+                                <div className="w-full h-10 flex items-center justify-center text-sm text-orange-600 font-medium">
+                                    <Clock className="w-4 h-4 mr-1.5" />
+                                    Kitchen preparing...
+                                </div>
+                            )}
                         </Card>
                     ))}
                 </div>
