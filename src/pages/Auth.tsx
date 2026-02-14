@@ -260,7 +260,7 @@ const Auth = () => {
               ? 'Enter your email to receive a reset link'
               : (isLogin
                 ? 'Sign in to access your POS system'
-                : 'Register your hotel for ZEN POS'
+                : 'Register your hotel for ZenPOS'
               )
             }
           </p>

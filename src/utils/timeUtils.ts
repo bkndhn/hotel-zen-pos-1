@@ -1,6 +1,6 @@
 /**
  * Time Utilities - AM/PM Formatting
- * Consistent time formatting across the Hotel Zen POS system
+ * Consistent time formatting across the ZenPOS system
  */
 
 /**

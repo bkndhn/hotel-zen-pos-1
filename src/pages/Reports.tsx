@@ -816,7 +816,7 @@ const Reports: React.FC = () => {
         discount: bill.discount,
         total: bill.total_amount,
         paymentMethod: bill.payment_mode.toUpperCase(),
-        hotelName: profile?.hotel_name || 'ZEN POS',
+        hotelName: profile?.hotel_name || 'ZenPOS',
         shopName: settings?.shopName,
         address: settings?.address,
         contactNumber: settings?.contactNumber,
@@ -871,7 +871,7 @@ const Reports: React.FC = () => {
         discount: bill.discount,
         total: bill.total_amount,
         paymentMethod: bill.payment_mode.toUpperCase(),
-        hotelName: profile?.hotel_name || 'ZEN POS',
+        hotelName: profile?.hotel_name || 'ZenPOS',
         totalItemsCount: bill.bill_items?.length || 0,
         smartQtyCount: calculateSmartQtyCount(bill.bill_items?.map(item => ({ quantity: item.quantity, unit: item.items?.unit })) || [])
       };

@@ -80,7 +80,7 @@ export const Header: React.FC = () => {
                         <Hotel className="h-5 w-5 text-primary-foreground" />
                       </div>
                       <div>
-                        <div className="font-bold text-base">{profile.hotel_name || 'ZEN POS'}</div>
+                        <div className="font-bold text-base">{profile.hotel_name || 'ZenPOS'}</div>
                         <div className="text-[10px] text-muted-foreground font-medium">Navigation Menu</div>
                       </div>
                     </SheetTitle>
@@ -120,7 +120,7 @@ export const Header: React.FC = () => {
             </div>
             <div>
               <h1 className="font-bold text-base tracking-tight text-foreground">
-                ZEN POS
+                ZenPOS
               </h1>
               <p className="text-[10px] text-muted-foreground font-medium tracking-wide uppercase">Management System</p>
             </div>

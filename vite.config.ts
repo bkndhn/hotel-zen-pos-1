@@ -17,8 +17,8 @@ export default defineConfig(({ mode }) => ({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'Hotel Zen POS',
-        short_name: 'Zen POS',
+        name: 'ZenPOS',
+        short_name: 'ZenPOS',
         description: 'Point of Sale system for restaurants and hotels',
         theme_color: '#000000',
         background_color: '#ffffff',

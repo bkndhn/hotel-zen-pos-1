@@ -54,7 +54,7 @@ export const Sidebar: React.FC = () => {
     <div className="hidden md:flex flex-col w-64 bg-sidebar border-r border-sidebar-border">
       <div className="p-6">
         <h2 className="text-xl font-bold text-sidebar-foreground">
-          {profile.hotel_name || 'Hotel ZEN'}
+          {profile.hotel_name || 'ZenPOS'}
         </h2>
         <p className="text-sm text-sidebar-accent-foreground">POS Management</p>
       </div>

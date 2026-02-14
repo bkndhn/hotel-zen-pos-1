@@ -65,7 +65,7 @@ export const InstallPrompt = () => {
             <p className="text-sm mb-4 text-primary-foreground/90">
                 {isIOS
                     ? "To install: Tap the share button below and select 'Add to Home Screen'"
-                    : "Install Zen POS for a better experience with offline access and full-screen data entry."
+                    : "Install ZenPOS for a better experience with offline access and full-screen data entry."
                 }
             </p>
 

@@ -1648,7 +1648,7 @@ const PublicMenu = () => {
                         "text-center text-[7px] text-white/25 tracking-wider uppercase",
                         (showPhone || showAddress) ? "mt-1" : ""
                     )}>
-                        Powered by Hotel Zen POS
+                        Powered by ZenPOS
                     </p>
                 </div>
             </footer>
