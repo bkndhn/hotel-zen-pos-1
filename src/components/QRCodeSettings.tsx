@@ -120,6 +120,8 @@ const QRCodeSettings = () => {
                     if (data.shop_longitude) setShopLongitude(data.shop_longitude);
                 }
             }
+            // Mark appearance as loaded after a tick so React processes state updates
+            setTimeout(() => { isAppearanceLoadedRef.current = true; }, 200);
         };
         loadSettings();
     }, [profile?.user_id]);
@@ -344,14 +346,10 @@ const QRCodeSettings = () => {
     }, [slugStatus]);
 
     // Auto-save appearance settings when changed (after initial load)
-    const [isAppearanceLoaded, setIsAppearanceLoaded] = useState(false);
+    const isAppearanceLoadedRef = useRef(false);
     useEffect(() => {
-        // Skip first render (initial load)
-        if (!isAppearanceLoaded) {
-            // Set loaded after a delay to ensure initial load completes
-            const timer = setTimeout(() => setIsAppearanceLoaded(true), 1000);
-            return () => clearTimeout(timer);
-        }
+        // Skip saves until initial data has been loaded from DB
+        if (!isAppearanceLoadedRef.current) return;
         // Save when any appearance setting changes
         saveSettings();
     }, [menuPrimaryColor, menuSecondaryColor, menuBackgroundColor, menuTextColor, menuItemsPerRow]);
