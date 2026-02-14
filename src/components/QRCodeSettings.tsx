@@ -1168,7 +1168,6 @@ const QRCodeSettings = () => {
                                         className="flex-1"
                                         onClick={() => {
                                             setMenuItemsPerRow(num);
-                                            setTimeout(saveSettings, 100);
                                         }}
                                     >
                                         {num} {num === 1 ? 'Item' : 'Items'}
