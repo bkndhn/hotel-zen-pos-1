@@ -208,10 +208,10 @@ export const ShopSettingsForm = () => {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        if (file.size > 1024 * 1024) { // 1MB limit
+        if (file.size > 5 * 1024 * 1024) { // 5MB input limit
             toast({
                 title: "File too large",
-                description: "Please select an image under 1MB",
+                description: "Please select an image under 5MB",
                 variant: "destructive"
             });
             return;
@@ -221,9 +221,9 @@ export const ShopSettingsForm = () => {
         reader.onload = (e) => {
             const img = new Image();
             img.onload = () => {
-                // Resize image
+                // Resize image to max 512px width
                 const canvas = document.createElement('canvas');
-                const MAX_WIDTH = 384; // Standard thermal printer width in pixels
+                const MAX_WIDTH = 512;
                 let width = img.width;
                 let height = img.height;
 
@@ -237,11 +237,31 @@ export const ShopSettingsForm = () => {
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
                     ctx.drawImage(img, 0, 0, width, height);
-                    const dataUrl = canvas.toDataURL('image/png');
+
+                    // Compress to ≤100KB using iterative JPEG quality reduction
+                    const TARGET_SIZE = 100 * 1024; // 100KB
+                    let quality = 0.9;
+                    let dataUrl = canvas.toDataURL('image/jpeg', quality);
+
+                    while (dataUrl.length > TARGET_SIZE * 1.37 && quality > 0.1) {
+                        quality -= 0.1;
+                        dataUrl = canvas.toDataURL('image/jpeg', quality);
+                    }
+
+                    // If still too large, reduce dimensions further
+                    if (dataUrl.length > TARGET_SIZE * 1.37 && width > 256) {
+                        const scale = 256 / width;
+                        canvas.width = 256;
+                        canvas.height = height * scale;
+                        ctx.drawImage(img, 0, 0, 256, height * scale);
+                        dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                    }
+
+                    const sizeKB = Math.round(dataUrl.length * 0.75 / 1024);
                     setLogoUrl(dataUrl);
                     toast({
-                        title: "Logo Processed",
-                        description: "Logo resized and ready for printing"
+                        title: "✅ Logo Ready",
+                        description: `Compressed to ${sizeKB}KB. Shown on menu, bills & receipts.`
                     });
                 }
             };
@@ -386,7 +406,7 @@ export const ShopSettingsForm = () => {
                 {/* Logo & Printer Width */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
                     <div className="space-y-2">
-                        <Label>Receipt Logo</Label>
+                        <Label>Shop Logo</Label>
                         <div className="flex items-start gap-4">
                             {logoUrl ? (
                                 <div className="relative border rounded-md p-1 w-24 h-24 flex items-center justify-center bg-white">
@@ -419,7 +439,8 @@ export const ShopSettingsForm = () => {
                                     {logoUrl ? "Change Logo" : "Select Image"}
                                 </Button>
                                 <p className="text-[10px] text-muted-foreground">
-                                    Max 1MB. Auto-resized for thermal printing.
+                                    Max 5MB input. Auto-compressed to ~100KB.
+                                    <br />Used in public menu, bills & receipts.
                                 </p>
                             </div>
                         </div>
