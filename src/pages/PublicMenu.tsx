@@ -358,6 +358,25 @@ const PublicMenu = () => {
         };
     }, [adminId]);
 
+    // Real-time subscription for menu settings changes (items per row, colors, etc.)
+    useEffect(() => {
+        if (!adminId) return;
+
+        const settingsChannel = supabase
+            .channel(`menu-settings-${adminId}`)
+            .on('broadcast', { event: 'menu-settings-updated' }, (payload: any) => {
+                const settings = payload.payload;
+                if (settings) {
+                    setShopSettings(prev => prev ? { ...prev, ...settings } : settings);
+                }
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(settingsChannel);
+        };
+    }, [adminId]);
+
     // Auto-swipe banners every 4 seconds (pauses when user interacts)
     useEffect(() => {
         if (banners.length <= 1 || isPaused) return;

@@ -175,6 +175,24 @@ const QRCodeSettings = () => {
                     shop_latitude: shopLatitude,
                     shop_longitude: shopLongitude,
                 }, { onConflict: 'user_id' });
+
+            // Broadcast settings change to all PublicMenu listeners
+            const settingsChannel = supabase.channel(`menu-settings-${profile.id}`);
+            await settingsChannel.send({
+                type: 'broadcast',
+                event: 'menu-settings-updated',
+                payload: {
+                    menu_show_shop_name: menuShowShopName,
+                    menu_show_address: menuShowAddress,
+                    menu_show_phone: menuShowPhone,
+                    menu_primary_color: menuPrimaryColor,
+                    menu_secondary_color: menuSecondaryColor,
+                    menu_background_color: menuBackgroundColor,
+                    menu_text_color: menuTextColor,
+                    menu_items_per_row: menuItemsPerRow,
+                }
+            });
+            supabase.removeChannel(settingsChannel);
         }
     };
 
