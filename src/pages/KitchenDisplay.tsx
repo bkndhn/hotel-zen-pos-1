@@ -885,7 +885,7 @@ const KitchenDisplay = () => {
 
             </div>
         </div>
-    </div >
+    </div>
     );
 };
 
