@@ -366,7 +366,7 @@ const KitchenDisplay = () => {
         // Track for undo
         setRecentlyProcessed(prev => [{
             id: billId,
-            type: 'bill',
+            type: 'bill' as const,
             label: `#${billNo}`,
             previousStatus,
             newStatus: status,
@@ -469,7 +469,7 @@ const KitchenDisplay = () => {
         // Track for undo
         setRecentlyProcessed(prev => [{
             id: orderId,
-            type: 'table-order',
+            type: 'table-order' as const,
             label: `T${tableNumber}`,
             previousStatus,
             newStatus: status,
@@ -885,7 +885,6 @@ const KitchenDisplay = () => {
 
             </div>
         </div>
-    </div>
     );
 };
 

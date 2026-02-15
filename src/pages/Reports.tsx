@@ -37,6 +37,8 @@ interface Bill {
   additional_charges?: Array<{ name: string; amount: number }>;
   bill_items: BillItem[];
   table_no?: string;
+  tax_summary?: any;
+  total_tax?: number;
 }
 
 interface BillItem {

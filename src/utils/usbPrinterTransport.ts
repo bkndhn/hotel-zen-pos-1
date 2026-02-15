@@ -9,12 +9,12 @@
  */
 
 // USB Vendor/Product IDs for common thermal printers (expand as needed)
-const KNOWN_PRINTER_FILTERS: USBDeviceFilter[] = [
+const KNOWN_PRINTER_FILTERS: any[] = [
     { classCode: 7 }, // Printer class
 ];
 
 export class USBPrinterTransport {
-    private device: USBDevice | null = null;
+    private device: any = null;
     private interfaceNumber: number = 0;
     private endpointOut: number = 0;
 
@@ -45,7 +45,7 @@ export class USBPrinterTransport {
 
         try {
             // Request device — shows the browser picker
-            this.device = await navigator.usb.requestDevice({
+            this.device = await (navigator as any).usb.requestDevice({
                 filters: KNOWN_PRINTER_FILTERS
             });
 
@@ -69,7 +69,7 @@ export class USBPrinterTransport {
         if (!USBPrinterTransport.isSupported()) return false;
 
         try {
-            const devices = await navigator.usb.getDevices();
+            const devices = await (navigator as any).usb.getDevices();
             if (devices.length === 0) {
                 console.log('[USB] No previously paired devices found');
                 return false;

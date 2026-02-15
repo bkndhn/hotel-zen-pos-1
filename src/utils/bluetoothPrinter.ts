@@ -291,6 +291,7 @@ export const generateReceiptBytes = async (data: PrintData): Promise<Uint8Array>
   const LINE_WIDTH = data.printerWidth === '80mm' ? 48 : 32;
   const IMAGE_WIDTH = data.printerWidth === '80mm' ? 576 : 384;
   const SEP = '-'.repeat(LINE_WIDTH);
+  const SEP_DOUBLE = '='.repeat(LINE_WIDTH);
 
   const { formatQuantityWithUnit } = await import('./timeUtils');
 

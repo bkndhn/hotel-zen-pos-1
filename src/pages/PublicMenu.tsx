@@ -289,7 +289,7 @@ const PublicMenu = () => {
                     console.error('Categories error:', categoriesError);
                 }
 
-                setItems(itemsData || []);
+                setItems((itemsData || []) as any);
                 setShopSettings(settingsData as ShopSettings | null);
                 setCategories(categoriesData || []);
                 setBanners(bannersData || []);
@@ -722,7 +722,7 @@ const PublicMenu = () => {
                     if (hasActive) {
                         // Resume this session
                         setSessionId(storedSid);
-                        setSessionOrders(existingOrders as TableOrder[]);
+                        setSessionOrders(existingOrders as unknown as TableOrder[]);
                         setShowMyOrders(true);
                         setSessionReady(true);
                         return;
