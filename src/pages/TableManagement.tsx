@@ -81,10 +81,12 @@ const TableManagement: React.FC = () => {
 
   // Fetch active table order counts
   const fetchTableOrderCounts = useCallback(async () => {
+    if (!adminId) return;
     try {
       const { data, error } = await (supabase as any)
         .from('table_orders')
         .select('table_number')
+        .eq('admin_id', adminId)
         .in('status', ['pending', 'preparing', 'ready'])
         .eq('is_billed', false);
 
@@ -98,7 +100,7 @@ const TableManagement: React.FC = () => {
     } catch (e) {
       console.warn('Error fetching table order counts:', e);
     }
-  }, []);
+  }, [adminId]);
 
   useEffect(() => {
     fetchTableOrderCounts();

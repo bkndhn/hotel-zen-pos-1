@@ -15,6 +15,7 @@ interface DashboardStats {
 
 const Dashboard = () => {
   const { profile } = useAuth();
+  const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
   const [stats, setStats] = useState<DashboardStats>({
     todaySales: 0,
     todayExpenses: 0,
@@ -24,11 +25,9 @@ const Dashboard = () => {
   });
   const [loading, setLoading] = useState(true);
 
-
-
   useEffect(() => {
-    fetchDashboardStats();
-  }, []);
+    if (adminId) fetchDashboardStats();
+  }, [adminId]);
 
   // Real-time subscription for updates
   useEffect(() => {
@@ -53,6 +52,7 @@ const Dashboard = () => {
   }, []);
 
   const fetchDashboardStats = async () => {
+    if (!adminId) return;
     try {
       const today = new Date().toISOString().split('T')[0];
 
@@ -60,6 +60,7 @@ const Dashboard = () => {
       const { data: billsData } = await supabase
         .from('bills')
         .select('total_amount')
+        .eq('admin_id', adminId)
         .eq('date', today)
         .or('is_deleted.is.null,is_deleted.eq.false');
 
@@ -70,6 +71,7 @@ const Dashboard = () => {
       const { data: expensesData } = await supabase
         .from('expenses')
         .select('amount')
+        .eq('admin_id', adminId)
         .eq('date', today);
 
       const todayExpenses = expensesData?.reduce((sum, expense) => sum + Number(expense.amount), 0) || 0;
@@ -78,6 +80,7 @@ const Dashboard = () => {
       const { data: itemsData } = await supabase
         .from('items')
         .select('id')
+        .eq('admin_id', adminId)
         .eq('is_active', true);
 
       const totalItems = itemsData?.length || 0;

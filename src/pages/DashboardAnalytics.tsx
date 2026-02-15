@@ -41,6 +41,7 @@ type ComparisonMode = 'day' | 'week' | 'month' | 'year';
 
 const DashboardAnalytics = () => {
   const { profile } = useAuth();
+  const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>('today');
   const [salesData, setSalesData] = useState<SalesData[]>([]);
@@ -78,12 +79,12 @@ const DashboardAnalytics = () => {
   const [compLoading, setCompLoading] = useState(false);
 
   useEffect(() => {
-    fetchAnalyticsData();
-  }, [period]);
+    if (adminId) fetchAnalyticsData();
+  }, [period, adminId]);
 
   useEffect(() => {
-    fetchComparisonData();
-  }, [compMode, currentFromDate, currentToDate, compareFromDate, compareToDate]);
+    if (adminId) fetchComparisonData();
+  }, [compMode, currentFromDate, currentToDate, compareFromDate, compareToDate, adminId]);
 
   // Real-time subscription
   useEffect(() => {
@@ -212,9 +213,9 @@ const DashboardAnalytics = () => {
         const startStr = toLocalDateString(start);
         const endStr = toLocalDateString(end);
 
-        const { data: bills } = await supabase.from('bills').select('total_amount, is_deleted').gte('date', startStr).lte('date', endStr).or('is_deleted.is.null,is_deleted.eq.false');
-        const { data: expenses } = await supabase.from('expenses').select('amount').gte('date', startStr).lte('date', endStr);
-        const { data: billItems } = await supabase.from('bill_items').select('quantity, total, items(name, unit), bills!inner(date, is_deleted)').gte('bills.date', startStr).lte('bills.date', endStr);
+        const { data: bills } = await supabase.from('bills').select('total_amount, is_deleted').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr).or('is_deleted.is.null,is_deleted.eq.false');
+        const { data: expenses } = await supabase.from('expenses').select('amount').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr);
+        const { data: billItems } = await supabase.from('bill_items').select('quantity, total, items(name, unit), bills!inner(date, is_deleted, admin_id)').eq('bills.admin_id', adminId).gte('bills.date', startStr).lte('bills.date', endStr);
 
         const revenue = bills?.reduce((sum, b) => sum + Number(b.total_amount), 0) || 0;
         const totalExpenses = expenses?.reduce((sum, e) => sum + Number(e.amount), 0) || 0;
@@ -251,9 +252,9 @@ const DashboardAnalytics = () => {
 
     // ... (This logic is largely same as original fetchAnalyticsData, reused here or kept inside)
     // To keep file clean, I'll essentially paste the logic from original component here
-    const { data: billsData } = await supabase.from('bills').select('total_amount, date').gte('date', startStr).lte('date', endStr).or('is_deleted.is.null,is_deleted.eq.false').order('date');
-    const { data: expensesData } = await supabase.from('expenses').select('amount, date').gte('date', startStr).lte('date', endStr).order('date');
-    const { data: billItemsData } = await supabase.from('bill_items').select('quantity, total, items(name, unit), bills!inner(date, is_deleted)').gte('bills.date', startStr).lte('bills.date', endStr);
+    const { data: billsData } = await supabase.from('bills').select('total_amount, date').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr).or('is_deleted.is.null,is_deleted.eq.false').order('date');
+    const { data: expensesData } = await supabase.from('expenses').select('amount, date').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr).order('date');
+    const { data: billItemsData } = await supabase.from('bill_items').select('quantity, total, items(name, unit), bills!inner(date, is_deleted, admin_id)').eq('bills.admin_id', adminId).gte('bills.date', startStr).lte('bills.date', endStr);
 
     // Process Sales Chart
     const salesMap = new Map<string, { sales: number; expenses: number }>();

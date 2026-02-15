@@ -24,30 +24,33 @@ interface Customer {
 
 const CRM: React.FC = () => {
   const { profile } = useAuth();
+  const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [saving, setSaving] = useState(false);
-  
+
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
 
   useEffect(() => {
-    fetchCustomers();
-  }, []);
+    if (adminId) fetchCustomers();
+  }, [adminId]);
 
   const fetchCustomers = async () => {
+    if (!adminId) return;
     try {
       const { data, error } = await supabase
         .from('customers')
         .select('*')
+        .eq('admin_id', adminId)
         .order('last_visit', { ascending: false });
 
       if (error) throw error;
@@ -88,12 +91,12 @@ const CRM: React.FC = () => {
 
   const handleSaveEdit = async () => {
     if (!editingCustomer) return;
-    
+
     if (!editPhone.trim()) {
       toast({ title: "Error", description: "Phone number is required", variant: "destructive" });
       return;
     }
-    
+
     setSaving(true);
     try {
       const { error } = await supabase
@@ -158,7 +161,7 @@ const CRM: React.FC = () => {
       }));
 
       const ws = XLSX.utils.json_to_sheet(data);
-      
+
       // Auto-fit column widths
       const colWidths = Object.keys(data[0] || {}).map(key => ({
         wch: Math.max(key.length, ...data.map(row => String((row as any)[key]).length)) + 2

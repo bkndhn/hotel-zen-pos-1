@@ -121,10 +121,12 @@ const TableOrderBilling: React.FC = () => {
 
     // Fetch payment types
     const fetchPaymentTypes = useCallback(async () => {
+        if (!adminId) return;
         try {
             const { data, error } = await supabase
                 .from('payments')
                 .select('*')
+                .eq('admin_id', adminId)
                 .eq('is_disabled', false)
                 .order('payment_type');
             if (error) throw error;
@@ -132,14 +134,16 @@ const TableOrderBilling: React.FC = () => {
         } catch (error) {
             console.error('Error fetching payment types:', error);
         }
-    }, []);
+    }, [adminId]);
 
     // Fetch additional charges
     const fetchAdditionalCharges = useCallback(async () => {
+        if (!adminId) return;
         try {
             const { data, error } = await supabase
                 .from('additional_charges')
                 .select('*')
+                .eq('admin_id', adminId)
                 .eq('is_active', true)
                 .order('name');
             if (error) throw error;
@@ -147,7 +151,7 @@ const TableOrderBilling: React.FC = () => {
         } catch (error) {
             console.error('Error fetching additional charges:', error);
         }
-    }, []);
+    }, [adminId]);
 
     // Fetch WhatsApp/shop settings
     const fetchShopSettings = useCallback(async () => {
@@ -181,10 +185,12 @@ const TableOrderBilling: React.FC = () => {
 
     // Fetch all unbilled table orders grouped by table
     const fetchTableOrders = useCallback(async () => {
+        if (!adminId) return;
         try {
             const { data, error } = await (supabase as any)
                 .from('table_orders')
                 .select('*')
+                .eq('admin_id', adminId)
                 .eq('is_billed', false)
                 .neq('status', 'cancelled')
                 .order('created_at', { ascending: true });
@@ -216,7 +222,7 @@ const TableOrderBilling: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [adminId]);
 
     // Setup real-time sync
     useEffect(() => {

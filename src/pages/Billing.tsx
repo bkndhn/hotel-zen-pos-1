@@ -144,6 +144,7 @@ const Billing = () => {
   const {
     profile
   } = useAuth();
+  const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
   const location = useLocation();
   const navigate = useNavigate();
   const [items, setItems] = useState<Item[]>([]);
@@ -269,12 +270,14 @@ const Billing = () => {
 
   // Fetch functions defined before useEffect
   const fetchItems = async () => {
+    if (!adminId) return;
     try {
       // Try to get from network first
       if (navigator.onLine) {
         const { data, error } = await supabase
           .from('items')
           .select('*')
+          .eq('admin_id', adminId)
           .eq('is_active', true)
           .order('name');
 
@@ -338,11 +341,12 @@ const Billing = () => {
     }
   };
   const fetchPaymentTypes = async () => {
+    if (!adminId) return;
     try {
       const {
         data,
         error
-      } = await supabase.from('payments').select('*').eq('is_disabled', false).order('payment_type');
+      } = await supabase.from('payments').select('*').eq('admin_id', adminId).eq('is_disabled', false).order('payment_type');
       if (error) throw error;
       const types = data || [];
       setPaymentTypes(types);
@@ -366,11 +370,12 @@ const Billing = () => {
     }
   };
   const fetchAdditionalCharges = async () => {
+    if (!adminId) return;
     try {
       const {
         data,
         error
-      } = await supabase.from('additional_charges').select('*').eq('is_active', true).order('name');
+      } = await supabase.from('additional_charges').select('*').eq('admin_id', adminId).eq('is_active', true).order('name');
       if (error) throw error;
       setAdditionalCharges(data || []);
     } catch (error) {
@@ -402,10 +407,12 @@ const Billing = () => {
   };
 
   const fetchItemCategories = async () => {
+    if (!adminId) return;
     try {
       const { data, error } = await supabase
         .from('item_categories')
         .select('*')
+        .eq('admin_id', adminId)
         .eq('is_deleted', false)
         .order('name');
       if (error) throw error;
