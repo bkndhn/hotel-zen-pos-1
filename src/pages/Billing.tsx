@@ -291,7 +291,7 @@ const Billing = () => {
           return (a.name || '').localeCompare(b.name || '');
         });
 
-        setItems(sortedData);
+        setItems(sortedData as Item[]);
 
         // Cache items for offline use
         const { offlineManager } = await import('@/utils/offlineManager');
@@ -1042,7 +1042,7 @@ const Billing = () => {
       // Check share mode from settings
       if (whatsappShareMode === 'image') {
         // Image mode: generate colorful bill image
-        const { shareBillImageViaWhatsApp, BillImageData } = await import('@/utils/billImageGenerator');
+        const { shareBillImageViaWhatsApp } = await import('@/utils/billImageGenerator');
         const billData = {
           billNo,
           shopName: billSettings?.shopName || profile?.hotel_name || 'Hotel',
@@ -1194,7 +1194,7 @@ const Billing = () => {
           if (!taxRateInfo) return { taxableAmount: 0, cgst: 0, sgst: 0, cess: 0, totalTax: 0, totalWithTax: (item.quantity / (item.base_value || 1)) * item.price, taxRate: 0, _cessRate: 0, _taxName: '', _isTaxInclusive: true };
           const lineTotal = (item.quantity / (item.base_value || 1)) * item.price;
           const isTaxInclusive = itemAny.is_tax_inclusive !== false;
-          const cessRate = taxRateInfo.cess_rate || 0;
+          const cessRate = (taxRateInfo as any).cess_rate || taxRateInfo.cess || 0;
           const result = calculateItemTax(lineTotal, taxRateInfo.rate, cessRate, isTaxInclusive);
           return { ...result, _cessRate: cessRate, _taxName: taxRateInfo.name || `GST ${taxRateInfo.rate}%`, _isTaxInclusive: isTaxInclusive };
         });

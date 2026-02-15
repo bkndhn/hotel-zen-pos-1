@@ -294,10 +294,11 @@ const TableOrderBilling: React.FC = () => {
             }
 
             if (isImageMode) {
-                const { shareBillImageViaWhatsApp, BillImageData } = await import('@/utils/billImageGenerator');
-                const billData: typeof BillImageData = {
+                const { shareBillImageViaWhatsApp } = await import('@/utils/billImageGenerator');
+                const billData: any = {
                     billNo: billNumber,
                     date: new Date().toLocaleDateString('en-IN'),
+                    time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
                     items: items.map(item => ({
                         name: item.name,
                         quantity: item.quantity,
@@ -312,10 +313,8 @@ const TableOrderBilling: React.FC = () => {
                     total: totalAmount,
                     paymentMethod,
                     shopName: billSettings?.shopName || '',
-                    shopAddress: billSettings?.address || '',
-                    shopContact: billSettings?.contactNumber || '',
-                    shopLogo: billSettings?.logoUrl || '',
-                    whatsapp: billSettings?.showWhatsapp !== false ? billSettings?.whatsapp : undefined,
+                    address: billSettings?.address || '',
+                    phone: billSettings?.contactNumber || '',
                 };
 
                 const result = await shareBillImageViaWhatsApp(customerMobile, billData);
@@ -343,10 +342,7 @@ const TableOrderBilling: React.FC = () => {
                     total: totalAmount,
                     paymentMethod,
                     shopName: billSettings?.shopName || '',
-                    shopAddress: billSettings?.address || '',
-                    shopContact: billSettings?.contactNumber || '',
-                    whatsapp: billSettings?.showWhatsapp !== false ? billSettings?.whatsapp : undefined,
-                });
+                } as any);
                 shareViaWhatsApp(customerMobile, message);
                 toast({ title: "WhatsApp", description: "Opening WhatsApp to share bill..." });
             }
@@ -421,7 +417,7 @@ const TableOrderBilling: React.FC = () => {
 
             const { data: billData, error: billError } = await supabase
                 .from('bills')
-                .insert(billPayload)
+                .insert(billPayload as any)
                 .select()
                 .single();
 

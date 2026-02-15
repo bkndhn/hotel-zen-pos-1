@@ -27,9 +27,9 @@ class PrinterManager {
     private static instance: PrinterManager;
 
     // Bluetooth connection state
-    private device: BluetoothDevice | null = null;
-    private server: BluetoothRemoteGATTServer | null = null;
-    private characteristic: BluetoothRemoteGATTCharacteristic | null = null;
+    private device: any = null;
+    private server: any = null;
+    private characteristic: any = null;
 
     // USB connection state
     private usbTransport: USBPrinterTransport = new USBPrinterTransport();

@@ -68,28 +68,46 @@ export type Database = {
         Row: {
           bill_id: string
           created_at: string
+          hsn_code: string | null
           id: string
           item_id: string
           price: number
           quantity: number
+          tax_amount: number | null
+          tax_rate: number | null
+          tax_rate_snapshot: number | null
+          tax_type: string | null
+          taxable_amount: number | null
           total: number
         }
         Insert: {
           bill_id: string
           created_at?: string
+          hsn_code?: string | null
           id?: string
           item_id: string
           price: number
           quantity: number
+          tax_amount?: number | null
+          tax_rate?: number | null
+          tax_rate_snapshot?: number | null
+          tax_type?: string | null
+          taxable_amount?: number | null
           total: number
         }
         Update: {
           bill_id?: string
           created_at?: string
+          hsn_code?: string | null
           id?: string
           item_id?: string
           price?: number
           quantity?: number
+          tax_amount?: number | null
+          tax_rate?: number | null
+          tax_rate_snapshot?: number | null
+          tax_type?: string | null
+          taxable_amount?: number | null
           total?: number
         }
         Relationships: [
@@ -116,6 +134,7 @@ export type Database = {
           bill_no: string
           created_at: string
           created_by: string
+          customer_gstin: string | null
           customer_mobile: string | null
           customer_phone: string | null
           date: string
@@ -126,10 +145,13 @@ export type Database = {
           kitchen_status: Database["public"]["Enums"]["service_status"] | null
           payment_details: Json | null
           payment_mode: Database["public"]["Enums"]["payment_method"]
+          round_off: number | null
           service_status: Database["public"]["Enums"]["service_status"] | null
           status_updated_at: string | null
           table_no: string | null
+          tax_summary: Json | null
           total_amount: number
+          total_tax: number | null
           whatsapp_sent: boolean | null
           whatsapp_sent_at: string | null
         }
@@ -139,6 +161,7 @@ export type Database = {
           bill_no: string
           created_at?: string
           created_by: string
+          customer_gstin?: string | null
           customer_mobile?: string | null
           customer_phone?: string | null
           date?: string
@@ -149,10 +172,13 @@ export type Database = {
           kitchen_status?: Database["public"]["Enums"]["service_status"] | null
           payment_details?: Json | null
           payment_mode: Database["public"]["Enums"]["payment_method"]
+          round_off?: number | null
           service_status?: Database["public"]["Enums"]["service_status"] | null
           status_updated_at?: string | null
           table_no?: string | null
+          tax_summary?: Json | null
           total_amount: number
+          total_tax?: number | null
           whatsapp_sent?: boolean | null
           whatsapp_sent_at?: string | null
         }
@@ -162,6 +188,7 @@ export type Database = {
           bill_no?: string
           created_at?: string
           created_by?: string
+          customer_gstin?: string | null
           customer_mobile?: string | null
           customer_phone?: string | null
           date?: string
@@ -172,10 +199,13 @@ export type Database = {
           kitchen_status?: Database["public"]["Enums"]["service_status"] | null
           payment_details?: Json | null
           payment_mode?: Database["public"]["Enums"]["payment_method"]
+          round_off?: number | null
           service_status?: Database["public"]["Enums"]["service_status"] | null
           status_updated_at?: string | null
           table_no?: string | null
+          tax_summary?: Json | null
           total_amount?: number
+          total_tax?: number | null
           whatsapp_sent?: boolean | null
           whatsapp_sent_at?: string | null
         }
@@ -415,9 +445,12 @@ export type Database = {
           created_at: string
           description: string | null
           display_order: number | null
+          hsn_code: string | null
           id: string
           image_url: string | null
           is_active: boolean
+          is_tax_inclusive: boolean | null
+          media_type: string | null
           minimum_stock_alert: number | null
           name: string
           price: number
@@ -425,9 +458,11 @@ export type Database = {
           quantity_step: number | null
           sale_count: number | null
           stock_quantity: number | null
+          tax_rate_id: string | null
           unit: string | null
           unlimited_stock: boolean | null
           updated_at: string
+          video_url: string | null
         }
         Insert: {
           admin_id?: string | null
@@ -436,9 +471,12 @@ export type Database = {
           created_at?: string
           description?: string | null
           display_order?: number | null
+          hsn_code?: string | null
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_tax_inclusive?: boolean | null
+          media_type?: string | null
           minimum_stock_alert?: number | null
           name: string
           price: number
@@ -446,9 +484,11 @@ export type Database = {
           quantity_step?: number | null
           sale_count?: number | null
           stock_quantity?: number | null
+          tax_rate_id?: string | null
           unit?: string | null
           unlimited_stock?: boolean | null
           updated_at?: string
+          video_url?: string | null
         }
         Update: {
           admin_id?: string | null
@@ -457,9 +497,12 @@ export type Database = {
           created_at?: string
           description?: string | null
           display_order?: number | null
+          hsn_code?: string | null
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_tax_inclusive?: boolean | null
+          media_type?: string | null
           minimum_stock_alert?: number | null
           name?: string
           price?: number
@@ -467,9 +510,11 @@ export type Database = {
           quantity_step?: number | null
           sale_count?: number | null
           stock_quantity?: number | null
+          tax_rate_id?: string | null
           unit?: string | null
           unlimited_stock?: boolean | null
           updated_at?: string
+          video_url?: string | null
         }
         Relationships: [
           {
@@ -477,6 +522,13 @@ export type Database = {
             columns: ["admin_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "items_tax_rate_id_fkey"
+            columns: ["tax_rate_id"]
+            isOneToOne: false
+            referencedRelation: "tax_rates"
             referencedColumns: ["id"]
           },
         ]
@@ -526,8 +578,10 @@ export type Database = {
         Row: {
           admin_id: string | null
           created_at: string
+          has_qr_menu_access: boolean | null
           hotel_name: string | null
           id: string
+          item_limit: number | null
           last_login: string | null
           login_count: number | null
           name: string
@@ -539,8 +593,10 @@ export type Database = {
         Insert: {
           admin_id?: string | null
           created_at?: string
+          has_qr_menu_access?: boolean | null
           hotel_name?: string | null
           id?: string
+          item_limit?: number | null
           last_login?: string | null
           login_count?: number | null
           name: string
@@ -552,8 +608,10 @@ export type Database = {
         Update: {
           admin_id?: string | null
           created_at?: string
+          has_qr_menu_access?: boolean | null
           hotel_name?: string | null
           id?: string
+          item_limit?: number | null
           last_login?: string | null
           login_count?: number | null
           name?: string
@@ -572,16 +630,91 @@ export type Database = {
           },
         ]
       }
+      promo_banners: {
+        Row: {
+          admin_id: string | null
+          bg_color: string | null
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          end_date: string | null
+          id: string
+          image_url: string
+          is_active: boolean | null
+          is_text_only: boolean | null
+          link_url: string | null
+          start_date: string | null
+          text_color: string | null
+          title: string
+        }
+        Insert: {
+          admin_id?: string | null
+          bg_color?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          end_date?: string | null
+          id?: string
+          image_url: string
+          is_active?: boolean | null
+          is_text_only?: boolean | null
+          link_url?: string | null
+          start_date?: string | null
+          text_color?: string | null
+          title: string
+        }
+        Update: {
+          admin_id?: string | null
+          bg_color?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          end_date?: string | null
+          id?: string
+          image_url?: string
+          is_active?: boolean | null
+          is_text_only?: boolean | null
+          link_url?: string | null
+          start_date?: string | null
+          text_color?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promo_banners_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shop_settings: {
         Row: {
           address: string | null
+          composition_rate: number | null
           contact_number: string | null
           created_at: string | null
           facebook: string | null
+          gst_enabled: boolean | null
+          gstin: string | null
           id: string
           instagram: string | null
+          is_composition_scheme: boolean | null
           logo_url: string | null
+          menu_background_color: string | null
+          menu_items_per_row: number | null
+          menu_primary_color: string | null
+          menu_secondary_color: string | null
+          menu_show_address: boolean | null
+          menu_show_category_header: boolean | null
+          menu_show_phone: boolean | null
+          menu_show_shop_name: boolean | null
+          menu_slug: string | null
+          menu_text_color: string | null
           printer_width: string | null
+          shop_latitude: number | null
+          shop_longitude: number | null
           shop_name: string | null
           show_facebook: boolean | null
           show_instagram: boolean | null
@@ -594,16 +727,33 @@ export type Database = {
           whatsapp_business_api_enabled: boolean | null
           whatsapp_business_api_token: string | null
           whatsapp_business_phone_id: string | null
+          whatsapp_share_mode: string | null
         }
         Insert: {
           address?: string | null
+          composition_rate?: number | null
           contact_number?: string | null
           created_at?: string | null
           facebook?: string | null
+          gst_enabled?: boolean | null
+          gstin?: string | null
           id?: string
           instagram?: string | null
+          is_composition_scheme?: boolean | null
           logo_url?: string | null
+          menu_background_color?: string | null
+          menu_items_per_row?: number | null
+          menu_primary_color?: string | null
+          menu_secondary_color?: string | null
+          menu_show_address?: boolean | null
+          menu_show_category_header?: boolean | null
+          menu_show_phone?: boolean | null
+          menu_show_shop_name?: boolean | null
+          menu_slug?: string | null
+          menu_text_color?: string | null
           printer_width?: string | null
+          shop_latitude?: number | null
+          shop_longitude?: number | null
           shop_name?: string | null
           show_facebook?: boolean | null
           show_instagram?: boolean | null
@@ -616,16 +766,33 @@ export type Database = {
           whatsapp_business_api_enabled?: boolean | null
           whatsapp_business_api_token?: string | null
           whatsapp_business_phone_id?: string | null
+          whatsapp_share_mode?: string | null
         }
         Update: {
           address?: string | null
+          composition_rate?: number | null
           contact_number?: string | null
           created_at?: string | null
           facebook?: string | null
+          gst_enabled?: boolean | null
+          gstin?: string | null
           id?: string
           instagram?: string | null
+          is_composition_scheme?: boolean | null
           logo_url?: string | null
+          menu_background_color?: string | null
+          menu_items_per_row?: number | null
+          menu_primary_color?: string | null
+          menu_secondary_color?: string | null
+          menu_show_address?: boolean | null
+          menu_show_category_header?: boolean | null
+          menu_show_phone?: boolean | null
+          menu_show_shop_name?: boolean | null
+          menu_slug?: string | null
+          menu_text_color?: string | null
           printer_width?: string | null
+          shop_latitude?: number | null
+          shop_longitude?: number | null
           shop_name?: string | null
           show_facebook?: boolean | null
           show_instagram?: boolean | null
@@ -638,8 +805,72 @@ export type Database = {
           whatsapp_business_api_enabled?: boolean | null
           whatsapp_business_api_token?: string | null
           whatsapp_business_phone_id?: string | null
+          whatsapp_share_mode?: string | null
         }
         Relationships: []
+      }
+      table_orders: {
+        Row: {
+          admin_id: string
+          bill_id: string | null
+          created_at: string | null
+          customer_note: string | null
+          id: string
+          is_billed: boolean | null
+          items: Json
+          order_number: number
+          session_id: string
+          status: string
+          table_number: string
+          total_amount: number
+          updated_at: string | null
+        }
+        Insert: {
+          admin_id: string
+          bill_id?: string | null
+          created_at?: string | null
+          customer_note?: string | null
+          id?: string
+          is_billed?: boolean | null
+          items?: Json
+          order_number?: number
+          session_id: string
+          status?: string
+          table_number: string
+          total_amount?: number
+          updated_at?: string | null
+        }
+        Update: {
+          admin_id?: string
+          bill_id?: string | null
+          created_at?: string | null
+          customer_note?: string | null
+          id?: string
+          is_billed?: boolean | null
+          items?: Json
+          order_number?: number
+          session_id?: string
+          status?: string
+          table_number?: string
+          total_amount?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "table_orders_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "table_orders_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tables: {
         Row: {
@@ -695,6 +926,50 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bills"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      tax_rates: {
+        Row: {
+          admin_id: string
+          cess_rate: number
+          created_at: string
+          hsn_code: string | null
+          id: string
+          is_active: boolean
+          name: string
+          rate: number
+          updated_at: string
+        }
+        Insert: {
+          admin_id: string
+          cess_rate?: number
+          created_at?: string
+          hsn_code?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          rate?: number
+          updated_at?: string
+        }
+        Update: {
+          admin_id?: string
+          cess_rate?: number
+          created_at?: string
+          hsn_code?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          rate?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tax_rates_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -804,6 +1079,10 @@ export type Database = {
           allowed: boolean
           reason: string
         }[]
+      }
+      public_update_table_status: {
+        Args: { p_admin_id: string; p_status: string; p_table_no: string }
+        Returns: undefined
       }
     }
     Enums: {

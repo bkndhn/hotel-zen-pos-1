@@ -112,7 +112,7 @@ const Items: React.FC = () => {
         return (a.name || '').localeCompare(b.name || '');
       });
 
-      setItems(sortedData);
+      setItems(sortedData as Item[]);
     } catch (error) {
       console.error('Error fetching items:', error);
       toast({
