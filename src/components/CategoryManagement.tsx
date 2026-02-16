@@ -44,6 +44,7 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({ onCatego
           const { data, error } = await supabase
             .from('expense_categories')
             .select('*')
+            .eq('is_deleted', false)
             .order('name');
 
           if (error) throw error;
