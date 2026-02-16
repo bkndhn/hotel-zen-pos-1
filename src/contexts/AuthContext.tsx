@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { Profile, UserStatus, UserRole } from '@/types/user';
+import { seedAdminDefaults } from '@/utils/seedAdminDefaults';
 
 interface AuthContextType {
   user: User | null;
@@ -125,6 +126,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         // Update cache
         localStorage.setItem(`profile_${user.id}`, JSON.stringify(profile));
+        
+        // Seed default data for new admins (fire and forget)
+        if (profile.role === 'admin' && profile.status === 'active') {
+          seedAdminDefaults(profile.id).catch(() => {});
+        }
+        
         return profile;
       }
 
