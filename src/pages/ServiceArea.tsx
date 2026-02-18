@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Check, X, Undo2, ChefHat, Clock, Wifi, WifiOff } from 'lucide-react';
+import { Check, X, Undo2, ChefHat, Clock, Wifi, WifiOff, Bell, Droplets, Receipt, BookOpen, MessageCircle, CheckCircle2, Volume2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { formatDateTimeAMPM, getTimeElapsed, isWithinUndoWindow, formatQuantityWithUnit } from '@/utils/timeUtils';
 import { cn } from '@/lib/utils';
@@ -67,6 +67,28 @@ interface ServiceTableOrder {
     created_at: string;
 }
 
+// Service request from customers
+interface ServiceRequest {
+    id: string;
+    admin_id: string;
+    table_number: string;
+    session_id: string;
+    request_type: string;
+    message: string | null;
+    status: 'pending' | 'acknowledged' | 'resolved';
+    created_at: string;
+    resolved_at: string | null;
+    resolved_by: string | null;
+}
+
+const REQUEST_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
+    call_waiter: { label: 'Call Waiter', emoji: '🙋', color: 'border-red-400 bg-red-50 dark:bg-red-950/30' },
+    need_water: { label: 'Need Water', emoji: '💧', color: 'border-blue-400 bg-blue-50 dark:bg-blue-950/30' },
+    need_bill: { label: 'Request Bill', emoji: '🧾', color: 'border-green-400 bg-green-50 dark:bg-green-950/30' },
+    need_menu: { label: 'Need Menu', emoji: '📋', color: 'border-purple-400 bg-purple-50 dark:bg-purple-950/30' },
+    custom: { label: 'Custom', emoji: '✏️', color: 'border-amber-400 bg-amber-50 dark:bg-amber-950/30' },
+};
+
 const ServiceArea = () => {
     const { profile } = useAuth();
     const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
@@ -84,6 +106,12 @@ const ServiceArea = () => {
 
     // Table orders state
     const [tableOrders, setTableOrders] = useState<ServiceTableOrder[]>([]);
+
+    // Service requests state
+    const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
+    const serviceRequestChannelRef = useRef<any>(null);
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const [soundEnabled, setSoundEnabled] = useState(true);
 
     // Debounced fetch to prevent multiple rapid calls
     const debouncedFetch = useCallback((silent = true) => {
@@ -318,6 +346,154 @@ const ServiceArea = () => {
         };
     }, [fetchTableOrders]);
 
+    // ========== SERVICE REQUESTS ==========
+
+    // Audio chime helper
+    const playChime = useCallback(() => {
+        if (!soundEnabled) return;
+        try {
+            if (!audioContextRef.current) {
+                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+            }
+            const ctx = audioContextRef.current;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.4);
+        } catch (e) {
+            console.warn('[ServiceArea] Audio chime failed:', e);
+        }
+    }, [soundEnabled]);
+
+    // Fetch pending/acknowledged service requests
+    const fetchServiceRequests = useCallback(async () => {
+        if (!adminId) return;
+        try {
+            const { data, error } = await (supabase as any)
+                .from('table_service_requests')
+                .select('*')
+                .eq('admin_id', adminId)
+                .in('status', ['pending', 'acknowledged'])
+                .order('created_at', { ascending: false });
+
+            if (!error && data) {
+                setServiceRequests(data as ServiceRequest[]);
+            }
+        } catch (e) {
+            console.warn('[ServiceArea] Service requests fetch error:', e);
+        }
+    }, [adminId]);
+
+    // Listen for new service requests via Broadcast + postgres_changes
+    useEffect(() => {
+        if (!adminId) return;
+
+        const channel = supabase.channel('service-request-sync', {
+            config: { broadcast: { self: false } }
+        })
+            .on('broadcast', { event: 'new-service-request' }, (payload: any) => {
+                console.log('[ServiceArea] New service request broadcast:', payload);
+                if (payload.payload?.admin_id === adminId) {
+                    fetchServiceRequests();
+                    playChime();
+                    toast({
+                        title: `🔔 Table ${payload.payload.table_number}`,
+                        description: REQUEST_LABELS[payload.payload.request_type]?.label || 'Help Requested',
+                        duration: 5000,
+                    });
+                }
+            })
+            .subscribe();
+
+        const pgChannel = supabase.channel('service-requests-pg')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'table_service_requests' }, (payload: any) => {
+                if (payload.new?.admin_id === adminId) {
+                    console.log('[ServiceArea] Service request postgres INSERT:', payload);
+                    fetchServiceRequests();
+                    playChime();
+                }
+            })
+            .subscribe();
+
+        serviceRequestChannelRef.current = channel;
+
+        return () => {
+            supabase.removeChannel(channel);
+            supabase.removeChannel(pgChannel);
+        };
+    }, [adminId, fetchServiceRequests, playChime]);
+
+    // Fetch service requests on mount + poll
+    useEffect(() => {
+        fetchServiceRequests();
+        const interval = setInterval(fetchServiceRequests, 30000);
+        return () => clearInterval(interval);
+    }, [fetchServiceRequests]);
+
+    // Acknowledge a service request
+    const acknowledgeRequest = async (req: ServiceRequest) => {
+        setServiceRequests(prev => prev.map(r =>
+            r.id === req.id ? { ...r, status: 'acknowledged' as const } : r
+        ));
+
+        try {
+            await (supabase as any)
+                .from('table_service_requests')
+                .update({ status: 'acknowledged' })
+                .eq('id', req.id);
+
+            // Broadcast back to customer
+            const respChannel = supabase.channel(`service-request-response-${req.session_id}`);
+            await respChannel.send({
+                type: 'broadcast',
+                event: 'request-status-update',
+                payload: { request_type: req.request_type, status: 'acknowledged' }
+            });
+            supabase.removeChannel(respChannel);
+
+            toast({ title: '👍 Acknowledged', description: `Table ${req.table_number} notified` });
+        } catch (e) {
+            console.error('[ServiceArea] Acknowledge error:', e);
+            fetchServiceRequests();
+        }
+    };
+
+    // Resolve a service request
+    const resolveRequest = async (req: ServiceRequest) => {
+        setServiceRequests(prev => prev.filter(r => r.id !== req.id));
+
+        try {
+            await (supabase as any)
+                .from('table_service_requests')
+                .update({
+                    status: 'resolved',
+                    resolved_at: new Date().toISOString(),
+                    resolved_by: profile?.id || null
+                })
+                .eq('id', req.id);
+
+            // Broadcast back to customer
+            const respChannel = supabase.channel(`service-request-response-${req.session_id}`);
+            await respChannel.send({
+                type: 'broadcast',
+                event: 'request-status-update',
+                payload: { request_type: req.request_type, status: 'resolved' }
+            });
+            supabase.removeChannel(respChannel);
+
+            toast({ title: '✅ Resolved', description: `Table ${req.table_number} request done` });
+        } catch (e) {
+            console.error('[ServiceArea] Resolve error:', e);
+            fetchServiceRequests();
+        }
+    };
+
     /**
      * OPTIMISTIC UPDATE: Instant (0ms) response with multi-layer broadcast
      */
@@ -524,6 +700,86 @@ const ServiceArea = () => {
                     Refresh
                 </Button>
             </div>
+
+            {/* ========== SERVICE REQUESTS NOTIFICATION SECTION ========== */}
+            {serviceRequests.length > 0 && (
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <Bell className="w-5 h-5 text-red-500 animate-bounce" />
+                            <h2 className="text-base font-bold text-foreground">
+                                Service Requests
+                                <Badge className="ml-2 bg-red-500 text-white">{serviceRequests.length}</Badge>
+                            </h2>
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSoundEnabled(!soundEnabled)}
+                            title={soundEnabled ? 'Mute notifications' : 'Unmute notifications'}
+                        >
+                            <Volume2 className={cn("w-4 h-4", !soundEnabled && "opacity-30")} />
+                        </Button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                        {serviceRequests.map((req) => {
+                            const meta = REQUEST_LABELS[req.request_type] || REQUEST_LABELS.custom;
+                            return (
+                                <Card
+                                    key={req.id}
+                                    className={cn(
+                                        "p-3 border-2 transition-all duration-300",
+                                        meta.color,
+                                        req.status === 'pending' && "animate-pulse"
+                                    )}
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-2xl">{meta.emoji}</span>
+                                            <div>
+                                                <p className="font-bold text-foreground text-sm">Table {req.table_number}</p>
+                                                <p className="text-xs text-muted-foreground">{meta.label}</p>
+                                            </div>
+                                        </div>
+                                        <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium">
+                                            {getTimeElapsed(req.created_at)}
+                                        </span>
+                                    </div>
+                                    {req.message && (
+                                        <p className="text-xs text-muted-foreground italic mb-2 bg-white/50 dark:bg-black/20 rounded px-2 py-1">
+                                            &ldquo;{req.message}&rdquo;
+                                        </p>
+                                    )}
+                                    <div className="flex gap-2">
+                                        {req.status === 'pending' && (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="flex-1 text-xs bg-white hover:bg-blue-50 border-blue-300"
+                                                onClick={() => acknowledgeRequest(req)}
+                                            >
+                                                <CheckCircle2 className="w-3 h-3 mr-1" />
+                                                Acknowledge
+                                            </Button>
+                                        )}
+                                        <Button
+                                            size="sm"
+                                            className={cn(
+                                                "flex-1 text-xs text-white",
+                                                req.status === 'acknowledged' ? "bg-green-600 hover:bg-green-700" : "bg-gray-600 hover:bg-gray-700"
+                                            )}
+                                            onClick={() => resolveRequest(req)}
+                                        >
+                                            <Check className="w-3 h-3 mr-1" />
+                                            Resolve
+                                        </Button>
+                                    </div>
+                                </Card>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Active Bills Grid */}
             {bills.length === 0 && tableOrders.filter(o => o.status === 'ready' || o.status === 'preparing').length === 0 ? (

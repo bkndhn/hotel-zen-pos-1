@@ -1159,18 +1159,23 @@ const QRCodeSettings = () => {
                                 <LayoutGrid className="w-4 h-4 text-blue-600" />
                                 <Label className="text-xs text-muted-foreground">Items Per Row</Label>
                             </div>
-                            <div className="flex gap-2">
-                                {[1, 2, 3].map(num => (
+                            <div className="flex gap-2 flex-wrap">
+                                {[
+                                    { val: 1, label: '1 Item' },
+                                    { val: 2, label: '2 Items' },
+                                    { val: 3, label: '3 Items' },
+                                    { val: 4, label: '↔ Scroll' },
+                                ].map(opt => (
                                     <Button
-                                        key={num}
-                                        variant={menuItemsPerRow === num ? 'default' : 'outline'}
+                                        key={opt.val}
+                                        variant={menuItemsPerRow === opt.val ? 'default' : 'outline'}
                                         size="sm"
-                                        className="flex-1"
+                                        className="flex-1 min-w-[60px]"
                                         onClick={() => {
-                                            setMenuItemsPerRow(num);
+                                            setMenuItemsPerRow(opt.val);
                                         }}
                                     >
-                                        {num} {num === 1 ? 'Item' : 'Items'}
+                                        {opt.label}
                                     </Button>
                                 ))}
                             </div>

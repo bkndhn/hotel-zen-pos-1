@@ -872,6 +872,53 @@ export type Database = {
           },
         ]
       }
+      table_service_requests: {
+        Row: {
+          admin_id: string
+          created_at: string | null
+          id: string
+          message: string | null
+          request_type: string
+          resolved_at: string | null
+          resolved_by: string | null
+          session_id: string
+          status: string
+          table_number: string
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          request_type?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          session_id: string
+          status?: string
+          table_number: string
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          request_type?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          session_id?: string
+          status?: string
+          table_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "table_service_requests_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tables: {
         Row: {
           admin_id: string | null

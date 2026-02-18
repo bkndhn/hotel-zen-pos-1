@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Utensils, Phone, MapPin, Wifi, WifiOff, Search, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, MessageCircle, ShoppingCart, Plus, Minus, Send, Clock, CheckCircle2, Loader2, ChefHat, Trash2, MessageSquare, RefreshCw } from 'lucide-react';
+import { Utensils, Phone, MapPin, Wifi, WifiOff, Search, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, MessageCircle, ShoppingCart, Plus, Minus, Send, Clock, CheckCircle2, Loader2, ChefHat, Trash2, MessageSquare, RefreshCw, Bell, Droplets, Receipt, BookOpen, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getShortUnit } from '@/utils/timeUtils';
 
@@ -149,6 +149,14 @@ const PublicMenu = () => {
     // Orders for this session
     const [sessionOrders, setSessionOrders] = useState<TableOrder[]>([]);
     const orderChannelRef = useRef<any>(null);
+
+    // ========== HELP / SERVICE REQUEST STATE ==========
+    const [showHelpSheet, setShowHelpSheet] = useState(false);
+    const [helpCooldowns, setHelpCooldowns] = useState<Record<string, number>>({});
+    const [helpStatus, setHelpStatus] = useState<Record<string, 'pending' | 'acknowledged' | 'resolved'>>({});
+    const [customHelpMsg, setCustomHelpMsg] = useState('');
+    const [showCustomInput, setShowCustomInput] = useState(false);
+    const helpChannelRef = useRef<any>(null);
 
     // Online/Offline detection
     useEffect(() => {
@@ -877,6 +885,15 @@ const PublicMenu = () => {
         );
     }, [sessionOrders]);
 
+    // Check if all orders are served but NOT yet billed (customer waiting state)
+    const isAllServed = useMemo(() => {
+        if (sessionOrders.length === 0) return false;
+        if (isSessionComplete) return false;
+        return sessionOrders.every(
+            o => ['served', 'cancelled'].includes(o.status)
+        );
+    }, [sessionOrders, isSessionComplete]);
+
     // Reset session when complete
     const startNewOrder = useCallback(() => {
         if (!sessionStorageKey) return;
@@ -889,6 +906,132 @@ const PublicMenu = () => {
         setCart([]);
         setOrderNote('');
     }, [sessionStorageKey]);
+
+    // ========== HELP / SERVICE REQUEST FUNCTIONS ==========
+
+    const HELP_ACTIONS = [
+        { type: 'call_waiter', label: '🙋 Call Waiter', icon: Bell, color: 'bg-red-500' },
+        { type: 'need_water', label: '💧 Need Water', icon: Droplets, color: 'bg-blue-500' },
+        { type: 'need_bill', label: '🧾 Request Bill', icon: Receipt, color: 'bg-green-600' },
+        { type: 'need_menu', label: '📋 Need Menu', icon: BookOpen, color: 'bg-purple-500' },
+        { type: 'custom', label: '✏️ Custom Request', icon: MessageCircle, color: 'bg-amber-500' },
+    ];
+
+    // Send a help/service request
+    const sendHelpRequest = useCallback(async (requestType: string, message?: string) => {
+        if (!adminId || !tableNo || !sessionId) return;
+        // Cooldown check
+        const cooldownEnd = helpCooldowns[requestType] || 0;
+        if (Date.now() < cooldownEnd) return;
+
+        try {
+            const { error: insertErr } = await supabase
+                .from('table_service_requests')
+                .insert({
+                    admin_id: adminId,
+                    table_number: tableNo,
+                    session_id: sessionId,
+                    request_type: requestType,
+                    message: message || null,
+                    status: 'pending'
+                } as any);
+
+            if (insertErr) {
+                // Unique constraint = already pending
+                if (insertErr.code === '23505') {
+                    alert('You already have a pending request of this type. Staff has been notified!');
+                    return;
+                }
+                throw insertErr;
+            }
+
+            // Broadcast to Service Area for instant notification
+            const syncChannel = supabase.channel('service-request-sync');
+            await syncChannel.send({
+                type: 'broadcast',
+                event: 'new-service-request',
+                payload: {
+                    admin_id: adminId,
+                    table_number: tableNo,
+                    request_type: requestType,
+                    message: message || null,
+                    session_id: sessionId,
+                    timestamp: Date.now()
+                }
+            });
+            supabase.removeChannel(syncChannel);
+
+            // Set cooldown (30 seconds)
+            setHelpCooldowns(prev => ({ ...prev, [requestType]: Date.now() + 30000 }));
+            setHelpStatus(prev => ({ ...prev, [requestType]: 'pending' }));
+            setShowHelpSheet(false);
+            setShowCustomInput(false);
+            setCustomHelpMsg('');
+        } catch (err) {
+            console.error('Help request error:', err);
+            alert('Failed to send request. Please try again.');
+        }
+    }, [adminId, tableNo, sessionId, helpCooldowns]);
+
+    // Listen for acknowledgement/resolution from staff
+    useEffect(() => {
+        if (!adminId || !isTableMode || !sessionId) return;
+
+        const channel = supabase.channel(`service-request-response-${sessionId}`)
+            .on('broadcast', { event: 'request-status-update' }, (payload: any) => {
+                const { request_type, status } = payload.payload || {};
+                if (request_type && status) {
+                    setHelpStatus(prev => ({ ...prev, [request_type]: status }));
+                    // Auto-clear after 5 seconds for resolved
+                    if (status === 'resolved') {
+                        setTimeout(() => {
+                            setHelpStatus(prev => {
+                                const next = { ...prev };
+                                delete next[request_type];
+                                return next;
+                            });
+                        }, 5000);
+                    }
+                }
+            })
+            .subscribe();
+
+        helpChannelRef.current = channel;
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [adminId, isTableMode, sessionId]);
+
+    // Cooldown ticker
+    useEffect(() => {
+        const hasCooldowns = Object.values(helpCooldowns).some(t => Date.now() < t);
+        if (!hasCooldowns) return;
+        const interval = setInterval(() => {
+            setHelpCooldowns(prev => {
+                const now = Date.now();
+                const next = { ...prev };
+                let changed = false;
+                for (const key in next) {
+                    if (now >= next[key]) {
+                        delete next[key];
+                        changed = true;
+                    }
+                }
+                return changed ? next : prev;
+            });
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [helpCooldowns]);
+
+    // Get help status badge text
+    const getHelpStatusText = (type: string) => {
+        const status = helpStatus[type];
+        if (status === 'acknowledged') return '👍 Staff notified!';
+        if (status === 'pending') return '⏳ Request sent';
+        if (status === 'resolved') return '✅ Done!';
+        return null;
+    };
 
     if (loading) {
         return (
@@ -1099,22 +1242,27 @@ const PublicMenu = () => {
                         href={`https://www.google.com/maps/dir/?api=1&destination=${shopSettings.shop_latitude},${shopSettings.shop_longitude}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-green-500 text-white py-2.5 px-4 rounded-xl shadow-md hover:shadow-lg transition-all text-sm font-medium"
+                        className="flex items-center justify-center gap-2 text-white py-2.5 px-4 rounded-xl shadow-md hover:shadow-lg transition-all text-sm font-medium hover:scale-[1.01] active:scale-[0.99]"
+                        style={{
+                            background: shopSettings?.menu_primary_color
+                                ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color}cc)`
+                                : 'linear-gradient(135deg, #ea580c, #dc2626)'
+                        }}
                     >
                         <MapPin className="w-4 h-4" />
                         <span>Get Directions to Our Shop</span>
                         <ChevronRight className="w-4 h-4" />
-                    </a >
-                </div >
+                    </a>
+                </div>
             )}
 
             {/* Promotional Banners Carousel */}
             {
                 banners.length > 0 && (
                     <div className="max-w-2xl mx-auto px-4 pt-4">
-                        <div className="relative rounded-xl overflow-hidden shadow-lg">
+                        <div className="relative rounded-xl overflow-hidden shadow-lg" style={{ maxHeight: '200px' }}>
                             <div
-                                className="flex transition-transform duration-500 ease-in-out touch-pan-y"
+                                className="flex transition-transform duration-500 ease-in-out touch-pan-y h-full"
                                 style={{ transform: `translateX(-${currentBannerIndex * 100}%)` }}
                                 onTouchStart={handleTouchStart}
                                 onTouchMove={handleTouchMove}
@@ -1129,7 +1277,7 @@ const PublicMenu = () => {
                                         {banner.is_text_only ? (
                                             // Text-only banner with solid color background
                                             <div
-                                                className="relative aspect-[16/7] flex items-center justify-center"
+                                                className="relative aspect-[16/7] max-h-[200px] flex items-center justify-center"
                                                 style={{ backgroundColor: banner.bg_color || '#22c55e' }}
                                             >
                                                 <div className="text-center px-6">
@@ -1151,11 +1299,11 @@ const PublicMenu = () => {
                                             </div>
                                         ) : (
                                             // Image banner
-                                            <div className="relative aspect-[16/7] bg-gradient-to-r from-orange-400 to-amber-400">
+                                            <div className="relative aspect-[16/7] max-h-[200px] bg-gradient-to-r from-orange-400 to-amber-400">
                                                 <img
                                                     src={banner.image_url}
                                                     alt={banner.title}
-                                                    className="w-full h-full object-cover"
+                                                    className="w-full h-full object-cover object-center"
                                                     draggable={false}
                                                 />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
@@ -1246,68 +1394,153 @@ const PublicMenu = () => {
                                 </button>
 
                                 {/* Collapsible items section */}
-                                <div
-                                    className={cn(
-                                        "grid gap-3 transition-all duration-300 ease-in-out overflow-hidden",
-                                        shopSettings?.menu_items_per_row === 3 ? "grid-cols-3" :
-                                            shopSettings?.menu_items_per_row === 2 ? "grid-cols-2" :
-                                                "grid-cols-1",
-                                        isCollapsed ? "max-h-0 opacity-0" : "max-h-[5000px] opacity-100"
-                                    )}
-                                >
-                                    {categoryItems.map(item => (
-                                        <div
-                                            key={item.id}
-                                            className={cn(
-                                                "bg-white rounded-2xl shadow-sm border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden group",
-                                                shopSettings?.menu_items_per_row === 1 ? "flex items-center p-3.5 gap-3.5" : "flex flex-col"
-                                            )}
-                                            style={{ borderColor: shopSettings?.menu_primary_color ? `${shopSettings.menu_primary_color}15` : '#ffedd5' }}
-                                        >
-                                            {/* Image - larger for multi-column, side for single */}
-                                            {shopSettings?.menu_items_per_row === 1 ? (
-                                                // Single column: horizontal layout
-                                                <>
-                                                    <ItemMedia item={item} />
-                                                    <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                                                        <h3 className="font-semibold text-gray-900 text-sm leading-tight">
-                                                            {item.name}
-                                                        </h3>
-                                                        <div className="flex items-center gap-2 flex-shrink-0">
-                                                            <span className="text-base font-bold" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                {shopSettings?.menu_items_per_row === 4 ? (
+                                    /* ===== MODE 4: HORIZONTAL SCROLL PER CATEGORY ===== */
+                                    <div
+                                        className={cn(
+                                            "transition-all duration-300 ease-in-out overflow-hidden",
+                                            isCollapsed ? "max-h-0 opacity-0" : "max-h-[5000px] opacity-100"
+                                        )}
+                                    >
+                                        <div className="flex gap-3 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                                            {categoryItems.map(item => (
+                                                <div
+                                                    key={item.id}
+                                                    className="flex-shrink-0 w-[140px] snap-start bg-white rounded-2xl shadow-sm border hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col"
+                                                    style={{ borderColor: shopSettings?.menu_primary_color ? `${shopSettings.menu_primary_color}15` : '#ffedd5' }}
+                                                >
+                                                    <div className="aspect-square bg-orange-50 relative overflow-hidden">
+                                                        {item.video_url || item.media_type === 'gif' || item.media_type === 'video' ? (
+                                                            item.media_type === 'gif' ? (
+                                                                <img src={item.video_url || item.image_url} alt={item.name} className="w-full h-full object-cover" loading="lazy" draggable={false} onContextMenu={(e) => e.preventDefault()} />
+                                                            ) : (
+                                                                <video src={item.video_url} className="w-full h-full object-cover" autoPlay loop muted playsInline />
+                                                            )
+                                                        ) : item.image_url ? (
+                                                            <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" loading="lazy" draggable={false} onContextMenu={(e) => e.preventDefault()} />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-orange-300">
+                                                                <Utensils className="w-10 h-10" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="p-2 text-center flex flex-col flex-1 justify-between">
+                                                        <h3 className="font-semibold text-gray-800 text-xs leading-tight line-clamp-2">{item.name}</h3>
+                                                        <div className="mt-1">
+                                                            <span className="text-sm font-extrabold" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>
                                                                 ₹{item.price}
-                                                                <span className="text-xs font-medium text-gray-400 ml-0.5">
+                                                                <span className="text-[9px] font-medium text-gray-400 ml-0.5">
                                                                     /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
                                                                 </span>
                                                             </span>
-                                                            {isTableMode && (
-                                                                getCartQuantity(item.id) > 0 ? (
-                                                                    <div className="flex items-center gap-1">
-                                                                        <button onClick={() => updateQuantity(item.id, -1)} className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200">
+                                                        </div>
+                                                        {isTableMode && (
+                                                            <div className="mt-1.5">
+                                                                {getCartQuantity(item.id) > 0 ? (
+                                                                    <div className="flex items-center justify-center gap-1">
+                                                                        <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 active:scale-90 transition-transform">
                                                                             <Minus className="w-3.5 h-3.5" />
                                                                         </button>
-                                                                        <span className="text-sm font-bold w-5 text-center">{getCartQuantity(item.id)}</span>
-                                                                        <button onClick={() => addToCart(item)} className="w-7 h-7 rounded-full flex items-center justify-center text-white" style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                                                        <span className="text-sm font-bold w-6 text-center">{getCartQuantity(item.id)}</span>
+                                                                        <button onClick={() => addToCart(item)} className="w-8 h-8 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform" style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
                                                                             <Plus className="w-3.5 h-3.5" />
                                                                         </button>
                                                                     </div>
                                                                 ) : (
-                                                                    <button onClick={() => addToCart(item)} className="px-3 py-1.5 rounded-full text-white text-xs font-semibold shadow-sm" style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                                                    <button onClick={() => addToCart(item)} className="px-4 py-1.5 rounded-full text-white text-xs font-semibold shadow-sm hover:shadow-md active:scale-95 transition-all" style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
                                                                         ADD
                                                                     </button>
-                                                                )
-                                                            )}
-                                                        </div>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                </>
-                                            ) : (
-                                                // Multi-column: vertical card with large image on top
-                                                <>
-                                                    <div className="aspect-square bg-orange-50 relative overflow-hidden">
-                                                        {item.video_url || item.media_type === 'gif' || item.media_type === 'video' ? (
-                                                            item.media_type === 'gif' ? (
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* ===== MODE 1/2/3: GRID LAYOUT ===== */
+                                    <div
+                                        className={cn(
+                                            "grid gap-3 transition-all duration-300 ease-in-out overflow-hidden",
+                                            shopSettings?.menu_items_per_row === 3 ? "grid-cols-3" :
+                                                shopSettings?.menu_items_per_row === 2 ? "grid-cols-2" :
+                                                    "grid-cols-1",
+                                            isCollapsed ? "max-h-0 opacity-0" : "max-h-[5000px] opacity-100"
+                                        )}
+                                    >
+                                        {categoryItems.map(item => (
+                                            <div
+                                                key={item.id}
+                                                className={cn(
+                                                    "bg-white rounded-2xl shadow-sm border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden group",
+                                                    shopSettings?.menu_items_per_row === 1 ? "flex items-center p-3.5 gap-3.5" : "flex flex-col"
+                                                )}
+                                                style={{ borderColor: shopSettings?.menu_primary_color ? `${shopSettings.menu_primary_color}15` : '#ffedd5' }}
+                                            >
+                                                {/* Image - larger for multi-column, side for single */}
+                                                {shopSettings?.menu_items_per_row === 1 ? (
+                                                    // Single column: horizontal layout
+                                                    <>
+                                                        <ItemMedia item={item} />
+                                                        <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                                                            <h3 className="font-semibold text-gray-900 text-sm leading-tight">
+                                                                {item.name}
+                                                            </h3>
+                                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                                                <span className="text-base font-bold" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                                                    ₹{item.price}
+                                                                    <span className="text-xs font-medium text-gray-400 ml-0.5">
+                                                                        /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
+                                                                    </span>
+                                                                </span>
+                                                                {isTableMode && (
+                                                                    getCartQuantity(item.id) > 0 ? (
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 active:scale-90 transition-transform">
+                                                                                <Minus className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                            <span className="text-sm font-bold w-6 text-center">{getCartQuantity(item.id)}</span>
+                                                                            <button onClick={() => addToCart(item)} className="w-8 h-8 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform" style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                                                                <Plus className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <button onClick={() => addToCart(item)} className="px-4 py-1.5 rounded-full text-white text-xs font-semibold shadow-sm hover:shadow-md active:scale-95 transition-all" style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                                                            ADD
+                                                                        </button>
+                                                                    )
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    // Multi-column: vertical card with large image on top
+                                                    <>
+                                                        <div className="aspect-square bg-orange-50 relative overflow-hidden">
+                                                            {item.video_url || item.media_type === 'gif' || item.media_type === 'video' ? (
+                                                                item.media_type === 'gif' ? (
+                                                                    <img
+                                                                        src={item.video_url || item.image_url}
+                                                                        alt={item.name}
+                                                                        className="w-full h-full object-cover"
+                                                                        loading="lazy"
+                                                                        draggable={false}
+                                                                        onContextMenu={(e) => e.preventDefault()}
+                                                                    />
+                                                                ) : (
+                                                                    <video
+                                                                        src={item.video_url}
+                                                                        className="w-full h-full object-cover"
+                                                                        autoPlay
+                                                                        loop
+                                                                        muted
+                                                                        playsInline
+                                                                    />
+                                                                )
+                                                            ) : item.image_url ? (
                                                                 <img
-                                                                    src={item.video_url || item.image_url}
+                                                                    src={item.image_url}
                                                                     alt={item.name}
                                                                     className="w-full h-full object-cover"
                                                                     loading="lazy"
@@ -1315,79 +1548,58 @@ const PublicMenu = () => {
                                                                     onContextMenu={(e) => e.preventDefault()}
                                                                 />
                                                             ) : (
-                                                                <video
-                                                                    src={item.video_url}
-                                                                    className="w-full h-full object-cover"
-                                                                    autoPlay
-                                                                    loop
-                                                                    muted
-                                                                    playsInline
-                                                                />
-                                                            )
-                                                        ) : item.image_url ? (
-                                                            <img
-                                                                src={item.image_url}
-                                                                alt={item.name}
-                                                                className="w-full h-full object-cover"
-                                                                loading="lazy"
-                                                                draggable={false}
-                                                                onContextMenu={(e) => e.preventDefault()}
-                                                            />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center text-orange-300">
-                                                                <Utensils className="w-12 h-12" />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="p-2.5 text-center">
-                                                        <h3 className={cn(
-                                                            "font-semibold text-gray-800 leading-tight line-clamp-2",
-                                                            shopSettings?.menu_items_per_row === 3 ? "text-xs" : "text-sm"
-                                                        )}>
-                                                            {item.name}
-                                                        </h3>
-                                                        <div className="mt-1.5 flex items-center justify-center gap-2">
-                                                            <span
-                                                                className={cn(
-                                                                    "font-extrabold",
-                                                                    shopSettings?.menu_items_per_row === 3 ? "text-sm" : "text-base"
-                                                                )}
-                                                                style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}
-                                                            >
-                                                                ₹{item.price}
-                                                                <span className="text-[10px] font-medium text-gray-400 ml-0.5">
-                                                                    /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
-                                                                </span>
-                                                            </span>
+                                                                <div className="w-full h-full flex items-center justify-center text-orange-300">
+                                                                    <Utensils className="w-12 h-12" />
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                        {isTableMode && (
-                                                            <div className="mt-2">
-                                                                {getCartQuantity(item.id) > 0 ? (
-                                                                    <div className="flex items-center justify-center gap-1">
-                                                                        <button onClick={() => updateQuantity(item.id, -1)} className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200">
-                                                                            <Minus className="w-3 h-3" />
-                                                                        </button>
-                                                                        <span className="text-xs font-bold w-5 text-center">{getCartQuantity(item.id)}</span>
-                                                                        <button onClick={() => addToCart(item)} className="w-6 h-6 rounded-full flex items-center justify-center text-white" style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
-                                                                            <Plus className="w-3 h-3" />
-                                                                        </button>
-                                                                    </div>
-                                                                ) : (
-                                                                    <button onClick={() => addToCart(item)} className={cn(
-                                                                        "px-3 py-1 rounded-full text-white font-semibold shadow-sm",
-                                                                        shopSettings?.menu_items_per_row === 3 ? "text-[10px]" : "text-xs"
-                                                                    )} style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
-                                                                        ADD
-                                                                    </button>
-                                                                )}
+                                                        <div className="p-2.5 text-center">
+                                                            <h3 className={cn(
+                                                                "font-semibold text-gray-800 leading-tight line-clamp-2",
+                                                                shopSettings?.menu_items_per_row === 3 ? "text-xs" : "text-sm"
+                                                            )}>
+                                                                {item.name}
+                                                            </h3>
+                                                            <div className="mt-1.5 flex items-center justify-center gap-2">
+                                                                <span
+                                                                    className={cn(
+                                                                        "font-extrabold",
+                                                                        shopSettings?.menu_items_per_row === 3 ? "text-sm" : "text-base"
+                                                                    )}
+                                                                    style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}
+                                                                >
+                                                                    ₹{item.price}
+                                                                    <span className="text-[10px] font-medium text-gray-400 ml-0.5">
+                                                                        /{item.base_value && item.base_value > 1 ? item.base_value : ''}{getShortUnit(item.unit)}
+                                                                    </span>
+                                                                </span>
                                                             </div>
-                                                        )}
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
+                                                            {isTableMode && (
+                                                                <div className="mt-2">
+                                                                    {getCartQuantity(item.id) > 0 ? (
+                                                                        <div className="flex items-center justify-center gap-1.5">
+                                                                            <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 active:scale-90 transition-transform">
+                                                                                <Minus className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                            <span className="text-sm font-bold w-6 text-center">{getCartQuantity(item.id)}</span>
+                                                                            <button onClick={() => addToCart(item)} className="w-8 h-8 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform" style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                                                                <Plus className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <button onClick={() => addToCart(item)} className="px-4 py-1.5 rounded-full text-white text-xs font-semibold shadow-sm hover:shadow-md active:scale-95 transition-all" style={{ background: shopSettings?.menu_primary_color || '#ea580c' }}>
+                                                                            ADD
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         );
                     })
@@ -1587,7 +1799,7 @@ const PublicMenu = () => {
 
             {/* My Orders Toggle Button (table mode, no cart) */}
             {
-                isTableMode && sessionOrders.length > 0 && cartItemCount === 0 && !showMyOrders && !isSessionComplete && (
+                isTableMode && sessionOrders.length > 0 && cartItemCount === 0 && !showMyOrders && !isSessionComplete && !isAllServed && (
                     <div className="fixed bottom-[76px] left-0 right-0 z-50 px-4">
                         <button
                             onClick={() => setShowMyOrders(true)}
@@ -1599,6 +1811,43 @@ const PublicMenu = () => {
                             </div>
                             <span className="font-bold">₹{sessionTotal.toFixed(0)}</span>
                         </button>
+                    </div>
+                )
+            }
+
+            {/* All Orders Served — Re-order or Request Bill */}
+            {
+                isTableMode && isAllServed && (
+                    <div className="fixed bottom-[76px] left-0 right-0 z-50 px-4">
+                        <div
+                            className="w-full max-w-2xl mx-auto rounded-2xl shadow-xl p-4 text-center border"
+                            style={{
+                                background: `linear-gradient(135deg, ${shopSettings?.menu_primary_color || '#ea580c'}08, ${shopSettings?.menu_secondary_color || '#dc2626'}12)`,
+                                borderColor: `${shopSettings?.menu_primary_color || '#ea580c'}25`
+                            }}
+                        >
+                            <CheckCircle2 className="w-7 h-7 mx-auto mb-1.5" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }} />
+                            <p className="font-semibold text-sm mb-0.5" style={{ color: shopSettings?.menu_primary_color || '#ea580c' }}>All items served! ✨</p>
+                            <p className="text-gray-500 text-xs mb-3">Would you like anything else?</p>
+                            <div className="flex items-center gap-2 justify-center">
+                                <button
+                                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-sm text-white shadow-md hover:shadow-lg active:scale-95 transition-all"
+                                    style={{ background: shopSettings?.menu_primary_color ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})` : 'linear-gradient(135deg, #ea580c, #dc2626)' }}
+                                >
+                                    <RefreshCw className="w-4 h-4" />
+                                    Order More
+                                </button>
+                                <button
+                                    onClick={() => sendHelpRequest('need_bill')}
+                                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-sm bg-white border-2 shadow-md hover:shadow-lg active:scale-95 transition-all"
+                                    style={{ borderColor: shopSettings?.menu_primary_color || '#ea580c', color: shopSettings?.menu_primary_color || '#ea580c' }}
+                                >
+                                    <Receipt className="w-4 h-4" />
+                                    Request Bill
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )
             }
@@ -1622,6 +1871,136 @@ const PublicMenu = () => {
                     </div>
                 )
             }
+
+            {/* ========== HELP / NEED SERVICE BUTTON ========== */}
+            {isTableMode && !isSessionComplete && (
+                <>
+                    {/* Floating Help Button */}
+                    <button
+                        onClick={() => setShowHelpSheet(true)}
+                        className="fixed z-50 flex items-center gap-2 px-4 py-3 rounded-full shadow-2xl text-white font-bold text-sm transition-all duration-300 hover:scale-105 active:scale-95"
+                        style={{
+                            background: shopSettings?.menu_primary_color
+                                ? `linear-gradient(135deg, ${shopSettings.menu_primary_color}, ${shopSettings.menu_secondary_color || shopSettings.menu_primary_color})`
+                                : 'linear-gradient(135deg, #ea580c, #dc2626)',
+                            bottom: cart.length > 0 ? '180px' : (showMyOrders && sessionOrders.length > 0) ? '140px' : '100px',
+                            right: '16px',
+                        }}
+                    >
+                        <Bell className="w-4 h-4" />
+                        Need Help?
+                        {Object.keys(helpStatus).length > 0 && (
+                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse border-2 border-white" />
+                        )}
+                    </button>
+
+                    {/* Help Status Toast (shows when request is active) */}
+                    {Object.entries(helpStatus).map(([type, status]) => (
+                        <div
+                            key={type}
+                            className={`fixed left-4 right-4 z-[60] max-w-md mx-auto rounded-2xl px-4 py-3 shadow-xl text-sm font-semibold text-center transition-all duration-500 ${status === 'acknowledged'
+                                    ? 'bg-green-100 text-green-800 border border-green-200'
+                                    : status === 'pending'
+                                        ? 'bg-amber-100 text-amber-800 border border-amber-200 animate-pulse'
+                                        : 'bg-blue-100 text-blue-800 border border-blue-200'
+                                }`}
+                            style={{
+                                bottom: cart.length > 0 ? '230px' : (showMyOrders && sessionOrders.length > 0) ? '190px' : '150px',
+                            }}
+                        >
+                            {status === 'acknowledged' && '👍 Staff is coming to your table!'}
+                            {status === 'pending' && `⏳ ${HELP_ACTIONS.find(a => a.type === type)?.label || 'Request'} sent...`}
+                            {status === 'resolved' && '✅ Request completed!'}
+                        </div>
+                    ))}
+
+                    {/* Help Bottom Sheet */}
+                    {showHelpSheet && (
+                        <div className="fixed inset-0 z-[70] flex items-end justify-center">
+                            {/* Backdrop */}
+                            <div
+                                className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                                onClick={() => { setShowHelpSheet(false); setShowCustomInput(false); }}
+                            />
+                            {/* Sheet */}
+                            <div className="relative w-full max-w-md bg-white rounded-t-3xl shadow-2xl p-5 pb-8 animate-in slide-in-from-bottom duration-300">
+                                {/* Handle */}
+                                <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-4" />
+                                <h3 className="text-lg font-bold text-gray-900 mb-1 text-center">Need Assistance?</h3>
+                                <p className="text-xs text-gray-500 mb-4 text-center">Table {tableNo} • Tap to notify staff</p>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    {HELP_ACTIONS.filter(a => a.type !== 'custom').map((action) => {
+                                        const isOnCooldown = Date.now() < (helpCooldowns[action.type] || 0);
+                                        const statusText = getHelpStatusText(action.type);
+                                        const remainingSec = isOnCooldown
+                                            ? Math.ceil(((helpCooldowns[action.type] || 0) - Date.now()) / 1000)
+                                            : 0;
+                                        return (
+                                            <button
+                                                key={action.type}
+                                                onClick={() => sendHelpRequest(action.type)}
+                                                disabled={isOnCooldown}
+                                                className={`flex flex-col items-center gap-2 p-4 rounded-2xl text-white font-semibold text-sm transition-all duration-200 ${action.color} ${isOnCooldown ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90 active:scale-95 shadow-lg hover:shadow-xl'
+                                                    }`}
+                                            >
+                                                <action.icon className="w-6 h-6" />
+                                                <span>{action.label}</span>
+                                                {isOnCooldown && (
+                                                    <span className="text-[10px] opacity-75">Wait {remainingSec}s</span>
+                                                )}
+                                                {statusText && !isOnCooldown && (
+                                                    <span className="text-[10px] opacity-85">{statusText}</span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Custom Request */}
+                                <div className="mt-3">
+                                    {!showCustomInput ? (
+                                        <button
+                                            onClick={() => setShowCustomInput(true)}
+                                            className="w-full flex items-center justify-center gap-2 p-3 rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-colors"
+                                        >
+                                            <MessageCircle className="w-4 h-4" />
+                                            ✏️ Send Custom Message
+                                        </button>
+                                    ) : (
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={customHelpMsg}
+                                                onChange={(e) => setCustomHelpMsg(e.target.value)}
+                                                placeholder="Type your request..."
+                                                className="flex-1 px-4 py-3 rounded-2xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                                                autoFocus
+                                                maxLength={200}
+                                            />
+                                            <button
+                                                onClick={() => customHelpMsg.trim() && sendHelpRequest('custom', customHelpMsg.trim())}
+                                                disabled={!customHelpMsg.trim()}
+                                                className="px-4 py-3 rounded-2xl bg-amber-500 text-white font-bold text-sm disabled:opacity-50 hover:bg-amber-600 transition-colors"
+                                            >
+                                                <Send className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Close */}
+                                <button
+                                    onClick={() => { setShowHelpSheet(false); setShowCustomInput(false); }}
+                                    className="mt-4 w-full py-3 rounded-2xl border-2 border-gray-200 text-gray-500 font-semibold text-sm hover:bg-gray-50 transition-colors"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
 
             {/* Footer with Contact Info */}
             <footer
