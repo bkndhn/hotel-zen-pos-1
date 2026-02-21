@@ -8,6 +8,17 @@
 import html2canvas from 'html2canvas';
 import { getShortUnit, formatQuantityWithUnit } from '@/utils/timeUtils';
 
+/** Escape HTML special characters to prevent XSS */
+const escapeHtml = (str: string | undefined | null): string => {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
 interface BillImageData {
   billNo: string;
   shopName: string;
@@ -37,13 +48,12 @@ interface BillImageData {
  */
 const generateBillHtml = (data: BillImageData): string => {
   const itemRows = data.items.map((item, idx) => {
-    const shortUnit = getShortUnit(item.unit);
     const qty = `${formatQuantityWithUnit(item.quantity, item.unit)}`;
     const bgColor = idx % 2 === 0 ? '#f8f9ff' : '#ffffff';
     return `
       <tr style="background: ${bgColor};">
-        <td style="padding: 10px 12px; font-weight: 600; color: #1a1a2e; border-bottom: 1px solid #eef0f6;">${item.name}</td>
-        <td style="padding: 10px 8px; text-align: center; font-weight: 700; color: #4361ee; border-bottom: 1px solid #eef0f6;">${qty}</td>
+        <td style="padding: 10px 12px; font-weight: 600; color: #1a1a2e; border-bottom: 1px solid #eef0f6;">${escapeHtml(item.name)}</td>
+        <td style="padding: 10px 8px; text-align: center; font-weight: 700; color: #4361ee; border-bottom: 1px solid #eef0f6;">${escapeHtml(qty)}</td>
         <td style="padding: 10px 8px; text-align: right; color: #666; border-bottom: 1px solid #eef0f6;">₹${item.price.toFixed(0)}</td>
         <td style="padding: 10px 12px; text-align: right; font-weight: 700; color: #1a1a2e; border-bottom: 1px solid #eef0f6;">₹${item.total.toFixed(0)}</td>
       </tr>
@@ -57,7 +67,7 @@ const generateBillHtml = (data: BillImageData): string => {
   let paymentHtml = '';
   if (data.paymentDetails && Object.keys(data.paymentDetails).length > 0) {
     const entries = Object.entries(data.paymentDetails).map(([method, amount]) =>
-      `<span style="text-transform: uppercase; font-weight: 600;">${method}:</span> <span style="font-weight: 700;">₹${Number(amount).toFixed(0)}</span>`
+      `<span style="text-transform: uppercase; font-weight: 600;">${escapeHtml(method)}:</span> <span style="font-weight: 700;">₹${Number(amount).toFixed(0)}</span>`
     ).join(' &nbsp;|&nbsp; ');
     paymentHtml = `
       <div style="margin-top: 16px; padding: 12px 16px; background: #f0f4ff; border-radius: 10px; border: 1px solid #dce3ff;">
@@ -69,7 +79,7 @@ const generateBillHtml = (data: BillImageData): string => {
       <div style="margin-top: 16px; padding: 12px 16px; background: #f0f4ff; border-radius: 10px; border: 1px solid #dce3ff;">
         <div style="font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Payment Split Details</div>
         <div style="font-size: 13px; color: #1a1a2e;">
-          <span style="text-transform: uppercase; font-weight: 600;">${data.paymentMethod}:</span> <span style="font-weight: 700;">₹${data.total.toFixed(0)}</span>
+          <span style="text-transform: uppercase; font-weight: 600;">${escapeHtml(data.paymentMethod)}:</span> <span style="font-weight: 700;">₹${data.total.toFixed(0)}</span>
         </div>
       </div>`;
   }
@@ -84,7 +94,7 @@ const generateBillHtml = (data: BillImageData): string => {
   // Additional charges
   const chargesHtml = data.additionalCharges?.map(charge => `
       <div style="display: flex; justify-content: space-between; padding: 4px 16px; font-size: 13px; color: #666;">
-        <span>${charge.name}:</span>
+        <span>${escapeHtml(charge.name)}:</span>
         <span style="font-weight: 600;">+₹${charge.amount.toFixed(0)}</span>
       </div>
     `).join('') || '';
@@ -102,10 +112,10 @@ const generateBillHtml = (data: BillImageData): string => {
     ">
       <!-- Shop Header -->
       <div style="text-align: center; padding: 24px 20px 16px; background: #ffffff;">
-        <div style="font-size: 22px; font-weight: 800; color: #1a1a2e; letter-spacing: 0.5px; text-transform: uppercase;">${data.shopName}</div>
-        ${data.address ? `<div style="font-size: 12px; color: #6b7280; margin-top: 4px; line-height: 1.4;">${data.address.replace(/\n/g, '<br>')}</div>` : ''}
-        ${data.phone ? `<div style="font-size: 13px; color: #374151; margin-top: 4px; font-weight: 600;">${data.phone}</div>` : ''}
-        ${data.gstin ? `<div style="font-size: 11px; color: #6366f1; margin-top: 4px; font-weight: 600;">GSTIN: ${data.gstin}</div>` : ''}
+        <div style="font-size: 22px; font-weight: 800; color: #1a1a2e; letter-spacing: 0.5px; text-transform: uppercase;">${escapeHtml(data.shopName)}</div>
+         ${data.address ? `<div style="font-size: 12px; color: #6b7280; margin-top: 4px; line-height: 1.4;">${escapeHtml(data.address).replace(/\n/g, '<br>')}</div>` : ''}
+         ${data.phone ? `<div style="font-size: 13px; color: #374151; margin-top: 4px; font-weight: 600;">${escapeHtml(data.phone)}</div>` : ''}
+         ${data.gstin ? `<div style="font-size: 11px; color: #6366f1; margin-top: 4px; font-weight: 600;">GSTIN: ${escapeHtml(data.gstin)}</div>` : ''}
       </div>
       
       <!-- Bill Title -->
@@ -116,7 +126,7 @@ const generateBillHtml = (data: BillImageData): string => {
         border-radius: 12px;
         text-align: center;
       ">
-        <div style="font-size: 15px; font-weight: 700; color: #ffffff; letter-spacing: 0.3px;">Bill Details - ${data.billNo}</div>
+        <div style="font-size: 15px; font-weight: 700; color: #ffffff; letter-spacing: 0.3px;">Bill Details - ${escapeHtml(data.billNo)}</div>
         <div style="font-size: 11px; color: rgba(255,255,255,0.85); margin-top: 4px;">${data.date} ${data.time}</div>
       </div>
 
