@@ -274,12 +274,9 @@ const PublicMenu = () => {
 
                 const userId = profileData?.user_id || adminId;
 
-                // Fetch shop settings including display preferences and appearance
+                // Fetch shop settings via secure RPC (excludes sensitive fields like API tokens)
                 const { data: settingsData, error: settingsError } = await supabase
-                    .from('shop_settings')
-                    .select('shop_name, address, contact_number, logo_url, menu_show_shop_name, menu_show_address, menu_show_phone, menu_primary_color, menu_secondary_color, menu_background_color, menu_text_color, menu_items_per_row, shop_latitude, shop_longitude')
-                    .eq('user_id', userId)
-                    .maybeSingle();
+                    .rpc('get_public_shop_settings', { p_user_id: userId });
 
                 if (settingsError && settingsError.code !== 'PGRST116') {
                     console.error('Settings error:', settingsError);
