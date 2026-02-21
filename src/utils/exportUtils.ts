@@ -1,5 +1,3 @@
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 // Define interfaces for different report types
@@ -360,65 +358,37 @@ ${data.profitLoss.length > 0 ? `
 
 // Keep the old functions for backward compatibility
 export const exportToPDF = (expenses: ExpenseForPDF[], title: string = 'Expenses Report') => {
-  const doc = new jsPDF();
-
-  doc.setFontSize(20);
-  doc.setTextColor(40);
-  doc.text(title, 20, 20);
-
-  doc.setFontSize(10);
-  doc.setTextColor(100);
-  doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 30);
-
   const total = expenses.reduce((sum, expense) => sum + expense.amount, 0);
 
-  doc.setFontSize(12);
-  doc.setTextColor(40);
-  doc.text(`Total Expenses: ${total.toFixed(2)}`, 20, 40);
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>${title}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; font-size: 11px; padding: 10px; background: white; color: black; }
+  h1 { font-size: 18px; margin-bottom: 5px; }
+  h2 { font-size: 14px; margin: 15px 0 5px; background: #2980b9; color: white; padding: 5px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+  th { background: #3498db; color: white; padding: 4px; text-align: left; font-size: 10px; }
+  td { padding: 3px 4px; border-bottom: 1px solid #ddd; font-size: 10px; }
+  .r { text-align: right; }
+  .b { font-weight: bold; background: #ecf0f1; }
+</style></head><body>
+  <h1>${title}</h1>
+  <p>Generated: ${new Date().toLocaleDateString()} | Total: ${total.toFixed(2)}</p>
+  <h2>Expenses</h2>
+  <table>
+    <tr><th>#</th><th>Name</th><th>Category</th><th class="r">Amount</th><th>Date</th><th>Note</th></tr>
+    ${expenses.map((e, i) => `<tr><td>${i + 1}</td><td>${e.expense_name || 'Unnamed'}</td><td>${e.category}</td><td class="r">${e.amount.toFixed(2)}</td><td>${new Date(e.date).toLocaleDateString()}</td><td>${e.note || '-'}</td></tr>`).join('')}
+    <tr class="b"><td></td><td>TOTAL</td><td></td><td class="r">${total.toFixed(2)}</td><td></td><td></td></tr>
+  </table>
+</body></html>`;
 
-  const tableData = expenses.map((expense, index) => [
-    (index + 1).toString(),
-    expense.expense_name || 'Unnamed Expense',
-    expense.category,
-    expense.amount.toFixed(2),
-    new Date(expense.date).toLocaleDateString(),
-    expense.note || '-'
-  ]);
-
-  autoTable(doc, {
-    head: [['#', 'Name', 'Category', 'Amount', 'Date', 'Note']],
-    body: tableData,
-    startY: 50,
-    styles: {
-      fontSize: 8,
-      cellPadding: 3,
-      overflow: 'linebreak',
-      halign: 'left',
-      lineWidth: 0.1,
-      lineColor: [200, 200, 200]
-    },
-    headStyles: {
-      fillColor: [41, 128, 185],
-      textColor: 255,
-      fontSize: 9,
-      fontStyle: 'bold'
-    },
-    columnStyles: {
-      0: { halign: 'center', cellWidth: 15 },
-      1: { cellWidth: 40 },
-      2: { cellWidth: 30 },
-      3: { halign: 'right', cellWidth: 25 },
-      4: { cellWidth: 25 },
-      5: { cellWidth: 35 }
-    },
-    margin: { top: 50, left: 20, right: 20, bottom: 20 },
-    theme: 'striped',
-    alternateRowStyles: {
-      fillColor: [245, 245, 245]
-    }
-  });
-
-  doc.save(`${title.toLowerCase().replace(/\s+/g, '-')}.pdf`);
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) { alert('Please allow popups to print reports'); return; }
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.onload = () => { setTimeout(() => { printWindow.focus(); printWindow.print(); }, 300); };
+  setTimeout(() => { if (printWindow && !printWindow.closed) { printWindow.focus(); printWindow.print(); } }, 1000);
 };
 
 export const exportToExcel = (expenses: ExpenseForPDF[], title: string = 'Expenses Report') => {
