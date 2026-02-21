@@ -188,35 +188,15 @@ const PublicMenu = () => {
             } else {
                 // It's a slug, look up the admin ID
                 try {
-                    const { data, error: slugError } = await supabase
-                        .from('shop_settings')
-                        .select('user_id')
-                        .eq('menu_slug', urlParam)
-                        .maybeSingle();
+                    const { data: resolvedId, error: slugError } = await supabase
+                        .rpc('resolve_menu_slug', { p_slug: urlParam });
 
-                    if (slugError && slugError.code !== 'PGRST116') {
+                    if (slugError) {
                         console.error('Slug lookup error:', slugError);
                     }
 
-                    if (data?.user_id) {
-                        // Now get the profile.id from user_id
-                        const { data: profileData, error: profileError } = await supabase
-                            .from('profiles')
-                            .select('id')
-                            .eq('user_id', data.user_id)
-                            .maybeSingle();
-
-                        if (profileError) {
-                            console.error('Profile lookup error:', profileError);
-                        }
-
-                        if (profileData?.id) {
-                            setAdminId(profileData.id);
-                        } else {
-                            setError('Menu not found');
-                            setLoading(false);
-                            return;
-                        }
+                    if (resolvedId) {
+                        setAdminId(resolvedId);
                     } else {
                         setError('Menu not found');
                         setLoading(false);

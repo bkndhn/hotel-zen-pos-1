@@ -1144,6 +1144,7 @@ export type Database = {
         Args: { p_admin_id: string; p_status: string; p_table_no: string }
         Returns: undefined
       }
+      resolve_menu_slug: { Args: { p_slug: string }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "user" | "super_admin"
