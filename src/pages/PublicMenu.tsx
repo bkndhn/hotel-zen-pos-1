@@ -241,22 +241,9 @@ const PublicMenu = () => {
                     console.error('Items fetch error:', itemsError);
                 }
 
-                // Fetch profile to get user_id for shop_settings
-                const { data: profileData, error: profileError } = await supabase
-                    .from('profiles')
-                    .select('user_id')
-                    .eq('id', adminId)
-                    .maybeSingle();
-
-                if (profileError) {
-                    console.error('Profile fetch error:', profileError);
-                }
-
-                const userId = profileData?.user_id || adminId;
-
-                // Fetch shop settings via secure RPC (excludes sensitive fields like API tokens)
+                // Fetch shop settings via secure RPC using profile ID (excludes sensitive fields like API tokens)
                 const { data: settingsData, error: settingsError } = await supabase
-                    .rpc('get_public_shop_settings', { p_user_id: userId });
+                    .rpc('get_public_shop_settings_by_profile', { p_profile_id: adminId });
 
                 if (settingsError && settingsError.code !== 'PGRST116') {
                     console.error('Settings error:', settingsError);
