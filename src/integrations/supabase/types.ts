@@ -1076,6 +1076,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_service_request_rate_limit: {
+        Args: { p_admin_id: string; p_table_number: string }
+        Returns: boolean
+      }
+      check_table_order_rate_limit: {
+        Args: {
+          p_admin_id: string
+          p_session_id: string
+          p_table_number: string
+        }
+        Returns: boolean
+      }
       create_bill_transaction:
         | {
             Args: {
