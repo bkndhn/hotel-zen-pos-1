@@ -12,6 +12,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { LogOut, User, Hotel, Menu, LayoutDashboard, ShoppingCart, Package, Receipt, BarChart3, TrendingUp, Users, Settings, ClipboardList, ChefHat, LayoutGrid, UserCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LanguageSwitcher } from './LanguageSwitcher';
+import { BranchSelector } from './BranchSelector';
+import { BranchSetupWizard } from './BranchSetupWizard';
 
 const allNavItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', page: 'dashboard' as const },
@@ -128,6 +130,7 @@ export const Header: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-2">
+            <BranchSelector />
             <LanguageSwitcher />
 
             <Badge variant={profile.role === 'admin' || profile.role === 'super_admin' ? 'default' : 'outline'} className="hidden md:flex text-xs">
@@ -168,6 +171,8 @@ export const Header: React.FC = () => {
           </div>
         </div>
       </header>
+
+      <BranchSetupWizard />
 
       {/* Sign Out Confirmation Dialog */}
       <Dialog open={showSignOutConfirm} onOpenChange={setShowSignOutConfirm}>
