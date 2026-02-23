@@ -17,6 +17,7 @@ import { ShopSettingsForm } from '@/components/ShopSettingsForm';
 import { ThemeSettings } from '@/components/ThemeSettings';
 import { WhatsAppSettings } from '@/components/WhatsAppSettings';
 import { GSTSettings } from '@/components/GSTSettings';
+import { BranchManagement } from '@/components/BranchManagement';
 
 interface AdditionalCharge {
   id: string;
@@ -190,6 +191,9 @@ const Settings = () => {
         </div>
 
         <div className="space-y-4 sm:space-y-6">
+          {/* Branch Management - Admin only */}
+          {profile?.role === 'admin' && <BranchManagement />}
+
           {/* Shop Details */}
           <ShopSettingsForm />
 

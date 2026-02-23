@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranchFilter } from '@/hooks/useBranchFilter';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +31,7 @@ interface Expense {
 const Expenses: React.FC = () => {
   const { profile } = useAuth();
   const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+  const { branchId } = useBranchFilter();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [filteredExpenses, setFilteredExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +42,7 @@ const Expenses: React.FC = () => {
 
   useEffect(() => {
     if (adminId) fetchExpenses();
-  }, [adminId]);
+  }, [adminId, branchId]);
 
   useEffect(() => {
     applyFilters();
@@ -52,11 +54,12 @@ const Expenses: React.FC = () => {
       const data = await cachedFetch(
         `${CACHE_KEYS.EXPENSES}_${adminId}_list`,
         async () => {
-          const { data, error } = await supabase
+          let query = supabase
             .from('expenses')
             .select('*')
-            .eq('admin_id', adminId)
-            .order('date', { ascending: false });
+            .eq('admin_id', adminId);
+          if (branchId) query = query.eq('branch_id', branchId);
+          const { data, error } = await query.order('date', { ascending: false });
 
           if (error) throw error;
           return data || [];

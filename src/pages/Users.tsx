@@ -11,6 +11,7 @@ import { AddUserDialog } from '@/components/AddUserDialog';
 import { Switch } from '@/components/ui/switch';
 
 import { UserPermissions } from '@/components/UserPermissions';
+import { BranchUserAssignment } from '@/components/BranchUserAssignment';
 import type { UserProfile, UserStatus, UserRole } from '@/types/user';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { format } from 'date-fns';
@@ -329,6 +330,13 @@ const Users: React.FC = () => {
       </Card>
 
 
+
+      {/* Branch Staff Assignment - Admin only */}
+      {isAdmin && usersForPermissions.length > 0 && (
+        <div className="mb-6">
+          <BranchUserAssignment users={usersForPermissions} />
+        </div>
+      )}
 
       {/* User Permissions - For both Super Admin and Admin */}
       {(isAdmin || isSuperAdmin) && usersForPermissions.length > 0 && (
