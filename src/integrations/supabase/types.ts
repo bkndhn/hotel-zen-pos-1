@@ -732,6 +732,7 @@ export type Database = {
           item_limit: number | null
           last_login: string | null
           login_count: number | null
+          multi_branch_enabled: boolean | null
           name: string
           role: Database["public"]["Enums"]["app_role"]
           status: string | null
@@ -747,6 +748,7 @@ export type Database = {
           item_limit?: number | null
           last_login?: string | null
           login_count?: number | null
+          multi_branch_enabled?: boolean | null
           name: string
           role?: Database["public"]["Enums"]["app_role"]
           status?: string | null
@@ -762,6 +764,7 @@ export type Database = {
           item_limit?: number | null
           last_login?: string | null
           login_count?: number | null
+          multi_branch_enabled?: boolean | null
           name?: string
           role?: Database["public"]["Enums"]["app_role"]
           status?: string | null

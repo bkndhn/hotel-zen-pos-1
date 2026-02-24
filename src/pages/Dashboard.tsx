@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranchFilter } from '@/hooks/useBranchFilter';
 import { Navigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,6 +17,7 @@ interface DashboardStats {
 const Dashboard = () => {
   const { profile } = useAuth();
   const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+  const { branchId } = useBranchFilter();
   const [stats, setStats] = useState<DashboardStats>({
     todaySales: 0,
     todayExpenses: 0,
@@ -27,7 +29,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (adminId) fetchDashboardStats();
-  }, [adminId]);
+  }, [adminId, branchId]);
 
   // Real-time subscription for updates
   useEffect(() => {
@@ -57,31 +59,37 @@ const Dashboard = () => {
       const today = new Date().toISOString().split('T')[0];
 
       // Fetch today's sales (exclude deleted bills)
-      const { data: billsData } = await supabase
+      let billsQuery = supabase
         .from('bills')
         .select('total_amount')
         .eq('admin_id', adminId)
         .eq('date', today)
         .or('is_deleted.is.null,is_deleted.eq.false');
+      if (branchId) billsQuery = billsQuery.eq('branch_id', branchId);
+      const { data: billsData } = await billsQuery;
 
       const todaySales = billsData?.reduce((sum, bill) => sum + Number(bill.total_amount), 0) || 0;
       const todayBills = billsData?.length || 0;
 
       // Fetch today's expenses
-      const { data: expensesData } = await supabase
+      let expQuery = supabase
         .from('expenses')
         .select('amount')
         .eq('admin_id', adminId)
         .eq('date', today);
+      if (branchId) expQuery = expQuery.eq('branch_id', branchId);
+      const { data: expensesData } = await expQuery;
 
       const todayExpenses = expensesData?.reduce((sum, expense) => sum + Number(expense.amount), 0) || 0;
 
       // Fetch total items
-      const { data: itemsData } = await supabase
+      let itemsQuery = supabase
         .from('items')
         .select('id')
         .eq('admin_id', adminId)
         .eq('is_active', true);
+      if (branchId) itemsQuery = itemsQuery.eq('branch_id', branchId);
+      const { data: itemsData } = await itemsQuery;
 
       const totalItems = itemsData?.length || 0;
 
