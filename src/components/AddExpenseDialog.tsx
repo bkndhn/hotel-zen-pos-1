@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranchFilter } from '@/hooks/useBranchFilter';
 import { Plus } from 'lucide-react';
 import { cachedFetch, CACHE_KEYS, dataCache } from '@/utils/cacheUtils';
 
@@ -22,6 +23,7 @@ interface AddExpenseDialogProps {
 
 export const AddExpenseDialog: React.FC<AddExpenseDialogProps> = ({ onExpenseAdded }) => {
   const { profile } = useAuth();
+  const { getInsertBranchId } = useBranchFilter();
   const [open, setOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [formData, setFormData] = useState({
@@ -83,7 +85,8 @@ export const AddExpenseDialog: React.FC<AddExpenseDialogProps> = ({ onExpenseAdd
         note: formData.note.trim() || null,
         date: formData.date,
         created_by: profile?.user_id,
-        admin_id: adminId || null
+        admin_id: adminId || null,
+        branch_id: getInsertBranchId()
       });
 
       if (error) throw error;

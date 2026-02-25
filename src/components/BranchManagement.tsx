@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useBranch, Branch } from '@/contexts/BranchContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { Building2, Plus, Edit, Trash2, Star, MapPin, Phone } from 'lucide-react';
+import { Building2, Plus, Edit, Trash2, Star, MapPin, Phone, LinkIcon } from 'lucide-react';
 
 export const BranchManagement: React.FC = () => {
   const { profile } = useAuth();
@@ -20,6 +20,7 @@ export const BranchManagement: React.FC = () => {
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Branch | null>(null);
   const [saving, setSaving] = useState(false);
+  const [multiBranchEnabled, setMultiBranchEnabled] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -32,6 +33,20 @@ export const BranchManagement: React.FC = () => {
     gst_enabled: false,
     is_default: false,
   });
+
+  // Check if multi-branch is enabled for this admin
+  useEffect(() => {
+    const checkMultiBranch = async () => {
+      if (!profile || profile.role !== 'admin') return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('multi_branch_enabled')
+        .eq('id', profile.id)
+        .single();
+      setMultiBranchEnabled(data?.multi_branch_enabled || false);
+    };
+    checkMultiBranch();
+  }, [profile]);
 
   if (profile?.role !== 'admin') return null;
 
@@ -143,6 +158,45 @@ export const BranchManagement: React.FC = () => {
     }
   };
 
+  const assignOrphanData = async () => {
+    const defaultBranch = branches.find(b => b.is_default) || branches[0];
+    if (!defaultBranch) return;
+
+    setSaving(true);
+    try {
+      // Assign orphan items, expenses, tables, customers, etc. to default branch
+      const tables = ['items', 'expenses', 'tables', 'customers', 'additional_charges', 'item_categories', 'expense_categories', 'payments'];
+      let totalUpdated = 0;
+
+      for (const table of tables) {
+        const { data, error } = await supabase
+          .from(table as any)
+          .update({ branch_id: defaultBranch.id } as any)
+          .eq('admin_id', profile!.id)
+          .is('branch_id', null)
+          .select('id');
+
+        if (!error && data) totalUpdated += data.length;
+      }
+
+      if (totalUpdated > 0) {
+        toast({
+          title: 'Data Assigned',
+          description: `${totalUpdated} records assigned to "${defaultBranch.name}"`,
+        });
+      } else {
+        toast({
+          title: 'All Clear',
+          description: 'All records are already assigned to a branch',
+        });
+      }
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to assign data', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <>
       <Card>
@@ -152,10 +206,20 @@ export const BranchManagement: React.FC = () => {
               <Building2 className="w-5 h-5" />
               <span className="text-base sm:text-lg">Branch Management</span>
             </div>
-            <Button onClick={openAdd} size="sm">
-              <Plus className="w-4 h-4 mr-1" /> Add Branch
-            </Button>
+            <div className="flex items-center gap-2">
+              {!multiBranchEnabled && branches.length >= 1 && (
+                <Badge variant="outline" className="text-[10px] shrink-0">Single Branch</Badge>
+              )}
+              <Button onClick={openAdd} size="sm" disabled={!multiBranchEnabled && branches.length >= 1}>
+                <Plus className="w-4 h-4 mr-1" /> Add Branch
+              </Button>
+            </div>
           </CardTitle>
+          {!multiBranchEnabled && branches.length >= 1 && (
+            <p className="text-xs text-muted-foreground">
+              Multi-branch is a premium feature. Contact your super admin to enable it.
+            </p>
+          )}
           <p className="text-sm text-muted-foreground">
             Manage your business branches. Each branch has isolated items, billing, expenses, and settings.
           </p>
@@ -213,6 +277,17 @@ export const BranchManagement: React.FC = () => {
                   </div>
                 </Card>
               ))}
+            </div>
+          )}
+          {branches.length > 0 && (
+            <div className="mt-3 pt-3 border-t">
+              <Button variant="outline" size="sm" onClick={assignOrphanData} disabled={saving} className="w-full">
+                <LinkIcon className="w-3.5 h-3.5 mr-1.5" />
+                {saving ? 'Assigning...' : 'Assign Unlinked Data to Default Branch'}
+              </Button>
+              <p className="text-[10px] text-muted-foreground mt-1 text-center">
+                Assigns items, expenses, tables, etc. without a branch to the default branch
+              </p>
             </div>
           )}
         </CardContent>
