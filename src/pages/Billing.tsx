@@ -6,10 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
-import { ShoppingCart, Plus, Minus, Search, Grid, List, X, Trash2, Edit2, Check, Package, ChevronRight } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Search, Grid, List, X, Trash2, Package } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { CompletePaymentDialog } from '@/components/CompletePaymentDialog';
-import { PrinterErrorDialog } from '@/components/PrinterErrorDialog';
 import { TableSelector } from '@/components/TableSelector';
 import { getCachedImageUrl, cacheImageUrl } from '@/utils/imageUtils';
 import { getInstantBillNumber, initBillCounter } from '@/utils/billNumberGenerator';
@@ -17,7 +15,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
 import { printReceipt, PrintData } from '@/utils/bluetoothPrinter';
 import { printBrowserReceipt } from '@/utils/browserPrinter';
-import { format } from 'date-fns';
 import { getShortUnit, formatQuantityWithUnit, isWeightOrVolumeUnit } from '@/utils/timeUtils';
 
 const Billing: React.FC = () => {
@@ -26,51 +23,56 @@ const Billing: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [products, setProducts] = useState<any[]>([]);
-  const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
+  const [items, setItems] = useState<any[]>([]);
+  const [filteredItems, setFilteredItems] = useState<any[]>([]);
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [selectedTable, setSelectedTable] = useState<string | null>(null);
-  const [isCompletePaymentOpen, setIsCompletePaymentOpen] = useState(false);
-  const [isPrinterErrorOpen, setIsPrinterErrorOpen] = useState(false);
-  const [printerErrorMessage, setPrinterErrorMessage] = useState('');
-  const [billNumber, setBillNumber] = useState<string>('');
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const [selectedTableNumber, setSelectedTableNumber] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const cartRef = useRef(cartItems);
   cartRef.current = cartItems;
 
+  // Real-time updates
+  useRealTimeUpdates();
+
   // Initialize bill counter on mount
   useEffect(() => {
-    initBillCounter(branchId);
+    if (branchId) initBillCounter(branchId);
   }, [branchId]);
 
-  // Fetch products from Supabase
-  const fetchProducts = useCallback(async () => {
+  // Fetch items from Supabase
+  const fetchItems = useCallback(async () => {
     if (!branchId) return;
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('products')
+      let query = supabase
+        .from('items')
         .select('*')
-        .eq('branch_id', branchId)
+        .eq('is_active', true)
         .order('name', { ascending: true });
+
+      if (branchId) {
+        query = query.eq('branch_id', branchId);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       if (data) {
-        setProducts(data);
-        setFilteredProducts(data);
-        // Cache images for faster loading
-        data.forEach(product => {
-          if (product.image_url) {
-            cacheImageUrl(product.image_url);
+        setItems(data);
+        setFilteredItems(data);
+        data.forEach(item => {
+          if (item.image_url) {
+            cacheImageUrl(item.id, item.image_url);
           }
         });
       }
     } catch (error) {
       toast({
         variant: 'destructive',
-        title: 'Failed to load products',
+        title: 'Failed to load items',
         description: (error as Error).message,
       });
     } finally {
@@ -79,50 +81,50 @@ const Billing: React.FC = () => {
   }, [branchId]);
 
   useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
+    fetchItems();
+  }, [fetchItems]);
 
-  // Filter products based on search term
+  // Filter items based on search term
   useEffect(() => {
     if (!searchTerm) {
-      setFilteredProducts(products);
+      setFilteredItems(items);
       return;
     }
     const lowerSearch = searchTerm.toLowerCase();
-    setFilteredProducts(
-      products.filter(product =>
-        product.name.toLowerCase().includes(lowerSearch) ||
-        product.code?.toLowerCase().includes(lowerSearch)
+    setFilteredItems(
+      items.filter(item =>
+        item.name.toLowerCase().includes(lowerSearch) ||
+        item.category?.toLowerCase().includes(lowerSearch)
       )
     );
-  }, [searchTerm, products]);
+  }, [searchTerm, items]);
 
-  // Add product to cart
-  const addToCart = (product: any) => {
+  // Add item to cart
+  const addToCart = (item: any) => {
     setCartItems(prev => {
-      const existing = prev.find(item => item.product.id === product.id);
+      const existing = prev.find(ci => ci.id === item.id);
       if (existing) {
-        return prev.map(item =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
+        return prev.map(ci =>
+          ci.id === item.id
+            ? { ...ci, quantity: ci.quantity + 1 }
+            : ci
         );
       }
-      return [...prev, { product, quantity: 1 }];
+      return [...prev, { ...item, quantity: 1 }];
     });
   };
 
-  // Remove product from cart
-  const removeFromCart = (productId: string) => {
-    setCartItems(prev => prev.filter(item => item.product.id !== productId));
+  // Remove item from cart
+  const removeFromCart = (itemId: string) => {
+    setCartItems(prev => prev.filter(ci => ci.id !== itemId));
   };
 
   // Update quantity in cart
-  const updateQuantity = (productId: string, quantity: number) => {
+  const updateQuantity = (itemId: string, quantity: number) => {
     if (quantity < 1) return;
     setCartItems(prev =>
-      prev.map(item =>
-        item.product.id === productId ? { ...item, quantity } : item
+      prev.map(ci =>
+        ci.id === itemId ? { ...ci, quantity } : ci
       )
     );
   };
@@ -134,89 +136,38 @@ const Billing: React.FC = () => {
 
   // Calculate total price
   const totalPrice = cartItems.reduce(
-    (acc, item) => acc + item.product.price * item.quantity,
+    (acc: number, ci: any) => acc + ci.price * ci.quantity,
     0
   );
-
-  // Generate new bill number
-  const generateBillNumber = async () => {
-    if (!branchId) return;
-    const newBillNumber = await getInstantBillNumber(branchId);
-    setBillNumber(newBillNumber);
-  };
 
   // Handle complete payment
   const handleCompletePayment = async () => {
     if (!user || !branchId) {
-      toast({
-        variant: 'destructive',
-        title: 'User or branch not found',
-      });
+      toast({ variant: 'destructive', title: 'User or branch not found' });
       return;
     }
-    if (!selectedTable) {
-      toast({
-        variant: 'destructive',
-        title: 'Please select a table',
-      });
+    if (!selectedTableId) {
+      toast({ variant: 'destructive', title: 'Please select a table' });
       return;
     }
     if (cartItems.length === 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Cart is empty',
-      });
+      toast({ variant: 'destructive', title: 'Cart is empty' });
       return;
     }
-    setIsCompletePaymentOpen(true);
-  };
 
-  // Confirm payment and save to database
-  const confirmPayment = async () => {
-    if (!user || !branchId || !selectedTable) return;
-    setIsCompletePaymentOpen(false);
     setIsLoading(true);
     try {
       const newBillNumber = await getInstantBillNumber(branchId);
-      setBillNumber(newBillNumber);
 
-      const billData = {
+      const { error } = await supabase.from('bills').insert([{
         branch_id: branchId,
-        user_id: user.id,
-        table: selectedTable,
-        bill_number: newBillNumber,
-        items: cartItems.map(item => ({
-          product_id: item.product.id,
-          quantity: item.quantity,
-          price: item.product.price,
-        })),
-        total: totalPrice,
-        created_at: new Date().toISOString(),
-      };
-
-      const { data, error } = await supabase.from('bills').insert([billData]);
+        created_by: user.id,
+        bill_no: newBillNumber,
+        payment_mode: 'cash' as const,
+        total_amount: totalPrice,
+        table_no: selectedTableNumber,
+      }]);
       if (error) throw error;
-
-      // Print receipt
-      const printData: PrintData = {
-        billNumber: newBillNumber,
-        table: selectedTable,
-        items: cartItems,
-        total: totalPrice,
-        date: new Date(),
-      };
-
-      try {
-        await printReceipt(printData);
-      } catch (printError) {
-        // Fallback to browser print
-        try {
-          printBrowserReceipt(printData);
-        } catch (browserPrintError) {
-          setPrinterErrorMessage('Failed to print receipt.');
-          setIsPrinterErrorOpen(true);
-        }
-      }
 
       toast({
         title: 'Payment completed',
@@ -224,7 +175,8 @@ const Billing: React.FC = () => {
       });
 
       clearCart();
-      setSelectedTable(null);
+      setSelectedTableId(null);
+      setSelectedTableNumber(null);
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -236,11 +188,6 @@ const Billing: React.FC = () => {
     }
   };
 
-  // Real-time updates for products and bills
-  useRealTimeUpdates(branchId, () => {
-    fetchProducts();
-  });
-
   return (
     <div className="billing-page container mx-auto p-4">
       <Card>
@@ -250,17 +197,21 @@ const Billing: React.FC = () => {
         <CardContent>
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
-              <Input
-                placeholder="Search products..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                icon={<Search />}
-              />
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search items..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
               <div className="flex justify-end my-2 gap-2">
                 <Button
                   variant={viewMode === 'grid' ? 'default' : 'outline'}
                   onClick={() => setViewMode('grid')}
                   aria-label="Grid view"
+                  size="sm"
                 >
                   <Grid size={16} />
                 </Button>
@@ -268,48 +219,51 @@ const Billing: React.FC = () => {
                   variant={viewMode === 'list' ? 'default' : 'outline'}
                   onClick={() => setViewMode('list')}
                   aria-label="List view"
+                  size="sm"
                 >
                   <List size={16} />
                 </Button>
               </div>
               <div
-                className={`products-list grid ${
-                  viewMode === 'grid' ? 'grid-cols-2 md:grid-cols-4 gap-4' : ''
+                className={`items-list grid ${
+                  viewMode === 'grid' ? 'grid-cols-2 md:grid-cols-4 gap-4' : 'gap-2'
                 }`}
               >
-                {filteredProducts.map(product => (
+                {filteredItems.map(item => (
                   <div
-                    key={product.id}
-                    className={`product-item border rounded p-2 cursor-pointer flex ${
+                    key={item.id}
+                    className={`item-card border rounded-lg p-2 cursor-pointer flex ${
                       viewMode === 'list' ? 'items-center gap-4' : 'flex-col'
-                    }`}
-                    onClick={() => addToCart(product)}
+                    } hover:border-primary transition-colors`}
+                    onClick={() => addToCart(item)}
                   >
-                    {product.image_url ? (
+                    {item.image_url ? (
                       <img
-                        src={getCachedImageUrl(product.image_url)}
-                        alt={product.name}
-                        className={`product-image ${
-                          viewMode === 'list' ? 'w-16 h-16' : 'w-full h-32 object-cover'
+                        src={getCachedImageUrl(item.id) || item.image_url}
+                        alt={item.name}
+                        className={`rounded ${
+                          viewMode === 'list' ? 'w-16 h-16 object-cover' : 'w-full h-32 object-cover'
                         }`}
                       />
                     ) : (
-                      <div className="w-full h-32 bg-gray-200 flex items-center justify-center">
-                        <Package size={32} />
+                      <div className={`bg-muted flex items-center justify-center rounded ${
+                        viewMode === 'list' ? 'w-16 h-16' : 'w-full h-32'
+                      }`}>
+                        <Package size={32} className="text-muted-foreground" />
                       </div>
                     )}
-                    <div className="product-info mt-2">
-                      <div className="font-semibold">{product.name}</div>
-                      <div className="text-sm text-gray-600">
-                        {product.code && <Badge variant="secondary">{product.code}</Badge>}
-                      </div>
-                      <div className="text-lg font-bold mt-1">${product.price.toFixed(2)}</div>
+                    <div className="mt-2">
+                      <div className="font-semibold text-sm">{item.name}</div>
+                      {item.category && (
+                        <Badge variant="secondary" className="text-xs mt-1">{item.category}</Badge>
+                      )}
+                      <div className="text-lg font-bold mt-1">₹{item.price.toFixed(2)}</div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="cart flex-1 border rounded p-4 flex flex-col">
+            <div className="cart flex-1 border rounded-lg p-4 flex flex-col">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold flex items-center gap-2">
                   <ShoppingCart size={20} /> Cart
@@ -326,80 +280,77 @@ const Billing: React.FC = () => {
               </div>
               <div className="cart-items flex-1 overflow-auto">
                 {cartItems.length === 0 && (
-                  <div className="text-center text-gray-500">No items in cart</div>
+                  <div className="text-center text-muted-foreground py-8">No items in cart</div>
                 )}
-                {cartItems.map(item => (
+                {cartItems.map(ci => (
                   <div
-                    key={item.product.id}
+                    key={ci.id}
                     className="cart-item flex items-center justify-between gap-2 border-b py-2"
                   >
-                    <div className="flex items-center gap-2 flex-1">
-                      {item.product.image_url ? (
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {ci.image_url ? (
                         <img
-                          src={getCachedImageUrl(item.product.image_url)}
-                          alt={item.product.name}
-                          className="w-12 h-12 object-cover rounded"
+                          src={getCachedImageUrl(ci.id) || ci.image_url}
+                          alt={ci.name}
+                          className="w-10 h-10 object-cover rounded"
                         />
                       ) : (
-                        <div className="w-12 h-12 bg-gray-200 flex items-center justify-center rounded">
-                          <Package size={20} />
+                        <div className="w-10 h-10 bg-muted flex items-center justify-center rounded">
+                          <Package size={16} />
                         </div>
                       )}
-                      <div>
-                        <div className="font-semibold">{item.product.name}</div>
-                        <div className="text-sm text-gray-600">
-                          {item.product.code && <Badge variant="secondary">{item.product.code}</Badge>}
-                        </div>
+                      <div className="truncate">
+                        <div className="font-medium text-sm truncate">{ci.name}</div>
+                        <div className="text-xs text-muted-foreground">₹{ci.price.toFixed(2)}</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() =>
-                          updateQuantity(item.product.id, item.quantity - 1)
-                        }
-                        aria-label={`Decrease quantity of ${item.product.name}`}
+                        className="h-7 w-7 p-0"
+                        onClick={() => updateQuantity(ci.id, ci.quantity - 1)}
                       >
-                        <Minus size={16} />
+                        <Minus size={14} />
                       </Button>
-                      <div className="w-8 text-center">{item.quantity}</div>
+                      <div className="w-8 text-center text-sm">{ci.quantity}</div>
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() =>
-                          updateQuantity(item.product.id, item.quantity + 1)
-                        }
-                        aria-label={`Increase quantity of ${item.product.name}`}
+                        className="h-7 w-7 p-0"
+                        onClick={() => updateQuantity(ci.id, ci.quantity + 1)}
                       >
-                        <Plus size={16} />
+                        <Plus size={14} />
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => removeFromCart(item.product.id)}
-                        aria-label={`Remove ${item.product.name} from cart`}
+                        className="h-7 w-7 p-0"
+                        onClick={() => removeFromCart(ci.id)}
                       >
-                        <X size={16} />
+                        <X size={14} />
                       </Button>
                     </div>
-                    <div className="w-20 text-right font-semibold">
-                      ${(item.product.price * item.quantity).toFixed(2)}
+                    <div className="w-16 text-right font-semibold text-sm">
+                      ₹{(ci.price * ci.quantity).toFixed(2)}
                     </div>
                   </div>
                 ))}
               </div>
               <div className="mt-4">
                 <TableSelector
-                  selectedTable={selectedTable}
-                  onSelectTable={setSelectedTable}
+                  selectedTableId={selectedTableId}
+                  onSelectTable={(tableId, tableNumber) => {
+                    setSelectedTableId(tableId);
+                    setSelectedTableNumber(tableNumber);
+                  }}
                 />
               </div>
               <div className="mt-4 flex justify-between items-center">
-                <div className="text-lg font-bold">Total: ${totalPrice.toFixed(2)}</div>
+                <div className="text-lg font-bold">Total: ₹{totalPrice.toFixed(2)}</div>
                 <Button
                   onClick={handleCompletePayment}
-                  disabled={cartItems.length === 0 || !selectedTable || isLoading}
+                  disabled={cartItems.length === 0 || !selectedTableId || isLoading}
                 >
                   Complete Payment
                 </Button>
@@ -408,22 +359,6 @@ const Billing: React.FC = () => {
           </div>
         </CardContent>
       </Card>
-
-      <CompletePaymentDialog
-        open={isCompletePaymentOpen}
-        onClose={() => setIsCompletePaymentOpen(false)}
-        onConfirm={confirmPayment}
-        billNumber={billNumber}
-        total={totalPrice}
-        table={selectedTable}
-        items={cartItems}
-      />
-
-      <PrinterErrorDialog
-        open={isPrinterErrorOpen}
-        onClose={() => setIsPrinterErrorOpen(false)}
-        message={printerErrorMessage}
-      />
     </div>
   );
 };
