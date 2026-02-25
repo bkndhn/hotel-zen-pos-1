@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Plus } from 'lucide-react';
 import { MediaUpload } from '@/components/MediaUpload';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranchFilter } from '@/hooks/useBranchFilter';
 import { Switch } from '@/components/ui/switch';
 
 interface TaxRateOption {
@@ -48,6 +49,7 @@ interface AddItemDialogProps {
 
 export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, existingItems }) => {
   const { profile } = useAuth();
+  const { getInsertBranchId } = useBranchFilter();
   const [open, setOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [hasPremiumAccess, setHasPremiumAccess] = useState(false);
@@ -223,7 +225,8 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
         media_type: formData.media_type,
         is_active: formData.is_active,
         unlimited_stock: formData.unlimited_stock,
-        admin_id: adminId
+        admin_id: adminId,
+        branch_id: getInsertBranchId()
       };
 
       // Add GST fields if enabled

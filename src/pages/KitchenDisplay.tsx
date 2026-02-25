@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranchFilter } from '@/hooks/useBranchFilter';
 import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -59,6 +60,7 @@ interface KitchenTableOrder {
 
 const KitchenDisplay = () => {
     const { profile } = useAuth();
+    const { branchId } = useBranchFilter();
     const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
     const [bills, setBills] = useState<KitchenBill[]>([]);
     const [loading, setLoading] = useState(true);
@@ -140,7 +142,7 @@ const KitchenDisplay = () => {
 
         try {
             // Always try to fetch from server first with a timeout
-            const query = (supabase as any)
+            let query = (supabase as any)
                 .from('bills')
                 .select(`
                     id, bill_no, created_at, kitchen_status, service_status, table_no,
@@ -153,8 +155,11 @@ const KitchenDisplay = () => {
                 .or('is_deleted.is.null,is_deleted.eq.false')
                 .in('kitchen_status', ['pending', 'preparing', 'ready'])
                 .neq('service_status', 'completed')
-                .neq('service_status', 'rejected')
-                .order('created_at', { ascending: false });
+                .neq('service_status', 'rejected');
+
+            if (branchId) query = query.eq('branch_id', branchId);
+
+            query = query
 
             // Add timeout to prevent hanging
             const timeoutPromise = new Promise((_, reject) => {
@@ -202,13 +207,16 @@ const KitchenDisplay = () => {
     const fetchTableOrders = useCallback(async () => {
         if (!adminId) return;
         try {
-            const { data, error } = await (supabase as any)
+            let query = (supabase as any)
                 .from('table_orders')
                 .select('*')
                 .eq('admin_id', adminId)
                 .in('status', ['pending', 'preparing', 'ready'])
-                .eq('is_billed', false)
-                .order('created_at', { ascending: false });
+                .eq('is_billed', false);
+
+            if (branchId) query = query.eq('branch_id', branchId);
+
+            const { data, error } = await query.order('created_at', { ascending: false });
 
             if (!error && data) {
                 setTableOrders(data as KitchenTableOrder[]);
