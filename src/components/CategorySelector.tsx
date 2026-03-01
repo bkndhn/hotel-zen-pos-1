@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { Settings, Plus, Edit, Trash2 } from 'lucide-react';
 
 interface ExpenseCategory {
@@ -22,6 +23,7 @@ interface CategorySelectorProps {
 }
 
 export const CategorySelector: React.FC<CategorySelectorProps> = ({ onCategoriesUpdated }) => {
+  const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -36,14 +38,25 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({ onCategories
 
   const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase
+      const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+      let query = supabase
         .from('expense_categories')
         .select('*')
         .eq('is_deleted', false)
         .order('name');
+      if (adminId) query = query.eq('admin_id', adminId);
 
+      const { data, error } = await query;
       if (error) throw error;
-      setCategories(data || []);
+      // Deduplicate by name (case-insensitive)
+      const seen = new Set<string>();
+      const unique = (data || []).filter(cat => {
+        const key = cat.name.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      setCategories(unique);
     } catch (error) {
       console.error('Error fetching expense categories:', error);
       toast({
@@ -74,9 +87,10 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({ onCategories
 
     setLoading(true);
     try {
+      const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
       const { error } = await supabase
         .from('expense_categories')
-        .insert([{ name: newCategoryName.trim() }]);
+        .insert([{ name: newCategoryName.trim(), admin_id: adminId || null }]);
 
       if (error) throw error;
 
