@@ -109,14 +109,25 @@ export const EditItemDialog: React.FC<EditItemDialogProps> = ({ item, onItemUpda
 
   const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase
+      const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+      let query = supabase
         .from('item_categories')
         .select('id, name')
         .eq('is_deleted', false)
         .order('name');
+      if (adminId) query = query.eq('admin_id', adminId);
 
+      const { data, error } = await query;
       if (error) throw error;
-      setCategories(data || []);
+      // Deduplicate by name (case-insensitive)
+      const seen = new Set<string>();
+      const unique = (data || []).filter(cat => {
+        const key = cat.name.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      setCategories(unique);
     } catch (error) {
       console.error('Error fetching categories:', error);
     }

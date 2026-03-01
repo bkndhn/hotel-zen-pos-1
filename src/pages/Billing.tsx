@@ -788,9 +788,9 @@ const Billing: React.FC = () => {
         )}
       </div>
 
-      {/* Bottom Cart Bar - Fixed */}
+      {/* Bottom Cart Bar - Sticky within billing content, not overlapping sidebar */}
       {cartItems.length > 0 && (
-        <div className="fixed bottom-16 left-0 right-0 z-40 px-4 pb-2">
+        <div className="sticky bottom-0 z-40 px-4 pb-2 pt-2 -mx-3 sm:-mx-4 bg-gradient-to-t from-background via-background to-transparent">
           <div className="bg-primary text-primary-foreground rounded-2xl shadow-lg px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <ShoppingCart className="w-5 h-5" />
