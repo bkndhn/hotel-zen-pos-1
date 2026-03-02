@@ -284,6 +284,7 @@ export type Database = {
           is_composition_scheme: boolean | null
           is_default: boolean | null
           logo_url: string | null
+          menu_slug: string | null
           name: string
           shop_name: string | null
           updated_at: string
@@ -302,6 +303,7 @@ export type Database = {
           is_composition_scheme?: boolean | null
           is_default?: boolean | null
           logo_url?: string | null
+          menu_slug?: string | null
           name: string
           shop_name?: string | null
           updated_at?: string
@@ -320,6 +322,7 @@ export type Database = {
           is_composition_scheme?: boolean | null
           is_default?: boolean | null
           logo_url?: string | null
+          menu_slug?: string | null
           name?: string
           shop_name?: string | null
           updated_at?: string
@@ -1378,6 +1381,13 @@ export type Database = {
       public_update_table_status: {
         Args: { p_admin_id: string; p_status: string; p_table_no: string }
         Returns: undefined
+      }
+      resolve_branch_menu: {
+        Args: { p_branch_code: string; p_shop_slug: string }
+        Returns: {
+          admin_id: string
+          branch_id: string
+        }[]
       }
       resolve_menu_slug: { Args: { p_slug: string }; Returns: string }
       user_has_branch_access: {

@@ -246,6 +246,7 @@ const App = () => {
                   <Route path="/table-billing" element={<Layout><ProtectedRoute requiredPermission="tableBilling"><TableOrderBilling /></ProtectedRoute></Layout>} />
                   <Route path="/display" element={<CustomerDisplay />} />
                   <Route path="/menu/:adminId" element={<PublicMenu />} />
+                  <Route path="/menu/:shopSlug/:branchCode" element={<PublicMenu />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </BranchProvider>
