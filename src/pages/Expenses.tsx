@@ -242,8 +242,8 @@ const Expenses: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 bg-gradient-to-br from-rose-500 to-rose-600 rounded-xl flex items-center justify-center shadow-md shadow-rose-500/20">
-            <Receipt className="w-5 h-5 text-white" />
+          <div className="w-9 h-9 bg-gradient-to-br from-destructive to-destructive/80 rounded-xl flex items-center justify-center shadow-md shadow-destructive/20">
+            <Receipt className="w-5 h-5 text-destructive-foreground" />
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-bold tracking-tight">Expenses</h1>
@@ -336,23 +336,18 @@ const Expenses: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Search Bar */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Search className="w-5 h-5" />
-            Search Expenses
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      {/* Search Bar - Compact */}
+      <div className="mb-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Search by name, category, note, or amount..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full max-w-full"
+            className="pl-9 h-9 text-sm"
           />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Expenses Table */}
       <Card className="overflow-hidden">

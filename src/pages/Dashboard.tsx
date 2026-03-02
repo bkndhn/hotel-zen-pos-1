@@ -146,51 +146,51 @@ const Dashboard = () => {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Today's Sales Card */}
-        <div className="bg-card rounded-2xl p-4 shadow-lg dark:shadow-none border border-border">
+        <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-card border border-border/60 hover:shadow-elegant transition-shadow">
           <div className="flex items-start justify-between mb-3">
             <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Today's Sales</p>
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 flex items-center justify-center">
-              <DollarSign className="w-4 h-4 text-emerald-500" />
+            <div className="w-9 h-9 rounded-xl bg-success/10 flex items-center justify-center">
+              <DollarSign className="w-4.5 h-4.5 text-success" />
             </div>
           </div>
-          <p className="text-xl sm:text-2xl font-bold text-emerald-500 mb-1">{formatCurrency(stats.todaySales)}</p>
-          <p className="text-xs text-muted-foreground">{stats.todayBills} bills processed</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-success tracking-tight stat-value">{formatCurrency(stats.todaySales)}</p>
+          <p className="text-[11px] text-muted-foreground mt-1">{stats.todayBills} bills processed</p>
         </div>
 
         {/* Today's Expenses Card */}
-        <div className="bg-card rounded-2xl p-4 shadow-lg dark:shadow-none border border-border">
+        <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-card border border-border/60 hover:shadow-elegant transition-shadow">
           <div className="flex items-start justify-between mb-3">
             <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Today's Expenses</p>
-            <div className="w-8 h-8 rounded-lg bg-rose-500/10 dark:bg-rose-500/20 flex items-center justify-center">
-              <Receipt className="w-4 h-4 text-rose-500" />
+            <div className="w-9 h-9 rounded-xl bg-destructive/10 flex items-center justify-center">
+              <Receipt className="w-4.5 h-4.5 text-destructive" />
             </div>
           </div>
-          <p className="text-xl sm:text-2xl font-bold text-rose-500 mb-1">{formatCurrency(stats.todayExpenses)}</p>
-          <p className="text-xs text-muted-foreground">Operating expenses</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-destructive tracking-tight stat-value">{formatCurrency(stats.todayExpenses)}</p>
+          <p className="text-[11px] text-muted-foreground mt-1">Operating expenses</p>
         </div>
 
         {/* Today's Profit Card */}
-        <div className="bg-card rounded-2xl p-4 shadow-lg dark:shadow-none border border-border">
+        <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-card border border-border/60 hover:shadow-elegant transition-shadow">
           <div className="flex items-start justify-between mb-3">
             <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Today's Profit</p>
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${stats.todayProfit >= 0 ? 'bg-blue-500/10 dark:bg-blue-500/20' : 'bg-rose-500/10 dark:bg-rose-500/20'}`}>
-              <TrendingUp className={`w-4 h-4 ${stats.todayProfit >= 0 ? 'text-blue-500' : 'text-rose-500'}`} />
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${stats.todayProfit >= 0 ? 'bg-primary/10' : 'bg-destructive/10'}`}>
+              <TrendingUp className={`w-4.5 h-4.5 ${stats.todayProfit >= 0 ? 'text-primary' : 'text-destructive'}`} />
             </div>
           </div>
-          <p className={`text-xl sm:text-2xl font-bold mb-1 ${stats.todayProfit >= 0 ? 'text-blue-500' : 'text-rose-500'}`}>{formatCurrency(stats.todayProfit)}</p>
-          <p className="text-xs text-muted-foreground">Sales minus expenses</p>
+          <p className={`text-xl sm:text-2xl font-extrabold tracking-tight stat-value ${stats.todayProfit >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(stats.todayProfit)}</p>
+          <p className="text-[11px] text-muted-foreground mt-1">Sales minus expenses</p>
         </div>
 
         {/* Active Items Card */}
-        <div className="bg-card rounded-2xl p-4 shadow-lg dark:shadow-none border border-border">
+        <div className="bg-card rounded-2xl p-4 sm:p-5 shadow-card border border-border/60 hover:shadow-elegant transition-shadow">
           <div className="flex items-start justify-between mb-3">
             <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Active Items</p>
-            <div className="w-8 h-8 rounded-lg bg-violet-500/10 dark:bg-violet-500/20 flex items-center justify-center">
-              <Package className="w-4 h-4 text-violet-500" />
+            <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center">
+              <Package className="w-4.5 h-4.5 text-accent" />
             </div>
           </div>
-          <p className="text-xl sm:text-2xl font-bold text-foreground mb-1">{stats.totalItems}</p>
-          <p className="text-xs text-muted-foreground">Available for billing</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight stat-value">{stats.totalItems}</p>
+          <p className="text-[11px] text-muted-foreground mt-1">Available for billing</p>
         </div>
       </div>
 
