@@ -188,24 +188,10 @@ const PublicMenu = () => {
                     }
 
                     if (data && data.length > 0) {
-                        // RPC returns admin_id as the user_id from shop_settings, we need the profile id
-                        // The resolve_branch_menu returns admin_id (user_id) and branch_id
+                        // RPC now returns profile.id as admin_id directly
                         const row = data[0];
-                        // We need the profile.id for this user_id
-                        const { data: profileData } = await supabase
-                            .from('profiles')
-                            .select('id')
-                            .eq('user_id', row.admin_id)
-                            .eq('role', 'admin')
-                            .maybeSingle();
-
-                        if (profileData) {
-                            setAdminId(profileData.id);
-                            setBranchId(row.branch_id);
-                        } else {
-                            setError('Menu not found');
-                            setLoading(false);
-                        }
+                        setAdminId(row.admin_id);
+                        setBranchId(row.branch_id);
                     } else {
                         setError('Menu not found for this branch');
                         setLoading(false);
