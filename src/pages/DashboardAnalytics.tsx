@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranchFilter } from '@/hooks/useBranchFilter';
+import { useBranch } from '@/contexts/BranchContext';
 import { Navigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -8,8 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { TrendingUp, DollarSign, ShoppingBag, Package, ArrowUpRight, ArrowDownRight, Minus, Calendar } from 'lucide-react';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { TrendingUp, DollarSign, ShoppingBag, Package, ArrowUpRight, ArrowDownRight, Minus, Calendar, Building2 } from 'lucide-react';
 import { formatQuantityWithUnit } from '@/utils/timeUtils';
 
 interface SalesData {
@@ -39,10 +40,12 @@ interface PeriodStat {
 
 type Period = 'today' | 'yesterday' | 'daily' | 'weekly' | 'monthly';
 type ComparisonMode = 'day' | 'week' | 'month' | 'year';
+const BRANCH_COLORS = ['#3b82f6', '#f97316', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#f59e0b', '#ec4899'];
 
 const DashboardAnalytics = () => {
   const { profile } = useAuth();
   const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+  const { branches, isMultiBranch } = useBranch();
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>('today');
   const [salesData, setSalesData] = useState<SalesData[]>([]);
@@ -53,6 +56,17 @@ const DashboardAnalytics = () => {
     totalProfit: 0,
     totalBills: 0,
   });
+
+  // Branch comparison state
+  const [branchStats, setBranchStats] = useState<Array<{
+    branchId: string;
+    branchName: string;
+    revenue: number;
+    expenses: number;
+    profit: number;
+    bills: number;
+  }>>([]);
+  const [branchCompLoading, setBranchCompLoading] = useState(false);
 
   // Comparison State
   const [compMode, setCompMode] = useState<ComparisonMode>('day');
@@ -95,6 +109,78 @@ const DashboardAnalytics = () => {
     ];
     return () => { channels.forEach(c => supabase.removeChannel(c)); };
   }, [period, compMode, currentFromDate, currentToDate, compareFromDate, compareToDate]);
+
+  // Fetch branch comparison data
+  useEffect(() => {
+    if (adminId && isMultiBranch && branches.length > 1) fetchBranchComparison();
+  }, [adminId, branches, period]);
+
+  const fetchBranchComparison = async () => {
+    if (!adminId || branches.length < 2) return;
+    setBranchCompLoading(true);
+    try {
+      const today = new Date();
+      let startDate: string;
+      let endDate: string = today.toISOString().split('T')[0];
+
+      switch (period) {
+        case 'today': startDate = endDate; break;
+        case 'yesterday': {
+          const y = new Date(today); y.setDate(today.getDate() - 1);
+          startDate = y.toISOString().split('T')[0]; endDate = startDate; break;
+        }
+        case 'daily': {
+          const d = new Date(today); d.setDate(today.getDate() - 6);
+          startDate = d.toISOString().split('T')[0]; break;
+        }
+        case 'weekly': {
+          const w = new Date(today); w.setDate(today.getDate() - 27);
+          startDate = w.toISOString().split('T')[0]; break;
+        }
+        case 'monthly': default: {
+          const m = new Date(today); m.setMonth(today.getMonth() - 6);
+          startDate = m.toISOString().split('T')[0]; break;
+        }
+      }
+
+      const results = await Promise.all(branches.map(async (branch) => {
+        const { data: bills } = await supabase
+          .from('bills')
+          .select('total_amount')
+          .eq('admin_id', adminId)
+          .eq('branch_id', branch.id)
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .or('is_deleted.is.null,is_deleted.eq.false');
+
+        const { data: expenses } = await supabase
+          .from('expenses')
+          .select('amount')
+          .eq('admin_id', adminId)
+          .eq('branch_id', branch.id)
+          .gte('date', startDate)
+          .lte('date', endDate);
+
+        const revenue = bills?.reduce((s, b) => s + Number(b.total_amount), 0) || 0;
+        const totalExp = expenses?.reduce((s, e) => s + Number(e.amount), 0) || 0;
+
+        return {
+          branchId: branch.id,
+          branchName: branch.name,
+          revenue,
+          expenses: totalExp,
+          profit: revenue - totalExp,
+          bills: bills?.length || 0,
+        };
+      }));
+
+      setBranchStats(results);
+    } catch (err) {
+      console.error('Branch comparison error:', err);
+    } finally {
+      setBranchCompLoading(false);
+    }
+  };
 
 
   const fetchAnalyticsData = async () => {
@@ -734,6 +820,109 @@ const DashboardAnalytics = () => {
           ) : (<div className="p-6 text-center text-muted-foreground">Select dates to compare</div>)}
         </CardContent>
       </Card>
+
+      {/* ===== BRANCH COMPARISON SECTION ===== */}
+      {isMultiBranch && branches.length > 1 && (
+        <Card className="border border-border/60 shadow-lg overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-primary/5 to-muted/30 border-b border-border/50 p-4 sm:p-6">
+            <CardTitle className="text-lg sm:text-2xl flex items-center gap-2 font-bold">
+              <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+              Branch Comparison
+            </CardTitle>
+            <CardDescription>Compare performance across all branches for the selected period</CardDescription>
+          </CardHeader>
+          <CardContent className="p-3 sm:p-6">
+            {branchCompLoading ? (
+              <div className="p-12 text-center text-muted-foreground animate-pulse">Loading branch data...</div>
+            ) : branchStats.length > 0 ? (
+              <div className="space-y-6">
+                {/* Revenue Bar Chart */}
+                <div>
+                  <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3">Revenue by Branch</h4>
+                  <div className="h-[250px] sm:h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={branchStats} layout="vertical" margin={{ left: 20, right: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                        <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                        <YAxis dataKey="branchName" type="category" tick={{ fontSize: 12 }} width={100} />
+                        <Tooltip formatter={(value: number) => [`₹${value.toLocaleString('en-IN')}`, '']} />
+                        <Bar dataKey="revenue" name="Revenue" fill="hsl(var(--primary))" radius={[0, 6, 6, 0]} />
+                        <Bar dataKey="expenses" name="Expenses" fill="hsl(var(--destructive))" radius={[0, 6, 6, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Profit Pie Chart */}
+                {branchStats.some(b => b.profit > 0) && (
+                  <div>
+                    <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3">Profit Distribution</h4>
+                    <div className="h-[250px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={branchStats.filter(b => b.profit > 0)}
+                            dataKey="profit"
+                            nameKey="branchName"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={90}
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          >
+                            {branchStats.filter(b => b.profit > 0).map((_, i) => (
+                              <Cell key={i} fill={BRANCH_COLORS[i % BRANCH_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value: number) => [`₹${value.toLocaleString('en-IN')}`, 'Profit']} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
+                {/* Branch Stats Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border/60">
+                        <th className="text-left p-3 font-bold text-muted-foreground">Branch</th>
+                        <th className="text-right p-3 font-bold text-muted-foreground">Revenue</th>
+                        <th className="text-right p-3 font-bold text-muted-foreground">Expenses</th>
+                        <th className="text-right p-3 font-bold text-muted-foreground">Profit</th>
+                        <th className="text-right p-3 font-bold text-muted-foreground">Bills</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {branchStats.map((b, i) => (
+                        <tr key={b.branchId} className="border-b border-border/30 hover:bg-muted/40 transition-colors">
+                          <td className="p-3 font-medium flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: BRANCH_COLORS[i % BRANCH_COLORS.length] }} />
+                            {b.branchName}
+                          </td>
+                          <td className="p-3 text-right font-bold text-success">{formatCurrency(b.revenue)}</td>
+                          <td className="p-3 text-right font-bold text-destructive">{formatCurrency(b.expenses)}</td>
+                          <td className={`p-3 text-right font-bold ${b.profit >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(b.profit)}</td>
+                          <td className="p-3 text-right font-medium">{b.bills}</td>
+                        </tr>
+                      ))}
+                      {/* Total row */}
+                      <tr className="bg-muted/50 font-bold">
+                        <td className="p-3">Total</td>
+                        <td className="p-3 text-right text-success">{formatCurrency(branchStats.reduce((s, b) => s + b.revenue, 0))}</td>
+                        <td className="p-3 text-right text-destructive">{formatCurrency(branchStats.reduce((s, b) => s + b.expenses, 0))}</td>
+                        <td className="p-3 text-right text-primary">{formatCurrency(branchStats.reduce((s, b) => s + b.profit, 0))}</td>
+                        <td className="p-3 text-right">{branchStats.reduce((s, b) => s + b.bills, 0)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-8">No branch data available for this period</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
     </div>
   );
