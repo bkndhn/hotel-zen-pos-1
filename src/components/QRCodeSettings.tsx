@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,7 +38,6 @@ const generateQRCodeUrl = (text: string, size: number = 300, fgColor: string = '
 
 const QRCodeSettings = () => {
     const { profile } = useAuth();
-    const { branches } = useBranch();
     const [copied, setCopied] = useState(false);
     const [tableMode, setTableMode] = useState(false);
     const [dbTables, setDbTables] = useState<{ id: string; table_number: string }[]>([]);
@@ -77,14 +75,6 @@ const QRCodeSettings = () => {
     const baseUrl = typeof window !== 'undefined'
         ? `${window.location.origin}/menu/${menuSlug || adminId}`
         : '';
-
-    // Branch-specific URLs
-    const branchUrls = branches.filter(b => b.code && b.is_active).map(b => ({
-        branch: b,
-        url: menuSlug
-            ? `${window.location.origin}/menu/${menuSlug}/${b.code}`
-            : `${window.location.origin}/menu/${adminId}?branch=${b.code}`,
-    }));
 
     // Current QR URL (with optional table)
     const currentQrUrl = selectedTable
@@ -792,33 +782,6 @@ const QRCodeSettings = () => {
                         <p className="text-xs text-muted-foreground">
                             Your menu will be accessible at: <code className="bg-muted px-1 py-0.5 rounded">{baseUrl}</code>
                         </p>
-
-                        {/* Branch-specific URLs */}
-                        {branchUrls.length > 0 && menuSlug && (
-                            <div className="mt-3 pt-3 border-t border-border space-y-2">
-                                <Label className="text-xs font-medium text-muted-foreground">Branch-specific menu links:</Label>
-                                {branchUrls.map(({ branch, url }) => (
-                                    <div key={branch.id} className="flex items-center gap-2 text-xs">
-                                        <Badge variant="outline" className="text-[10px] shrink-0">{branch.name}</Badge>
-                                        <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] truncate flex-1">{url}</code>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-6 w-6 p-0 shrink-0"
-                                            onClick={async () => {
-                                                await navigator.clipboard.writeText(url);
-                                                toast({ title: 'Copied!', description: `${branch.name} menu link copied` });
-                                            }}
-                                        >
-                                            <Copy className="w-3 h-3" />
-                                        </Button>
-                                    </div>
-                                ))}
-                                <p className="text-[10px] text-muted-foreground">
-                                    Each branch has its own menu showing only branch-specific items
-                                </p>
-                            </div>
-                        )}
                     </div>
 
                     {/* Menu Display Options */}

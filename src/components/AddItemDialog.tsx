@@ -12,7 +12,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { Plus } from 'lucide-react';
 import { MediaUpload } from '@/components/MediaUpload';
 import { useAuth } from '@/contexts/AuthContext';
-import { useBranchFilter } from '@/hooks/useBranchFilter';
 import { Switch } from '@/components/ui/switch';
 
 interface TaxRateOption {
@@ -49,7 +48,6 @@ interface AddItemDialogProps {
 
 export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, existingItems }) => {
   const { profile } = useAuth();
-  const { getInsertBranchId } = useBranchFilter();
   const [open, setOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [hasPremiumAccess, setHasPremiumAccess] = useState(false);
@@ -139,25 +137,14 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
 
   const fetchCategories = async () => {
     try {
-      const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
-      let query = supabase
+      const { data, error } = await supabase
         .from('item_categories')
         .select('id, name')
         .eq('is_deleted', false)
         .order('name');
-      if (adminId) query = query.eq('admin_id', adminId);
 
-      const { data, error } = await query;
       if (error) throw error;
-      // Deduplicate by name (case-insensitive)
-      const seen = new Set<string>();
-      const unique = (data || []).filter(cat => {
-        const key = cat.name.toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-      setCategories(unique);
+      setCategories(data || []);
     } catch (error) {
       console.error('Error fetching categories:', error);
     }
@@ -236,8 +223,7 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
         media_type: formData.media_type,
         is_active: formData.is_active,
         unlimited_stock: formData.unlimited_stock,
-        admin_id: adminId,
-        branch_id: getInsertBranchId()
+        admin_id: adminId
       };
 
       // Add GST fields if enabled

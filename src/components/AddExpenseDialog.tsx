@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { useBranchFilter } from '@/hooks/useBranchFilter';
 import { Plus } from 'lucide-react';
 import { cachedFetch, CACHE_KEYS, dataCache } from '@/utils/cacheUtils';
 
@@ -23,7 +22,6 @@ interface AddExpenseDialogProps {
 
 export const AddExpenseDialog: React.FC<AddExpenseDialogProps> = ({ onExpenseAdded }) => {
   const { profile } = useAuth();
-  const { getInsertBranchId } = useBranchFilter();
   const [open, setOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [formData, setFormData] = useState({
@@ -43,27 +41,17 @@ export const AddExpenseDialog: React.FC<AddExpenseDialogProps> = ({ onExpenseAdd
 
   const fetchCategories = async () => {
     try {
-      const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
       const data = await cachedFetch(
-        `${CACHE_KEYS.CATEGORIES}_${adminId}`,
+        CACHE_KEYS.CATEGORIES,
         async () => {
-          let query = supabase
+          const { data, error } = await supabase
             .from('expense_categories')
             .select('id, name')
             .eq('is_deleted', false)
             .order('name');
-          if (adminId) query = query.eq('admin_id', adminId);
 
-          const { data, error } = await query;
           if (error) throw error;
-          // Deduplicate by name
-          const seen = new Set<string>();
-          return (data || []).filter(cat => {
-            const key = cat.name.toLowerCase();
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          });
+          return data || [];
         }
       );
       setCategories(data);
@@ -95,8 +83,7 @@ export const AddExpenseDialog: React.FC<AddExpenseDialogProps> = ({ onExpenseAdd
         note: formData.note.trim() || null,
         date: formData.date,
         created_by: profile?.user_id,
-        admin_id: adminId || null,
-        branch_id: getInsertBranchId()
+        admin_id: adminId || null
       });
 
       if (error) throw error;

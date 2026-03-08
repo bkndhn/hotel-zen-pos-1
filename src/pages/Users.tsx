@@ -6,12 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
-import { Users as UsersIcon, Search, User, Shield, ChevronDown, ChevronRight, Crown, QrCode, Package, Save, Building2 } from 'lucide-react';
+import { Users as UsersIcon, Search, User, Shield, ChevronDown, ChevronRight, Crown, QrCode, Package, Save } from 'lucide-react';
 import { AddUserDialog } from '@/components/AddUserDialog';
 import { Switch } from '@/components/ui/switch';
 
 import { UserPermissions } from '@/components/UserPermissions';
-import { BranchUserAssignment } from '@/components/BranchUserAssignment';
 import type { UserProfile, UserStatus, UserRole } from '@/types/user';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { format } from 'date-fns';
@@ -22,7 +21,6 @@ interface ExtendedUserProfile extends UserProfile {
   last_login?: string | null;
   login_count?: number | null;
   has_qr_menu_access?: boolean;
-  multi_branch_enabled?: boolean;
   item_limit?: number | null;
   itemCount?: number;
 }
@@ -103,7 +101,6 @@ const Users: React.FC = () => {
         last_login: user.last_login,
         login_count: user.login_count,
         has_qr_menu_access: user.has_qr_menu_access ?? false,
-        multi_branch_enabled: (user as any).multi_branch_enabled ?? false,
         item_limit: (user as any).item_limit ?? null
       })) as ExtendedUserProfile[];
 
@@ -208,38 +205,6 @@ const Users: React.FC = () => {
       toast({
         title: "Error",
         description: "Failed to update QR Menu access",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const toggleMultiBranch = async (adminId: string, currentValue: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ multi_branch_enabled: !currentValue } as any)
-        .eq('id', adminId);
-
-      if (error) throw error;
-
-      setUsers(prev => prev.map(user =>
-        user.id === adminId ? { ...user, multi_branch_enabled: !currentValue } : user
-      ));
-      setFilteredUsers(prev => prev.map(user =>
-        user.id === adminId ? { ...user, multi_branch_enabled: !currentValue } : user
-      ));
-
-      toast({
-        title: !currentValue ? "Multi-Branch Enabled" : "Multi-Branch Disabled",
-        description: !currentValue
-          ? "Admin can now create and manage multiple branches"
-          : "Admin is limited to a single branch",
-      });
-    } catch (error) {
-      console.error('Error toggling multi-branch:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update multi-branch setting",
         variant: "destructive",
       });
     }
@@ -365,13 +330,6 @@ const Users: React.FC = () => {
 
 
 
-      {/* Branch Staff Assignment - Admin only */}
-      {isAdmin && usersForPermissions.length > 0 && (
-        <div className="mb-6">
-          <BranchUserAssignment users={usersForPermissions} />
-        </div>
-      )}
-
       {/* User Permissions - For both Super Admin and Admin */}
       {(isAdmin || isSuperAdmin) && usersForPermissions.length > 0 && (
         <div className="mb-6">
@@ -465,20 +423,6 @@ const Users: React.FC = () => {
                             <Switch
                               checked={admin.has_qr_menu_access ?? false}
                               onCheckedChange={() => toggleQRMenuAccess(admin.id, admin.has_qr_menu_access ?? false)}
-                              className="scale-90"
-                            />
-                          </div>
-
-                          {/* Multi-Branch Toggle */}
-                          <div
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-muted/30"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Building2 className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-xs font-medium">Multi-Branch</span>
-                            <Switch
-                              checked={admin.multi_branch_enabled ?? false}
-                              onCheckedChange={() => toggleMultiBranch(admin.id, admin.multi_branch_enabled ?? false)}
                               className="scale-90"
                             />
                           </div>

@@ -102,12 +102,11 @@ interface ItemCategory {
  * - Custom URL slug support
  */
 const PublicMenu = () => {
-    const { adminId: urlParam, shopSlug, branchCode } = useParams<{ adminId: string; shopSlug: string; branchCode: string }>();
+    const { adminId: urlParam } = useParams<{ adminId: string }>();
     const [searchParams] = useSearchParams();
     const tableNo = searchParams.get('table');
 
     const [adminId, setAdminId] = useState<string | null>(null);
-    const [branchId, setBranchId] = useState<string | null>(null);
     const [items, setItems] = useState<MenuItem[]>([]);
     const [categories, setCategories] = useState<ItemCategory[]>([]);
     const [shopSettings, setShopSettings] = useState<ShopSettings | null>(null);
@@ -171,39 +170,9 @@ const PublicMenu = () => {
         };
     }, []);
 
-    // Resolve slug or UUID to admin ID (supports /menu/:adminId and /menu/:shopSlug/:branchCode)
+    // Resolve slug or UUID to admin ID
     useEffect(() => {
         const resolveAdminId = async () => {
-            // Branch-specific route: /menu/:shopSlug/:branchCode
-            if (shopSlug && branchCode) {
-                try {
-                    const { data, error } = await supabase
-                        .rpc('resolve_branch_menu', { p_shop_slug: shopSlug, p_branch_code: branchCode });
-
-                    if (error) {
-                        console.error('Branch menu lookup error:', error);
-                        setError('Menu not found');
-                        setLoading(false);
-                        return;
-                    }
-
-                    if (data && data.length > 0) {
-                        // RPC now returns profile.id as admin_id directly
-                        const row = data[0];
-                        setAdminId(row.admin_id);
-                        setBranchId(row.branch_id);
-                    } else {
-                        setError('Menu not found for this branch');
-                        setLoading(false);
-                    }
-                } catch (err) {
-                    console.error('Error resolving branch menu:', err);
-                    setError('Failed to load menu');
-                    setLoading(false);
-                }
-                return;
-            }
-
             if (!urlParam) {
                 setError('Invalid menu link');
                 setLoading(false);
@@ -214,8 +183,10 @@ const PublicMenu = () => {
             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
             if (uuidRegex.test(urlParam)) {
+                // It's a UUID, use directly
                 setAdminId(urlParam);
             } else {
+                // It's a slug, look up the admin ID
                 try {
                     const { data: resolvedId, error: slugError } = await supabase
                         .rpc('resolve_menu_slug', { p_slug: urlParam });
@@ -241,7 +212,7 @@ const PublicMenu = () => {
         };
 
         resolveAdminId();
-    }, [urlParam, shopSlug, branchCode]);
+    }, [urlParam]);
 
     // Fetch menu data once adminId is resolved
     useEffect(() => {
@@ -250,24 +221,21 @@ const PublicMenu = () => {
         const fetchMenuData = async () => {
             try {
                 // Fetch items for this admin (including video/media fields)
-                let itemsQuery = supabase
+                const { data: itemsData, error: itemsError } = await supabase
                     .from('items')
                     .select('id, name, price, image_url, video_url, media_type, category, unit, base_value, is_active')
                     .eq('admin_id', adminId)
-                    .eq('is_active', true);
-                if (branchId) itemsQuery = itemsQuery.eq('branch_id', branchId);
-                const { data: itemsData, error: itemsError } = await itemsQuery
+                    .eq('is_active', true)
                     .order('category')
                     .order('name');
 
                 // Fetch promotional banners
-                let bannersQuery = supabase
+                const { data: bannersData } = await supabase
                     .from('promo_banners')
                     .select('id, title, description, image_url, link_url, is_text_only, text_color, bg_color')
                     .eq('admin_id', adminId)
-                    .eq('is_active', true);
-                if (branchId) bannersQuery = bannersQuery.eq('branch_id', branchId);
-                const { data: bannersData } = await bannersQuery.order('display_order');
+                    .eq('is_active', true)
+                    .order('display_order');
 
                 if (itemsError) {
                     console.error('Items fetch error:', itemsError);
@@ -282,13 +250,12 @@ const PublicMenu = () => {
                 }
 
                 // Fetch categories
-                let categoriesQuery = supabase
+                const { data: categoriesData, error: categoriesError } = await supabase
                     .from('item_categories')
                     .select('id, name')
                     .eq('admin_id', adminId)
-                    .eq('is_deleted', false);
-                if (branchId) categoriesQuery = categoriesQuery.eq('branch_id', branchId);
-                const { data: categoriesData, error: categoriesError } = await categoriesQuery.order('name');
+                    .eq('is_deleted', false)
+                    .order('name');
 
                 if (categoriesError) {
                     console.error('Categories error:', categoriesError);
@@ -313,7 +280,7 @@ const PublicMenu = () => {
         };
 
         fetchMenuData();
-    }, [adminId, branchId]);
+    }, [adminId]);
 
     // Real-time subscription for item updates
     useEffect(() => {

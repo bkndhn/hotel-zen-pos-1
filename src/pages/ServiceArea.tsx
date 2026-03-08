@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useBranchFilter } from '@/hooks/useBranchFilter';
 import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -92,7 +91,6 @@ const REQUEST_LABELS: Record<string, { label: string; emoji: string; color: stri
 
 const ServiceArea = () => {
     const { profile } = useAuth();
-    const { branchId } = useBranchFilter();
     const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
     const [bills, setBills] = useState<ServiceBill[]>([]);
     const [recentBills, setRecentBills] = useState<ServiceBill[]>([]);
@@ -147,7 +145,7 @@ const ServiceArea = () => {
             });
 
             // 1. Fetch Active Bills
-            let activeQuery = (supabase as any)
+            const activeQuery = (supabase as any)
                 .from('bills')
                 .select(`
                     id, bill_no, total_amount, date, created_at,
@@ -160,22 +158,19 @@ const ServiceArea = () => {
                 .eq('admin_id', adminId)
                 .eq('date', today)
                 .or('is_deleted.is.null,is_deleted.eq.false')
-                .in('service_status', ['pending', 'ready', 'preparing']);
-
-            if (branchId) activeQuery = activeQuery.eq('branch_id', branchId);
-            activeQuery = activeQuery.order('created_at', { ascending: false });
+                .in('service_status', ['pending', 'ready', 'preparing'])
+                .order('created_at', { ascending: false });
 
             // 2. Fetch Recently Processed (for Undo)
-            let recentQuery = (supabase as any)
+            const recentQuery = (supabase as any)
                 .from('bills')
                 .select('id, bill_no, service_status, status_updated_at')
                 .eq('admin_id', adminId)
                 .eq('date', today)
                 .in('service_status', ['completed', 'rejected'])
-                .gte('status_updated_at', fiveMinutesAgo);
-
-            if (branchId) recentQuery = recentQuery.eq('branch_id', branchId);
-            recentQuery = recentQuery.order('status_updated_at', { ascending: false }).limit(10);
+                .gte('status_updated_at', fiveMinutesAgo)
+                .order('status_updated_at', { ascending: false })
+                .limit(10);
 
             const [activeResult, recentResult] = await Promise.race([
                 Promise.all([activeQuery, recentQuery]),
@@ -211,16 +206,13 @@ const ServiceArea = () => {
     const fetchTableOrders = useCallback(async () => {
         if (!adminId) return;
         try {
-            let query = (supabase as any)
+            const { data, error } = await (supabase as any)
                 .from('table_orders')
                 .select('*')
                 .eq('admin_id', adminId)
                 .in('status', ['ready', 'preparing'])
-                .eq('is_billed', false);
-
-            if (branchId) query = query.eq('branch_id', branchId);
-
-            const { data, error } = await query.order('created_at', { ascending: false });
+                .eq('is_billed', false)
+                .order('created_at', { ascending: false });
 
             if (!error && data) {
                 setTableOrders(data as ServiceTableOrder[]);

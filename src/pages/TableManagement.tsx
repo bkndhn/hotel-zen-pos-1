@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useBranchFilter } from '@/hooks/useBranchFilter';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -36,7 +35,6 @@ const statusConfig = {
 const TableManagement: React.FC = () => {
   const { profile } = useAuth();
   const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
-  const { branchId, getInsertBranchId } = useBranchFilter();
   const navigate = useNavigate();
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,13 +54,12 @@ const TableManagement: React.FC = () => {
   const fetchTables = useCallback(async () => {
     try {
       if (!adminId) return;
-      let query = (supabase as any)
+      const { data, error } = await (supabase as any)
         .from('tables')
         .select('*')
         .eq('admin_id', adminId)
-        .eq('is_active', true);
-      if (branchId) query = query.eq('branch_id', branchId);
-      const { data, error } = await query.order('display_order', { ascending: true });
+        .eq('is_active', true)
+        .order('display_order', { ascending: true });
 
       if (error) throw error;
       setTables(data || []);
@@ -174,8 +171,7 @@ const TableManagement: React.FC = () => {
         table_number: tableNumber.trim(),
         table_name: tableName.trim() || null,
         capacity: parseInt(capacity) || 4,
-        admin_id: profile?.role === 'admin' ? profile.id : null,
-        branch_id: getInsertBranchId()
+        admin_id: profile?.role === 'admin' ? profile.id : null
       };
 
       if (editingTable) {

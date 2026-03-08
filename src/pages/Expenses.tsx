@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useBranchFilter } from '@/hooks/useBranchFilter';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,7 +30,6 @@ interface Expense {
 const Expenses: React.FC = () => {
   const { profile } = useAuth();
   const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
-  const { branchId } = useBranchFilter();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [filteredExpenses, setFilteredExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +40,7 @@ const Expenses: React.FC = () => {
 
   useEffect(() => {
     if (adminId) fetchExpenses();
-  }, [adminId, branchId]);
+  }, [adminId]);
 
   useEffect(() => {
     applyFilters();
@@ -54,12 +52,11 @@ const Expenses: React.FC = () => {
       const data = await cachedFetch(
         `${CACHE_KEYS.EXPENSES}_${adminId}_list`,
         async () => {
-          let query = supabase
+          const { data, error } = await supabase
             .from('expenses')
             .select('*')
-            .eq('admin_id', adminId);
-          if (branchId) query = query.eq('branch_id', branchId);
-          const { data, error } = await query.order('date', { ascending: false });
+            .eq('admin_id', adminId)
+            .order('date', { ascending: false });
 
           if (error) throw error;
           return data || [];
@@ -242,8 +239,8 @@ const Expenses: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 bg-gradient-to-br from-destructive to-destructive/80 rounded-xl flex items-center justify-center shadow-md shadow-destructive/20">
-            <Receipt className="w-5 h-5 text-destructive-foreground" />
+          <div className="w-9 h-9 bg-gradient-to-br from-rose-500 to-rose-600 rounded-xl flex items-center justify-center shadow-md shadow-rose-500/20">
+            <Receipt className="w-5 h-5 text-white" />
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-bold tracking-tight">Expenses</h1>
@@ -336,18 +333,23 @@ const Expenses: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Search Bar - Compact */}
-      <div className="mb-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+      {/* Search Bar */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Search className="w-5 h-5" />
+            Search Expenses
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
           <Input
             placeholder="Search by name, category, note, or amount..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 h-9 text-sm"
+            className="w-full max-w-full"
           />
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Expenses Table */}
       <Card className="overflow-hidden">

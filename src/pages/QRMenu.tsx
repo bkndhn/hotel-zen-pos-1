@@ -12,7 +12,7 @@ const QRMenu: React.FC = () => {
         <div className="container mx-auto py-4 px-4 max-w-4xl">
             {/* Header */}
             <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-gradient-primary rounded-xl flex items-center justify-center shadow-elegant">
+                <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-md shadow-primary/20">
                     <QrCode className="w-5 h-5 text-primary-foreground" />
                 </div>
                 <div>

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useBranchFilter } from '@/hooks/useBranchFilter';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,7 +25,6 @@ interface Customer {
 const CRM: React.FC = () => {
   const { profile } = useAuth();
   const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
-  const { branchId } = useBranchFilter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,17 +42,16 @@ const CRM: React.FC = () => {
 
   useEffect(() => {
     if (adminId) fetchCustomers();
-  }, [adminId, branchId]);
+  }, [adminId]);
 
   const fetchCustomers = async () => {
     if (!adminId) return;
     try {
-      let query = supabase
+      const { data, error } = await supabase
         .from('customers')
         .select('*')
-        .eq('admin_id', adminId);
-      if (branchId) query = query.eq('branch_id', branchId);
-      const { data, error } = await query.order('last_visit', { ascending: false });
+        .eq('admin_id', adminId)
+        .order('last_visit', { ascending: false });
 
       if (error) throw error;
       setCustomers((data || []).map(c => ({

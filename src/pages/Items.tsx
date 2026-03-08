@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useBranchFilter } from '@/hooks/useBranchFilter';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,7 +39,6 @@ interface Item {
 const Items: React.FC = () => {
   const { profile } = useAuth();
   const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
-  const { branchId } = useBranchFilter();
   const [items, setItems] = useState<Item[]>([]);
   const [filteredItems, setFilteredItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,7 +67,7 @@ const Items: React.FC = () => {
       fetchItems();
       fetchCategories();
     }
-  }, [adminId, branchId]);
+  }, [adminId]);
 
   // Listen for real-time update events
   useEffect(() => {
@@ -99,8 +97,8 @@ const Items: React.FC = () => {
   const fetchItems = async () => {
     if (!adminId) return;
     try {
+      // Try with display_order first, fallback to name only if column doesn't exist
       let query = supabase.from('items').select('*').eq('admin_id', adminId);
-      if (branchId) query = query.eq('branch_id', branchId);
 
       const { data, error } = await query.order('name');
 
