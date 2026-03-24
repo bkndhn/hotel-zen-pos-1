@@ -246,6 +246,8 @@ const App = () => {
                   <Route path="/table-billing" element={<Layout><ProtectedRoute requiredPermission="tableBilling"><TableOrderBilling /></ProtectedRoute></Layout>} />
                   <Route path="/display" element={<CustomerDisplay />} />
                   <Route path="/menu/:adminId" element={<PublicMenu />} />
+                  <Route path="/landing" element={<LandingPage />} />
+                  <Route path="/demo" element={<DemoBilling />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </PermissionsProvider>
