@@ -29,6 +29,8 @@ import CRM from "./pages/CRM";
 import PublicMenu from "./pages/PublicMenu";
 import QRMenu from "./pages/QRMenu";
 import TableOrderBilling from "./pages/TableOrderBilling";
+import LandingPage from "./pages/LandingPage";
+import DemoBilling from "./pages/DemoBilling";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PendingBillsQueue } from "./components/PendingBillsQueue";

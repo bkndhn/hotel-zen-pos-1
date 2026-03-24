@@ -71,7 +71,7 @@ const KitchenDisplay = () => {
     const [syncing, setSyncing] = useState(false);
     const syncChannelRef = useRef<any>(null);
     const tableOrderChannelRef = useRef<any>(null);
-    const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Table orders state
     const [tableOrders, setTableOrders] = useState<KitchenTableOrder[]>([]);

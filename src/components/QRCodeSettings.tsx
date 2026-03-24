@@ -48,7 +48,7 @@ const QRCodeSettings = () => {
     // Custom URL State
     const [menuSlug, setMenuSlug] = useState('');
     const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
-    const slugTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const slugTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Menu Display Options
     const [menuShowShopName, setMenuShowShopName] = useState(true);
