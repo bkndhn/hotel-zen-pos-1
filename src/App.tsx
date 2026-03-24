@@ -29,6 +29,8 @@ import CRM from "./pages/CRM";
 import PublicMenu from "./pages/PublicMenu";
 import QRMenu from "./pages/QRMenu";
 import TableOrderBilling from "./pages/TableOrderBilling";
+import LandingPage from "./pages/LandingPage";
+import DemoBilling from "./pages/DemoBilling";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PendingBillsQueue } from "./components/PendingBillsQueue";
@@ -244,6 +246,8 @@ const App = () => {
                   <Route path="/table-billing" element={<Layout><ProtectedRoute requiredPermission="tableBilling"><TableOrderBilling /></ProtectedRoute></Layout>} />
                   <Route path="/display" element={<CustomerDisplay />} />
                   <Route path="/menu/:adminId" element={<PublicMenu />} />
+                  <Route path="/landing" element={<LandingPage />} />
+                  <Route path="/demo" element={<DemoBilling />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </PermissionsProvider>

@@ -101,8 +101,8 @@ const ServiceArea = () => {
     const broadcastChannelRef = useRef<any>(null);
     const tableOrderChannelRef = useRef<any>(null);
     const lastFetchRef = useRef<number>(0);
-    const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
-    const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const fetchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Table orders state
     const [tableOrders, setTableOrders] = useState<ServiceTableOrder[]>([]);
