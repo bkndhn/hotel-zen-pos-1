@@ -323,7 +323,27 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
           )}
         </div>
 
-        <div className="flex-1 overflow-hidden p-2 flex flex-col gap-1.5">
+        {/* Order Type - Dine In / Parcel */}
+        {showOrderType && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 p-2 border-b border-primary/10 flex-shrink-0">
+            <RadioGroup
+              value={orderType}
+              onValueChange={(v) => setOrderType(v as 'dine_in' | 'parcel')}
+              className="flex gap-4"
+            >
+              <label className="flex items-center gap-2 cursor-pointer">
+                <RadioGroupItem value="dine_in" />
+                <span className={`text-xs font-semibold ${orderType === 'dine_in' ? 'text-primary' : 'text-muted-foreground'}`}>🍽️ Dine In</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <RadioGroupItem value="parcel" />
+                <span className={`text-xs font-semibold ${orderType === 'parcel' ? 'text-primary' : 'text-muted-foreground'}`}>📦 Parcel</span>
+              </label>
+            </RadioGroup>
+          </div>
+        )}
+
+
           {/* Order Summary - Expanded to fill available space */}
           <div className="flex-1 min-h-0 flex flex-col">
             <div className="font-bold text-sm flex items-center justify-between bg-muted/50 p-2 rounded-lg mb-1.5">
