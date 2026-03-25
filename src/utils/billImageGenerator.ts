@@ -41,6 +41,8 @@ interface BillImageData {
   totalTax?: number;
   isComposition?: boolean;
   roundOff?: number;
+  // Order type
+  orderType?: 'dine_in' | 'parcel';
 }
 
 /**
