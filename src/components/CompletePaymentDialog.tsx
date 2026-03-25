@@ -343,7 +343,7 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
           </div>
         )}
 
-
+        <div className="flex-1 overflow-hidden p-2 flex flex-col gap-1.5">
           {/* Order Summary - Expanded to fill available space */}
           <div className="flex-1 min-h-0 flex flex-col">
             <div className="font-bold text-sm flex items-center justify-between bg-muted/50 p-2 rounded-lg mb-1.5">
