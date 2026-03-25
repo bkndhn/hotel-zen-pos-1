@@ -173,6 +173,7 @@ const Billing = () => {
   const [selectedTableNumber, setSelectedTableNumber] = useState<string | null>(null);
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
   const [whatsappShareMode, setWhatsappShareMode] = useState<'text' | 'image'>('text');
+  const [showOrderType, setShowOrderType] = useState(false);
   const [gstSettings, setGstSettings] = useState<{
     enabled: boolean;
     gstin: string;
@@ -474,6 +475,7 @@ const Billing = () => {
         setBillSettings(settings);
         setWhatsappEnabled(data.whatsapp_bill_share_enabled || false);
         setWhatsappShareMode((data as any).whatsapp_share_mode === 'image' ? 'image' : 'text');
+        setShowOrderType((data as any).show_order_type || false);
         // Update cache
         localStorage.setItem('hotel_pos_bill_header', JSON.stringify(settings));
 
@@ -1130,6 +1132,7 @@ const Billing = () => {
     customerMobile?: string;
     sendWhatsApp?: boolean;
     customerGstin?: string;
+    orderType?: 'dine_in' | 'parcel';
   }) => {
     setPaymentDialogOpen(false);
 
@@ -1241,7 +1244,8 @@ const Billing = () => {
         kitchen_status: 'pending',
         status_updated_at: now.toISOString(),
         table_no: selectedTableNumber || null,
-        round_off: roundOff !== 0 ? roundOff : 0
+        round_off: roundOff !== 0 ? roundOff : 0,
+        order_type: paymentData.orderType || 'dine_in'
       };
 
       // Add GST fields to bill if enabled
@@ -1364,7 +1368,8 @@ const Billing = () => {
         taxSummary: billPayload.tax_summary || undefined,
         totalTax: billPayload.total_tax || undefined,
         isComposition: gstSettings.enabled ? gstSettings.isComposition : undefined,
-        roundOff: roundOff !== 0 ? roundOff : undefined
+        roundOff: roundOff !== 0 ? roundOff : undefined,
+        orderType: paymentData.orderType
       };
 
       // Check auto-print setting
@@ -1756,7 +1761,7 @@ const Billing = () => {
     </div>}
 
     {/* Payment Dialog */}
-    <CompletePaymentDialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen} cart={cart} paymentTypes={paymentTypes} additionalCharges={additionalCharges} onUpdateQuantity={updateQuantity} onRemoveItem={removeFromCart} onCompletePayment={handleCompletePayment} whatsappEnabled={whatsappEnabled} whatsappShareMode={whatsappShareMode} gstEnabled={gstSettings.enabled} />
+    <CompletePaymentDialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen} cart={cart} paymentTypes={paymentTypes} additionalCharges={additionalCharges} onUpdateQuantity={updateQuantity} onRemoveItem={removeFromCart} onCompletePayment={handleCompletePayment} whatsappEnabled={whatsappEnabled} whatsappShareMode={whatsappShareMode} gstEnabled={gstSettings.enabled} showOrderType={showOrderType} />
 
     {/* Printer Error Dialog */}
     <PrinterErrorDialog

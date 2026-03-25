@@ -149,7 +149,7 @@ const ServiceArea = () => {
                 .from('bills')
                 .select(`
                     id, bill_no, total_amount, date, created_at,
-                    service_status, kitchen_status, status_updated_at, table_no,
+                    service_status, kitchen_status, status_updated_at, table_no, order_type,
                     bill_items (
                         id, quantity, price, total,
                         items (id, name, price, unit, base_value)
@@ -811,6 +811,9 @@ const ServiceArea = () => {
                                         <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
                                             {(bill as any).table_no}
                                         </span>
+                                    )}
+                                    {(bill as any).order_type === 'parcel' && (
+                                        <Badge className="bg-amber-500 text-white text-[10px]">📦 PARCEL</Badge>
                                     )}
                                 </div>
                                 {getStatusBadge(bill)}

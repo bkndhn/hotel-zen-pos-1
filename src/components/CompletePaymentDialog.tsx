@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Plus, Minus, Trash2, Percent, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
@@ -58,10 +59,12 @@ interface CompletePaymentDialogProps {
     customerMobile?: string;
     sendWhatsApp?: boolean;
     customerGstin?: string;
+    orderType?: 'dine_in' | 'parcel';
   }) => void;
   whatsappEnabled?: boolean;
   whatsappShareMode?: 'text' | 'image';
   gstEnabled?: boolean;
+  showOrderType?: boolean;
 }
 
 export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
@@ -75,7 +78,8 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
   onCompletePayment,
   whatsappEnabled = false,
   whatsappShareMode = 'text',
-  gstEnabled = false
+  gstEnabled = false,
+  showOrderType = false
 }) => {
   const [paymentAmounts, setPaymentAmounts] = useState<Record<string, number>>({});
   const [discount, setDiscount] = useState(0);
@@ -88,6 +92,7 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
   const [customerMobile, setCustomerMobile] = useState('');
   const [sendWhatsApp, setSendWhatsApp] = useState(false);
   const [customerGstin, setCustomerGstin] = useState('');
+  const [orderType, setOrderType] = useState<'dine_in' | 'parcel'>('dine_in');
 
   const hasInitialized = React.useRef(false);
 
@@ -212,14 +217,15 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
 
     onCompletePayment({
       paymentMethod: primaryPaymentMethod,
-      paymentAmounts: filteredPaymentAmounts, // Preserve ALL payment method amounts
+      paymentAmounts: filteredPaymentAmounts,
       discount: discountAmount,
       discountType,
       additionalCharges: selectedAdditionalCharges,
       finalItems: finalItems,
       customerMobile: customerMobile.trim() || undefined,
       sendWhatsApp: whatsappShareMode === 'image' ? whatsappEnabled : (sendWhatsApp && customerMobile.trim().length > 0),
-      customerGstin: customerGstin.trim() || undefined
+      customerGstin: customerGstin.trim() || undefined,
+      orderType: showOrderType ? orderType : undefined
     });
   };
 
@@ -240,6 +246,7 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
       setShowDiscount(false);
       setCustomerMobile('');
       setSendWhatsApp(false);
+      setOrderType('dine_in');
     }
   }, [open]);
 
@@ -315,6 +322,26 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
             </div>
           )}
         </div>
+
+        {/* Order Type - Dine In / Parcel */}
+        {showOrderType && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 p-2 border-b border-primary/10 flex-shrink-0">
+            <RadioGroup
+              value={orderType}
+              onValueChange={(v) => setOrderType(v as 'dine_in' | 'parcel')}
+              className="flex gap-4"
+            >
+              <label className="flex items-center gap-2 cursor-pointer">
+                <RadioGroupItem value="dine_in" />
+                <span className={`text-xs font-semibold ${orderType === 'dine_in' ? 'text-primary' : 'text-muted-foreground'}`}>🍽️ Dine In</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <RadioGroupItem value="parcel" />
+                <span className={`text-xs font-semibold ${orderType === 'parcel' ? 'text-primary' : 'text-muted-foreground'}`}>📦 Parcel</span>
+              </label>
+            </RadioGroup>
+          </div>
+        )}
 
         <div className="flex-1 overflow-hidden p-2 flex flex-col gap-1.5">
           {/* Order Summary - Expanded to fill available space */}

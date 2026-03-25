@@ -33,6 +33,7 @@ interface KitchenBill {
     service_status: 'pending' | 'preparing' | 'ready' | 'served' | 'completed' | 'rejected';
     bill_items: KitchenBillItem[];
     table_no?: string;
+    order_type?: string;
 }
 
 // Type for table QR orders
@@ -143,7 +144,7 @@ const KitchenDisplay = () => {
             const query = (supabase as any)
                 .from('bills')
                 .select(`
-                    id, bill_no, created_at, kitchen_status, service_status, table_no,
+                    id, bill_no, created_at, kitchen_status, service_status, table_no, order_type,
                     bill_items (
                         id, quantity, items (id, name, unit, base_value)
                     )
@@ -908,7 +909,12 @@ const KitchenOrderCard: React.FC<KitchenOrderCardProps> = ({
         <Card className={cn("p-4", processing && "opacity-50")}>
             {/* Bill Header */}
             <div className="flex items-start justify-between mb-3">
-                <h3 className="text-2xl font-bold">#{bill.bill_no}</h3>
+                <div className="flex items-center gap-2">
+                    <h3 className="text-2xl font-bold">#{bill.bill_no}</h3>
+                    {bill.order_type === 'parcel' && (
+                        <Badge className="bg-amber-500 text-white text-[10px]">📦 PARCEL</Badge>
+                    )}
+                </div>
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Clock className="w-3 h-3" />
                     {getTimeElapsed(bill.created_at)}

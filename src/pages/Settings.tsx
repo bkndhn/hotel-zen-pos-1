@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
-import { Settings as SettingsIcon, DollarSign, Monitor, Plus, Edit, Trash2, Printer, Type } from 'lucide-react';
+import { Settings as SettingsIcon, DollarSign, Monitor, Plus, Edit, Trash2, Printer, Type, UtensilsCrossed } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { AddAdditionalChargeDialog } from '@/components/AddAdditionalChargeDialog';
@@ -17,6 +17,7 @@ import { ShopSettingsForm } from '@/components/ShopSettingsForm';
 import { ThemeSettings } from '@/components/ThemeSettings';
 import { WhatsAppSettings } from '@/components/WhatsAppSettings';
 import { GSTSettings } from '@/components/GSTSettings';
+import { OrderTypeSettings } from '@/components/OrderTypeSettings';
 
 interface AdditionalCharge {
   id: string;
@@ -319,6 +320,9 @@ const Settings = () => {
 
           {/* Bluetooth Printer Settings */}
           <BluetoothPrinterSettings />
+
+          {/* Order Type (Dine In / Parcel) Settings */}
+          <OrderTypeSettings />
 
           {/* Print Settings */}
           <Card>

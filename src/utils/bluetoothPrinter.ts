@@ -266,6 +266,8 @@ interface PrintData {
   totalTax?: number;
   isComposition?: boolean;
   roundOff?: number;
+  // Order type
+  orderType?: 'dine_in' | 'parcel';
 }
 
 const textToBytes = (text: string): Uint8Array => {
@@ -343,6 +345,15 @@ export const generateReceiptBytes = async (data: PrintData): Promise<Uint8Array>
   commands.push(FEED_LINE);
   commands.push(textToBytes(fmtLine('Time:', data.time)));
   commands.push(FEED_LINE);
+
+  // Order type line
+  if (data.orderType) {
+    commands.push(BOLD_ON);
+    commands.push(textToBytes(fmtLine('Type:', data.orderType === 'parcel' ? 'PARCEL' : 'DINE IN')));
+    commands.push(FEED_LINE);
+    commands.push(BOLD_OFF);
+  }
+
   commands.push(textToBytes(SEP));
   commands.push(FEED_LINE);
 
