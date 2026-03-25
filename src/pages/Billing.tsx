@@ -1368,7 +1368,8 @@ const Billing = () => {
         taxSummary: billPayload.tax_summary || undefined,
         totalTax: billPayload.total_tax || undefined,
         isComposition: gstSettings.enabled ? gstSettings.isComposition : undefined,
-        roundOff: roundOff !== 0 ? roundOff : undefined
+        roundOff: roundOff !== 0 ? roundOff : undefined,
+        orderType: paymentData.orderType
       };
 
       // Check auto-print setting
