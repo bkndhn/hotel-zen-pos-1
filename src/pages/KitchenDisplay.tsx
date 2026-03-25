@@ -143,7 +143,7 @@ const KitchenDisplay = () => {
             const query = (supabase as any)
                 .from('bills')
                 .select(`
-                    id, bill_no, created_at, kitchen_status, service_status, table_no,
+                    id, bill_no, created_at, kitchen_status, service_status, table_no, order_type,
                     bill_items (
                         id, quantity, items (id, name, unit, base_value)
                     )
