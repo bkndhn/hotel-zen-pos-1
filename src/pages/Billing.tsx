@@ -1244,7 +1244,8 @@ const Billing = () => {
         kitchen_status: 'pending',
         status_updated_at: now.toISOString(),
         table_no: selectedTableNumber || null,
-        round_off: roundOff !== 0 ? roundOff : 0
+        round_off: roundOff !== 0 ? roundOff : 0,
+        order_type: paymentData.orderType || 'dine_in'
       };
 
       // Add GST fields to bill if enabled
