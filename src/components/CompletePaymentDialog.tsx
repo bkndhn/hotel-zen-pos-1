@@ -245,6 +245,7 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
       setShowDiscount(false);
       setCustomerMobile('');
       setSendWhatsApp(false);
+      setOrderType('dine_in');
     }
   }, [open]);
 
