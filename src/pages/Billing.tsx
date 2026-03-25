@@ -1437,7 +1437,7 @@ const Billing = () => {
               isComposition: gstSettings.isComposition,
               roundOff: roundOff !== 0 ? roundOff : undefined,
               gstin: gstSettings.gstin
-            })
+            }, paymentData.orderType)
               .catch(err => console.error('WhatsApp share failed:', err));
           }
         } catch (saveError: any) {
