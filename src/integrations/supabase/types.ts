@@ -154,6 +154,7 @@ export type Database = {
           is_deleted: boolean | null
           is_edited: boolean | null
           kitchen_status: Database["public"]["Enums"]["service_status"] | null
+          order_type: string | null
           payment_details: Json | null
           payment_mode: Database["public"]["Enums"]["payment_method"]
           round_off: number | null
@@ -182,6 +183,7 @@ export type Database = {
           is_deleted?: boolean | null
           is_edited?: boolean | null
           kitchen_status?: Database["public"]["Enums"]["service_status"] | null
+          order_type?: string | null
           payment_details?: Json | null
           payment_mode: Database["public"]["Enums"]["payment_method"]
           round_off?: number | null
@@ -210,6 +212,7 @@ export type Database = {
           is_deleted?: boolean | null
           is_edited?: boolean | null
           kitchen_status?: Database["public"]["Enums"]["service_status"] | null
+          order_type?: string | null
           payment_details?: Json | null
           payment_mode?: Database["public"]["Enums"]["payment_method"]
           round_off?: number | null
@@ -883,6 +886,7 @@ export type Database = {
           shop_name: string | null
           show_facebook: boolean | null
           show_instagram: boolean | null
+          show_order_type: boolean | null
           show_whatsapp: boolean | null
           updated_at: string | null
           user_id: string
@@ -923,6 +927,7 @@ export type Database = {
           shop_name?: string | null
           show_facebook?: boolean | null
           show_instagram?: boolean | null
+          show_order_type?: boolean | null
           show_whatsapp?: boolean | null
           updated_at?: string | null
           user_id: string
@@ -963,6 +968,7 @@ export type Database = {
           shop_name?: string | null
           show_facebook?: boolean | null
           show_instagram?: boolean | null
+          show_order_type?: boolean | null
           show_whatsapp?: boolean | null
           updated_at?: string | null
           user_id?: string
