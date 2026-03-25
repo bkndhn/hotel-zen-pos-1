@@ -92,6 +92,7 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
   const [customerMobile, setCustomerMobile] = useState('');
   const [sendWhatsApp, setSendWhatsApp] = useState(false);
   const [customerGstin, setCustomerGstin] = useState('');
+  const [orderType, setOrderType] = useState<'dine_in' | 'parcel'>('dine_in');
 
   const hasInitialized = React.useRef(false);
 
