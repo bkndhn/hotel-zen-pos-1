@@ -59,10 +59,12 @@ interface CompletePaymentDialogProps {
     customerMobile?: string;
     sendWhatsApp?: boolean;
     customerGstin?: string;
+    orderType?: 'dine_in' | 'parcel';
   }) => void;
   whatsappEnabled?: boolean;
   whatsappShareMode?: 'text' | 'image';
   gstEnabled?: boolean;
+  showOrderType?: boolean;
 }
 
 export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
