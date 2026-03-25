@@ -157,7 +157,8 @@ const Reports: React.FC = () => {
         taxSummary: bill.tax_summary ? (typeof bill.tax_summary === 'string' ? bill.tax_summary : JSON.stringify(bill.tax_summary)) : undefined,
         totalTax: bill.total_tax || undefined,
         isComposition: (bill as any).is_composition || undefined,
-        roundOff: (bill as any).round_off || undefined
+        roundOff: (bill as any).round_off || undefined,
+        orderType: (bill as any).order_type || undefined
       };
       shareBillImageViaWhatsApp('', billData).then(result => {
         setSharingImage(false);
