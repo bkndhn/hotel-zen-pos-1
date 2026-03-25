@@ -1820,6 +1820,11 @@ const Reports: React.FC = () => {
                 <p className="text-sm text-muted-foreground">
                   {format(new Date(selectedBill.created_at), 'MMM dd, yyyy hh:mm a')}
                 </p>
+                {(selectedBill as any).order_type && (
+                  <Badge className={`mt-1 ${(selectedBill as any).order_type === 'parcel' ? 'bg-amber-500 text-white' : 'bg-blue-500 text-white'}`}>
+                    {(selectedBill as any).order_type === 'parcel' ? '📦 Parcel' : '🍽️ Dine In'}
+                  </Badge>
+                )}
               </div>
               <div className="flex justify-between items-center text-xs sm:text-sm mb-4 border-b pb-4">
                 <div className="flex items-center gap-2">
