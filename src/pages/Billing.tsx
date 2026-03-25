@@ -1132,6 +1132,7 @@ const Billing = () => {
     customerMobile?: string;
     sendWhatsApp?: boolean;
     customerGstin?: string;
+    orderType?: 'dine_in' | 'parcel';
   }) => {
     setPaymentDialogOpen(false);
 
