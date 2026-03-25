@@ -989,7 +989,8 @@ const Billing = () => {
     paymentMethod: string,
     adminId: string | null | undefined,
     paymentDetails?: Record<string, number>,
-    gstData?: { taxSummary?: string; totalTax?: number; isComposition?: boolean; roundOff?: number; gstin?: string }
+    gstData?: { taxSummary?: string; totalTax?: number; isComposition?: boolean; roundOff?: number; gstin?: string },
+    orderType?: 'dine_in' | 'parcel'
   ) => {
     try {
       const { formatBillMessage, shareViaWhatsApp, isValidPhoneNumber } = await import('@/utils/whatsappBillShare');
