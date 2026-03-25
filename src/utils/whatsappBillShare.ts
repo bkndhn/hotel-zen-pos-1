@@ -21,6 +21,7 @@ interface BillShareData {
   totalTax?: number;
   isComposition?: boolean;
   roundOff?: number;
+  orderType?: 'dine_in' | 'parcel';
 }
 
 /**
