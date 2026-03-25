@@ -217,14 +217,15 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
 
     onCompletePayment({
       paymentMethod: primaryPaymentMethod,
-      paymentAmounts: filteredPaymentAmounts, // Preserve ALL payment method amounts
+      paymentAmounts: filteredPaymentAmounts,
       discount: discountAmount,
       discountType,
       additionalCharges: selectedAdditionalCharges,
       finalItems: finalItems,
       customerMobile: customerMobile.trim() || undefined,
       sendWhatsApp: whatsappShareMode === 'image' ? whatsappEnabled : (sendWhatsApp && customerMobile.trim().length > 0),
-      customerGstin: customerGstin.trim() || undefined
+      customerGstin: customerGstin.trim() || undefined,
+      orderType: showOrderType ? orderType : undefined
     });
   };
 
