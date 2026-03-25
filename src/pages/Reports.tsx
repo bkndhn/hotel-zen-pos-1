@@ -878,7 +878,8 @@ const Reports: React.FC = () => {
         paymentMethod: bill.payment_mode.toUpperCase(),
         hotelName: profile?.hotel_name || 'ZenPOS',
         totalItemsCount: bill.bill_items?.length || 0,
-        smartQtyCount: calculateSmartQtyCount(bill.bill_items?.map(item => ({ quantity: item.quantity, unit: item.items?.unit })) || [])
+        smartQtyCount: calculateSmartQtyCount(bill.bill_items?.map(item => ({ quantity: item.quantity, unit: item.items?.unit })) || []),
+        orderType: (bill as any).order_type || undefined
       };
 
       printBrowserReceipt(printData);
