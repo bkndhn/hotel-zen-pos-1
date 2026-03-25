@@ -812,6 +812,9 @@ const ServiceArea = () => {
                                             {(bill as any).table_no}
                                         </span>
                                     )}
+                                    {(bill as any).order_type === 'parcel' && (
+                                        <Badge className="bg-amber-500 text-white text-[10px]">📦 PARCEL</Badge>
+                                    )}
                                 </div>
                                 {getStatusBadge(bill)}
                             </div>
