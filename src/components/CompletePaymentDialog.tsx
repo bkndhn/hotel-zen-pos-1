@@ -78,7 +78,8 @@ export const CompletePaymentDialog: React.FC<CompletePaymentDialogProps> = ({
   onCompletePayment,
   whatsappEnabled = false,
   whatsappShareMode = 'text',
-  gstEnabled = false
+  gstEnabled = false,
+  showOrderType = false
 }) => {
   const [paymentAmounts, setPaymentAmounts] = useState<Record<string, number>>({});
   const [discount, setDiscount] = useState(0);
