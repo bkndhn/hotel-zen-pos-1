@@ -266,6 +266,8 @@ interface PrintData {
   totalTax?: number;
   isComposition?: boolean;
   roundOff?: number;
+  // Order type
+  orderType?: 'dine_in' | 'parcel';
 }
 
 const textToBytes = (text: string): Uint8Array => {
