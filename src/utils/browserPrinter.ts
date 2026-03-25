@@ -65,6 +65,7 @@ export const printBrowserReceipt = (data: PrintData) => {
   <table>
     <tr><td>#${data.billNo}</td><td style="text-align:right">${data.date}</td></tr>
     <tr><td>Time:</td><td style="text-align:right">${data.time}</td></tr>
+    ${(data as any).orderType ? `<tr><td><b>Type:</b></td><td style="text-align:right"><b>${(data as any).orderType === 'parcel' ? 'PARCEL' : 'DINE IN'}</b></td></tr>` : ''}
   </table>
   
   <hr>
