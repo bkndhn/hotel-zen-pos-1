@@ -33,6 +33,7 @@ interface KitchenBill {
     service_status: 'pending' | 'preparing' | 'ready' | 'served' | 'completed' | 'rejected';
     bill_items: KitchenBillItem[];
     table_no?: string;
+    order_type?: string;
 }
 
 // Type for table QR orders
