@@ -157,7 +157,8 @@ const Reports: React.FC = () => {
         taxSummary: bill.tax_summary ? (typeof bill.tax_summary === 'string' ? bill.tax_summary : JSON.stringify(bill.tax_summary)) : undefined,
         totalTax: bill.total_tax || undefined,
         isComposition: (bill as any).is_composition || undefined,
-        roundOff: (bill as any).round_off || undefined
+        roundOff: (bill as any).round_off || undefined,
+        orderType: (bill as any).order_type || undefined
       };
       shareBillImageViaWhatsApp('', billData).then(result => {
         setSharingImage(false);
@@ -194,7 +195,8 @@ const Reports: React.FC = () => {
         taxSummary: bill.tax_summary ? (typeof bill.tax_summary === 'string' ? bill.tax_summary : JSON.stringify(bill.tax_summary)) : undefined,
         totalTax: bill.total_tax || undefined,
         isComposition: (bill as any).is_composition || undefined,
-        roundOff: (bill as any).round_off || undefined
+        roundOff: (bill as any).round_off || undefined,
+        orderType: (bill as any).order_type || undefined
       });
 
       shareViaWhatsApp(whatsappPhone, message);
@@ -827,7 +829,8 @@ const Reports: React.FC = () => {
         instagram: settings?.showInstagram !== false ? settings?.instagram : undefined,
         whatsapp: settings?.showWhatsapp !== false ? settings?.whatsapp : undefined,
         totalItemsCount: bill.bill_items?.length || 0,
-        smartQtyCount: calculateSmartQtyCount(bill.bill_items?.map(item => ({ quantity: item.quantity, unit: item.items?.unit })) || [])
+        smartQtyCount: calculateSmartQtyCount(bill.bill_items?.map(item => ({ quantity: item.quantity, unit: item.items?.unit })) || []),
+        orderType: (bill as any).order_type || undefined
       };
 
       toast({
@@ -875,7 +878,8 @@ const Reports: React.FC = () => {
         paymentMethod: bill.payment_mode.toUpperCase(),
         hotelName: profile?.hotel_name || 'ZenPOS',
         totalItemsCount: bill.bill_items?.length || 0,
-        smartQtyCount: calculateSmartQtyCount(bill.bill_items?.map(item => ({ quantity: item.quantity, unit: item.items?.unit })) || [])
+        smartQtyCount: calculateSmartQtyCount(bill.bill_items?.map(item => ({ quantity: item.quantity, unit: item.items?.unit })) || []),
+        orderType: (bill as any).order_type || undefined
       };
 
       printBrowserReceipt(printData);
@@ -1210,6 +1214,36 @@ const Reports: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Order Type Summary - Dine In vs Parcel */}
+      {billFilter === 'processed' && (() => {
+        const dineInBills = activeBills.filter((b: any) => !b.order_type || b.order_type === 'dine_in');
+        const parcelBills = activeBills.filter((b: any) => b.order_type === 'parcel');
+        const dineInTotal = dineInBills.reduce((sum, b) => sum + b.total_amount, 0);
+        const parcelTotal = parcelBills.reduce((sum, b) => sum + b.total_amount, 0);
+        const hasParcelOrDineIn = parcelBills.length > 0 || dineInBills.some((b: any) => b.order_type === 'dine_in');
+        
+        if (!hasParcelOrDineIn) return null;
+        
+        return (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-card rounded-2xl p-4 shadow-lg dark:shadow-none border border-border">
+              <div className="flex items-start justify-between mb-2">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">🍽️ Dine In</p>
+              </div>
+              <p className="text-xl sm:text-2xl font-bold text-foreground mb-0.5">₹{dineInTotal.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+              <p className="text-xs text-muted-foreground">{dineInBills.length} bills • Avg ₹{dineInBills.length > 0 ? Math.round(dineInTotal / dineInBills.length).toLocaleString('en-IN') : 0}</p>
+            </div>
+            <div className="bg-card rounded-2xl p-4 shadow-lg dark:shadow-none border border-border">
+              <div className="flex items-start justify-between mb-2">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">📦 Parcel</p>
+              </div>
+              <p className="text-xl sm:text-2xl font-bold text-foreground mb-0.5">₹{parcelTotal.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+              <p className="text-xs text-muted-foreground">{parcelBills.length} bills • Avg ₹{parcelBills.length > 0 ? Math.round(parcelTotal / parcelBills.length).toLocaleString('en-IN') : 0}</p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Detailed Reports */}
       <Tabs defaultValue="bills" className="w-full">

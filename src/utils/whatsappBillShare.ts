@@ -21,6 +21,7 @@ interface BillShareData {
   totalTax?: number;
   isComposition?: boolean;
   roundOff?: number;
+  orderType?: 'dine_in' | 'parcel';
 }
 
 /**
@@ -33,6 +34,9 @@ export const formatBillMessage = (data: BillShareData): string => {
   message += `📅 ${data.date} | ${data.time}\n`;
   if (data.gstin) {
     message += `🏢 GSTIN: ${data.gstin}\n`;
+  }
+  if (data.orderType) {
+    message += `📋 Type: ${data.orderType === 'parcel' ? '📦 PARCEL' : '🍽️ DINE IN'}\n`;
   }
   message += `━━━━━━━━━━━━━━\n\n`;
 

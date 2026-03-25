@@ -989,7 +989,8 @@ const Billing = () => {
     paymentMethod: string,
     adminId: string | null | undefined,
     paymentDetails?: Record<string, number>,
-    gstData?: { taxSummary?: string; totalTax?: number; isComposition?: boolean; roundOff?: number; gstin?: string }
+    gstData?: { taxSummary?: string; totalTax?: number; isComposition?: boolean; roundOff?: number; gstin?: string },
+    orderType?: 'dine_in' | 'parcel'
   ) => {
     try {
       const { formatBillMessage, shareViaWhatsApp, isValidPhoneNumber } = await import('@/utils/whatsappBillShare');
@@ -1073,7 +1074,8 @@ const Billing = () => {
           taxSummary: gstData?.taxSummary,
           totalTax: gstData?.totalTax,
           isComposition: gstData?.isComposition,
-          roundOff: gstData?.roundOff
+          roundOff: gstData?.roundOff,
+          orderType: orderType
         };
         const result = await shareBillImageViaWhatsApp(customerMobile, billData);
         if (result.success) {
@@ -1107,7 +1109,8 @@ const Billing = () => {
           taxSummary: gstData?.taxSummary,
           totalTax: gstData?.totalTax,
           isComposition: gstData?.isComposition,
-          roundOff: gstData?.roundOff
+          roundOff: gstData?.roundOff,
+          orderType: orderType
         });
 
         shareViaWhatsApp(customerMobile, message);
@@ -1434,7 +1437,7 @@ const Billing = () => {
               isComposition: gstSettings.isComposition,
               roundOff: roundOff !== 0 ? roundOff : undefined,
               gstin: gstSettings.gstin
-            })
+            }, paymentData.orderType)
               .catch(err => console.error('WhatsApp share failed:', err));
           }
         } catch (saveError: any) {
