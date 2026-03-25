@@ -35,6 +35,9 @@ export const formatBillMessage = (data: BillShareData): string => {
   if (data.gstin) {
     message += `🏢 GSTIN: ${data.gstin}\n`;
   }
+  if (data.orderType) {
+    message += `📋 Type: ${data.orderType === 'parcel' ? '📦 PARCEL' : '🍽️ DINE IN'}\n`;
+  }
   message += `━━━━━━━━━━━━━━\n\n`;
 
   // Items
