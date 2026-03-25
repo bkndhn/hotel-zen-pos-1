@@ -1109,7 +1109,8 @@ const Billing = () => {
           taxSummary: gstData?.taxSummary,
           totalTax: gstData?.totalTax,
           isComposition: gstData?.isComposition,
-          roundOff: gstData?.roundOff
+          roundOff: gstData?.roundOff,
+          orderType: orderType
         });
 
         shareViaWhatsApp(customerMobile, message);
