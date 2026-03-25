@@ -475,6 +475,7 @@ const Billing = () => {
         setBillSettings(settings);
         setWhatsappEnabled(data.whatsapp_bill_share_enabled || false);
         setWhatsappShareMode((data as any).whatsapp_share_mode === 'image' ? 'image' : 'text');
+        setShowOrderType((data as any).show_order_type || false);
         // Update cache
         localStorage.setItem('hotel_pos_bill_header', JSON.stringify(settings));
 
