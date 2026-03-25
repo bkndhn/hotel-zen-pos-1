@@ -1278,6 +1278,11 @@ const Reports: React.FC = () => {
                                 {(bill as any).table_no}
                               </Badge>
                             )}
+                            {(bill as any).order_type === 'parcel' && (
+                              <Badge className="bg-amber-100 text-amber-700 text-[10px] px-1.5">
+                                📦 Parcel
+                              </Badge>
+                            )}
                             {bill.is_deleted && (
                               <Badge variant="destructive" className="text-xs">
                                 Deleted
