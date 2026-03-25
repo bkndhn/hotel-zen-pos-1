@@ -173,6 +173,7 @@ const Billing = () => {
   const [selectedTableNumber, setSelectedTableNumber] = useState<string | null>(null);
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
   const [whatsappShareMode, setWhatsappShareMode] = useState<'text' | 'image'>('text');
+  const [showOrderType, setShowOrderType] = useState(false);
   const [gstSettings, setGstSettings] = useState<{
     enabled: boolean;
     gstin: string;
