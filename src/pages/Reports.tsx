@@ -829,7 +829,8 @@ const Reports: React.FC = () => {
         instagram: settings?.showInstagram !== false ? settings?.instagram : undefined,
         whatsapp: settings?.showWhatsapp !== false ? settings?.whatsapp : undefined,
         totalItemsCount: bill.bill_items?.length || 0,
-        smartQtyCount: calculateSmartQtyCount(bill.bill_items?.map(item => ({ quantity: item.quantity, unit: item.items?.unit })) || [])
+        smartQtyCount: calculateSmartQtyCount(bill.bill_items?.map(item => ({ quantity: item.quantity, unit: item.items?.unit })) || []),
+        orderType: (bill as any).order_type || undefined
       };
 
       toast({
