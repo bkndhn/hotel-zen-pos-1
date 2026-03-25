@@ -320,6 +320,9 @@ const Settings = () => {
           {/* Bluetooth Printer Settings */}
           <BluetoothPrinterSettings />
 
+          {/* Order Type (Dine In / Parcel) Settings */}
+          <OrderTypeSettings />
+
           {/* Print Settings */}
           <Card>
             <CardHeader className="p-4 sm:p-6">
