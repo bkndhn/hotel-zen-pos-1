@@ -18,6 +18,7 @@ import { ThemeSettings } from '@/components/ThemeSettings';
 import { WhatsAppSettings } from '@/components/WhatsAppSettings';
 import { GSTSettings } from '@/components/GSTSettings';
 import { OrderTypeSettings } from '@/components/OrderTypeSettings';
+import { BranchManagement } from '@/components/BranchManagement';
 
 interface AdditionalCharge {
   id: string;
@@ -323,6 +324,9 @@ const Settings = () => {
 
           {/* Order Type (Dine In / Parcel) Settings */}
           <OrderTypeSettings />
+
+          {/* Branch Management (admin only) */}
+          <BranchManagement />
 
           {/* Print Settings */}
           <Card>
