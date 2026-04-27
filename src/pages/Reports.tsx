@@ -1310,6 +1310,11 @@ const Reports: React.FC = () => {
                 <div className="space-y-3">
                   {bills
                     .filter(bill => {
+                      // Order type filter (Dine In / Parcel / All)
+                      if (orderTypeFilter !== 'all') {
+                        const ot = (bill as any).order_type || 'dine_in';
+                        if (ot !== orderTypeFilter) return false;
+                      }
                       if (!searchQuery.trim()) return true;
                       const query = searchQuery.toLowerCase();
                       return (
