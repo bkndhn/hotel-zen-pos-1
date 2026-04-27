@@ -286,6 +286,7 @@ export type Database = {
           is_active: boolean | null
           is_composition_scheme: boolean | null
           is_default: boolean | null
+          is_main: boolean
           logo_url: string | null
           menu_slug: string | null
           name: string
@@ -305,6 +306,7 @@ export type Database = {
           is_active?: boolean | null
           is_composition_scheme?: boolean | null
           is_default?: boolean | null
+          is_main?: boolean
           logo_url?: string | null
           menu_slug?: string | null
           name: string
@@ -324,6 +326,7 @@ export type Database = {
           is_active?: boolean | null
           is_composition_scheme?: boolean | null
           is_default?: boolean | null
+          is_main?: boolean
           logo_url?: string | null
           menu_slug?: string | null
           name?: string
@@ -738,6 +741,7 @@ export type Database = {
           item_limit: number | null
           last_login: string | null
           login_count: number | null
+          max_branches: number
           multi_branch_enabled: boolean | null
           name: string
           role: Database["public"]["Enums"]["app_role"]
@@ -754,6 +758,7 @@ export type Database = {
           item_limit?: number | null
           last_login?: string | null
           login_count?: number | null
+          max_branches?: number
           multi_branch_enabled?: boolean | null
           name: string
           role?: Database["public"]["Enums"]["app_role"]
@@ -770,6 +775,7 @@ export type Database = {
           item_limit?: number | null
           last_login?: string | null
           login_count?: number | null
+          max_branches?: number
           multi_branch_enabled?: boolean | null
           name?: string
           role?: Database["public"]["Enums"]["app_role"]

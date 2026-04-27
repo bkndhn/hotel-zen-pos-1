@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { PermissionsProvider } from "@/contexts/PermissionsContext";
+import { BranchProvider } from "@/contexts/BranchContext";
 import { Layout } from "@/components/Layout";
 import { useWakeLock } from "@/hooks/useWakeLock";
 
@@ -227,6 +228,7 @@ const App = () => {
           <BrowserRouter>
             <AuthProvider>
               <PermissionsProvider>
+                <BranchProvider>
                 <Routes>
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/" element={<Layout><ProtectedRoute requiredPermission="billing"><Billing /></ProtectedRoute></Layout>} />
@@ -250,6 +252,7 @@ const App = () => {
                   <Route path="/demo" element={<DemoBilling />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
+                </BranchProvider>
               </PermissionsProvider>
             </AuthProvider>
           </BrowserRouter>

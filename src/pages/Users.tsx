@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
-import { Users as UsersIcon, Search, User, Shield, ChevronDown, ChevronRight, Crown, QrCode, Package, Save } from 'lucide-react';
+import { Users as UsersIcon, Search, User, Shield, ChevronDown, ChevronRight, Crown, QrCode, Package, Save, Building2 } from 'lucide-react';
 import { AddUserDialog } from '@/components/AddUserDialog';
 import { Switch } from '@/components/ui/switch';
 
@@ -22,6 +22,8 @@ interface ExtendedUserProfile extends UserProfile {
   login_count?: number | null;
   has_qr_menu_access?: boolean;
   item_limit?: number | null;
+  max_branches?: number | null;
+  branchCount?: number;
   itemCount?: number;
 }
 
@@ -34,6 +36,8 @@ const Users: React.FC = () => {
   const [expandedAdmins, setExpandedAdmins] = useState<Set<string>>(new Set());
   const [editingLimits, setEditingLimits] = useState<Record<string, string>>({});
   const [savingLimit, setSavingLimit] = useState<string | null>(null);
+  const [editingBranchLimits, setEditingBranchLimits] = useState<Record<string, string>>({});
+  const [savingBranchLimit, setSavingBranchLimit] = useState<string | null>(null);
 
   const isSuperAdmin = profile?.role === 'super_admin';
   const isAdmin = profile?.role === 'admin';
@@ -101,7 +105,8 @@ const Users: React.FC = () => {
         last_login: user.last_login,
         login_count: user.login_count,
         has_qr_menu_access: user.has_qr_menu_access ?? false,
-        item_limit: (user as any).item_limit ?? null
+        item_limit: (user as any).item_limit ?? null,
+        max_branches: (user as any).max_branches ?? 1
       })) as ExtendedUserProfile[];
 
       if (isSuperAdmin) {
@@ -114,13 +119,14 @@ const Users: React.FC = () => {
           admin.subUsers = subUsers.filter(sub => sub.admin_id === admin.id);
         });
 
-        // Fetch item counts per admin
+        // Fetch item counts and branch counts per admin
         for (const admin of admins) {
-          const { count } = await supabase
-            .from('items')
-            .select('*', { count: 'exact', head: true })
-            .eq('admin_id', admin.id);
-          admin.itemCount = count ?? 0;
+          const [{ count: itemCount }, { count: branchCount }] = await Promise.all([
+            supabase.from('items').select('*', { count: 'exact', head: true }).eq('admin_id', admin.id),
+            supabase.from('branches').select('*', { count: 'exact', head: true }).eq('admin_id', admin.id),
+          ]);
+          admin.itemCount = itemCount ?? 0;
+          admin.branchCount = branchCount ?? 0;
         }
 
         setUsers(admins);
@@ -239,6 +245,33 @@ const Users: React.FC = () => {
       toast({ title: 'Error', description: 'Failed to update item limit', variant: 'destructive' });
     } finally {
       setSavingLimit(null);
+    }
+  };
+
+  const updateMaxBranches = async (adminId: string) => {
+    setSavingBranchLimit(adminId);
+    try {
+      const rawValue = editingBranchLimits[adminId];
+      const newLimit = rawValue === '' || rawValue === undefined ? 1 : parseInt(rawValue, 10);
+      if (isNaN(newLimit) || newLimit < 1) {
+        toast({ title: 'Invalid Value', description: 'Max branches must be at least 1', variant: 'destructive' });
+        setSavingBranchLimit(null);
+        return;
+      }
+      const { error } = await supabase
+        .from('profiles')
+        .update({ max_branches: newLimit } as any)
+        .eq('id', adminId);
+      if (error) throw error;
+      setUsers(prev => prev.map(u => u.id === adminId ? { ...u, max_branches: newLimit } : u));
+      setFilteredUsers(prev => prev.map(u => u.id === adminId ? { ...u, max_branches: newLimit } : u));
+      setEditingBranchLimits(prev => { const n = { ...prev }; delete n[adminId]; return n; });
+      toast({ title: '✅ Saved', description: `Branch limit set to ${newLimit}` });
+    } catch (err) {
+      console.error('Error updating max_branches:', err);
+      toast({ title: 'Error', description: 'Failed to update branch limit', variant: 'destructive' });
+    } finally {
+      setSavingBranchLimit(null);
     }
   };
 
@@ -455,6 +488,36 @@ const Users: React.FC = () => {
                             )}
                             <Badge variant="outline" className="text-[10px] whitespace-nowrap">
                               {admin.itemCount ?? '?'}/{admin.item_limit === null || admin.item_limit === undefined ? '∞' : admin.item_limit}
+                            </Badge>
+                          </div>
+
+                          {/* Max Branches Control */}
+                          <div
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-muted/30"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Building2 className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-xs font-medium whitespace-nowrap">Max Branches</span>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={editingBranchLimits[admin.id] ?? String(admin.max_branches ?? 1)}
+                              onChange={(e) => setEditingBranchLimits(prev => ({ ...prev, [admin.id]: e.target.value }))}
+                              className="w-16 h-7 text-xs px-2"
+                            />
+                            {editingBranchLimits[admin.id] !== undefined && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                onClick={(e) => { e.stopPropagation(); updateMaxBranches(admin.id); }}
+                                disabled={savingBranchLimit === admin.id}
+                              >
+                                <Save className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                            <Badge variant="outline" className="text-[10px] whitespace-nowrap">
+                              {admin.branchCount ?? '?'}/{admin.max_branches ?? 1}
                             </Badge>
                           </div>
 
