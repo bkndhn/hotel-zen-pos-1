@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
-import { Users as UsersIcon, Search, User, Shield, ChevronDown, ChevronRight, Crown, QrCode, Package, Save } from 'lucide-react';
+import { Users as UsersIcon, Search, User, Shield, ChevronDown, ChevronRight, Crown, QrCode, Package, Save, Building2 } from 'lucide-react';
 import { AddUserDialog } from '@/components/AddUserDialog';
 import { Switch } from '@/components/ui/switch';
 
@@ -22,6 +22,8 @@ interface ExtendedUserProfile extends UserProfile {
   login_count?: number | null;
   has_qr_menu_access?: boolean;
   item_limit?: number | null;
+  max_branches?: number | null;
+  branchCount?: number;
   itemCount?: number;
 }
 
@@ -34,6 +36,8 @@ const Users: React.FC = () => {
   const [expandedAdmins, setExpandedAdmins] = useState<Set<string>>(new Set());
   const [editingLimits, setEditingLimits] = useState<Record<string, string>>({});
   const [savingLimit, setSavingLimit] = useState<string | null>(null);
+  const [editingBranchLimits, setEditingBranchLimits] = useState<Record<string, string>>({});
+  const [savingBranchLimit, setSavingBranchLimit] = useState<string | null>(null);
 
   const isSuperAdmin = profile?.role === 'super_admin';
   const isAdmin = profile?.role === 'admin';
@@ -101,7 +105,8 @@ const Users: React.FC = () => {
         last_login: user.last_login,
         login_count: user.login_count,
         has_qr_menu_access: user.has_qr_menu_access ?? false,
-        item_limit: (user as any).item_limit ?? null
+        item_limit: (user as any).item_limit ?? null,
+        max_branches: (user as any).max_branches ?? 1
       })) as ExtendedUserProfile[];
 
       if (isSuperAdmin) {
@@ -114,13 +119,14 @@ const Users: React.FC = () => {
           admin.subUsers = subUsers.filter(sub => sub.admin_id === admin.id);
         });
 
-        // Fetch item counts per admin
+        // Fetch item counts and branch counts per admin
         for (const admin of admins) {
-          const { count } = await supabase
-            .from('items')
-            .select('*', { count: 'exact', head: true })
-            .eq('admin_id', admin.id);
-          admin.itemCount = count ?? 0;
+          const [{ count: itemCount }, { count: branchCount }] = await Promise.all([
+            supabase.from('items').select('*', { count: 'exact', head: true }).eq('admin_id', admin.id),
+            supabase.from('branches').select('*', { count: 'exact', head: true }).eq('admin_id', admin.id),
+          ]);
+          admin.itemCount = itemCount ?? 0;
+          admin.branchCount = branchCount ?? 0;
         }
 
         setUsers(admins);
