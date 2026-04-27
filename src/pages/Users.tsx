@@ -491,6 +491,36 @@ const Users: React.FC = () => {
                             </Badge>
                           </div>
 
+                          {/* Max Branches Control */}
+                          <div
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-muted/30"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Building2 className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-xs font-medium whitespace-nowrap">Max Branches</span>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={editingBranchLimits[admin.id] ?? String(admin.max_branches ?? 1)}
+                              onChange={(e) => setEditingBranchLimits(prev => ({ ...prev, [admin.id]: e.target.value }))}
+                              className="w-16 h-7 text-xs px-2"
+                            />
+                            {editingBranchLimits[admin.id] !== undefined && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                onClick={(e) => { e.stopPropagation(); updateMaxBranches(admin.id); }}
+                                disabled={savingBranchLimit === admin.id}
+                              >
+                                <Save className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                            <Badge variant="outline" className="text-[10px] whitespace-nowrap">
+                              {admin.branchCount ?? '?'}/{admin.max_branches ?? 1}
+                            </Badge>
+                          </div>
+
                           <Button
                             size="sm"
                             variant={admin.status === 'active' ? 'outline' : 'default'}
