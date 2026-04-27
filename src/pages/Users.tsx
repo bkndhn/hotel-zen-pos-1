@@ -248,6 +248,33 @@ const Users: React.FC = () => {
     }
   };
 
+  const updateMaxBranches = async (adminId: string) => {
+    setSavingBranchLimit(adminId);
+    try {
+      const rawValue = editingBranchLimits[adminId];
+      const newLimit = rawValue === '' || rawValue === undefined ? 1 : parseInt(rawValue, 10);
+      if (isNaN(newLimit) || newLimit < 1) {
+        toast({ title: 'Invalid Value', description: 'Max branches must be at least 1', variant: 'destructive' });
+        setSavingBranchLimit(null);
+        return;
+      }
+      const { error } = await supabase
+        .from('profiles')
+        .update({ max_branches: newLimit } as any)
+        .eq('id', adminId);
+      if (error) throw error;
+      setUsers(prev => prev.map(u => u.id === adminId ? { ...u, max_branches: newLimit } : u));
+      setFilteredUsers(prev => prev.map(u => u.id === adminId ? { ...u, max_branches: newLimit } : u));
+      setEditingBranchLimits(prev => { const n = { ...prev }; delete n[adminId]; return n; });
+      toast({ title: '✅ Saved', description: `Branch limit set to ${newLimit}` });
+    } catch (err) {
+      console.error('Error updating max_branches:', err);
+      toast({ title: 'Error', description: 'Failed to update branch limit', variant: 'destructive' });
+    } finally {
+      setSavingBranchLimit(null);
+    }
+  };
+
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'super_admin':
