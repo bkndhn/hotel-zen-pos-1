@@ -84,6 +84,7 @@ const Reports: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
   const [billFilter, setBillFilter] = useState('processed');
+  const [orderTypeFilter, setOrderTypeFilter] = useState<'all' | 'dine_in' | 'parcel'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [itemSortBy, setItemSortBy] = useState<'amount' | 'quantity'>('amount');
   const [billSettings, setBillSettings] = useState<{
@@ -1260,22 +1261,45 @@ const Reports: React.FC = () => {
         <TabsContent value="bills" className="mt-4">
           <Card>
             <CardHeader className="pb-3">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                 <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                   <Receipt className="w-4 h-4" />
                   Bill-wise Report
                 </CardTitle>
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs">Filter:</Label>
-                  <Select value={billFilter} onValueChange={setBillFilter}>
-                    <SelectTrigger className="w-28 h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="processed">Processed</SelectItem>
-                      <SelectItem value="deleted">Deleted</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Order Type filter */}
+                  <div className="flex items-center gap-1 p-0.5 rounded-md bg-muted">
+                    <Button
+                      size="sm"
+                      variant={orderTypeFilter === 'all' ? 'default' : 'ghost'}
+                      className="h-7 px-2.5 text-[11px]"
+                      onClick={() => setOrderTypeFilter('all')}
+                    >All</Button>
+                    <Button
+                      size="sm"
+                      variant={orderTypeFilter === 'dine_in' ? 'default' : 'ghost'}
+                      className="h-7 px-2.5 text-[11px]"
+                      onClick={() => setOrderTypeFilter('dine_in')}
+                    >🍽️ Dine In</Button>
+                    <Button
+                      size="sm"
+                      variant={orderTypeFilter === 'parcel' ? 'default' : 'ghost'}
+                      className="h-7 px-2.5 text-[11px]"
+                      onClick={() => setOrderTypeFilter('parcel')}
+                    >📦 Parcel</Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs">Filter:</Label>
+                    <Select value={billFilter} onValueChange={setBillFilter}>
+                      <SelectTrigger className="w-28 h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="processed">Processed</SelectItem>
+                        <SelectItem value="deleted">Deleted</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
             </CardHeader>
