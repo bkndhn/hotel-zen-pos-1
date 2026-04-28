@@ -123,7 +123,7 @@ export const AddExpenseDialog: React.FC<AddExpenseDialogProps> = ({ onExpenseAdd
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
+        <Button disabled={isAllBranchesView} title={isAllBranchesView ? 'Switch to a specific branch to add expense' : ''}>
           <Plus className="w-4 h-4 mr-2" />
           Add Expense
         </Button>
