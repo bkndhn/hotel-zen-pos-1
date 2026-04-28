@@ -23,6 +23,7 @@ import { offlineManager } from '@/utils/offlineManager';
 import { formatQuantityWithUnit, getShortUnit, calculateSmartQtyCount } from '@/utils/timeUtils';
 import { formatBillMessage, shareViaWhatsApp, isValidPhoneNumber } from '@/utils/whatsappBillShare';
 import { shareBillImageViaWhatsApp, type BillImageData } from '@/utils/billImageGenerator';
+import { useBranchScopedQuery } from '@/hooks/useBranchScopedQuery';
 
 interface Bill {
   id: string;
@@ -73,6 +74,7 @@ interface ItemReport {
 const Reports: React.FC = () => {
   const { profile } = useAuth();
   const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+  const { branchFilterId, activeBranch, isAllBranchesView } = useBranchScopedQuery(() => fetchReports());
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState('today');
   const [hourRange, setHourRange] = useState(12);
@@ -469,13 +471,13 @@ const Reports: React.FC = () => {
       }
 
       // ONLINE MODE - Fetch from Supabase with caching
-      const cacheKey = `${CACHE_KEYS.REPORTS}_${adminId}_${billFilter}_${start}_${end}_${dateRange === 'hourly' ? hourRange : ''}`;
+      const cacheKey = `${CACHE_KEYS.REPORTS}_${adminId}_${branchFilterId || 'all'}_${billFilter}_${start}_${end}_${dateRange === 'hourly' ? hourRange : ''}`;
 
       const reportData = await cachedFetch(
         cacheKey,
         async () => {
-          // Fetch bills based on filter
-          let billsQuery = supabase
+          // Fetch bills based on filter — branch-scoped
+          let billsQuery: any = supabase
             .from('bills')
             .select(`
               *,
@@ -493,6 +495,7 @@ const Reports: React.FC = () => {
             .gte('date', start)
             .lte('date', end)
             .order('created_at', { ascending: false });
+          if (branchFilterId) billsQuery = billsQuery.eq('branch_id', branchFilterId);
 
           // Apply filter for deleted/processed bills
           if (billFilter === 'processed') {
@@ -522,14 +525,16 @@ const Reports: React.FC = () => {
 
           // Only fetch expenses and item reports for processed bills
           if (billFilter === 'processed') {
-            // Fetch expenses
-            const { data: expensesResult, error: expensesError } = await supabase
+            // Fetch expenses — branch-scoped
+            let expensesQ: any = supabase
               .from('expenses')
               .select('*')
               .eq('admin_id', adminId)
               .gte('date', start)
               .lte('date', end)
               .order('date', { ascending: false });
+            if (branchFilterId) expensesQ = expensesQ.eq('branch_id', branchFilterId);
+            const { data: expensesResult, error: expensesError } = await expensesQ;
 
             if (expensesError) throw expensesError;
             expensesData = expensesResult || [];

@@ -13,6 +13,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from '@/hooks/use-toast';
 import { LayoutGrid, Plus, Edit, Trash2, Users, Utensils, Clock, CheckCircle2, Sparkles, ShoppingCart, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useBranchScopedQuery } from '@/hooks/useBranchScopedQuery';
+import { useBranch } from '@/contexts/BranchContext';
 
 interface Table {
   id: string;
@@ -35,6 +37,8 @@ const statusConfig = {
 const TableManagement: React.FC = () => {
   const { profile } = useAuth();
   const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+  const { branchFilterId, isAllBranchesView } = useBranchScopedQuery(() => { fetchTables(); fetchTableOrderCounts(); });
+  const { operatingBranchId } = useBranch();
   const navigate = useNavigate();
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,12 +58,14 @@ const TableManagement: React.FC = () => {
   const fetchTables = useCallback(async () => {
     try {
       if (!adminId) return;
-      const { data, error } = await (supabase as any)
+      let query: any = (supabase as any)
         .from('tables')
         .select('*')
         .eq('admin_id', adminId)
         .eq('is_active', true)
         .order('display_order', { ascending: true });
+      if (branchFilterId) query = query.eq('branch_id', branchFilterId);
+      const { data, error } = await query;
 
       if (error) throw error;
       setTables(data || []);
@@ -73,7 +79,7 @@ const TableManagement: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [adminId, branchFilterId]);
 
   useEffect(() => {
     fetchTables();
@@ -167,11 +173,12 @@ const TableManagement: React.FC = () => {
     }
 
     try {
-      const tableData = {
+      const tableData: any = {
         table_number: tableNumber.trim(),
         table_name: tableName.trim() || null,
         capacity: parseInt(capacity) || 4,
-        admin_id: profile?.role === 'admin' ? profile.id : null
+        admin_id: profile?.role === 'admin' ? profile.id : null,
+        branch_id: operatingBranchId || null,
       };
 
       if (editingTable) {

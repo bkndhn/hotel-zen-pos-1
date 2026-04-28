@@ -8,6 +8,7 @@ import { Check, X, Undo2, ChefHat, Clock, Wifi, WifiOff, Bell, Droplets, Receipt
 import { toast } from '@/hooks/use-toast';
 import { formatDateTimeAMPM, getTimeElapsed, isWithinUndoWindow, formatQuantityWithUnit } from '@/utils/timeUtils';
 import { cn } from '@/lib/utils';
+import { useBranchScopedQuery } from '@/hooks/useBranchScopedQuery';
 
 // === INSTANT SYNC LAYER ===
 // 1. BroadcastChannel - 0ms same-browser tabs
@@ -92,6 +93,7 @@ const REQUEST_LABELS: Record<string, { label: string; emoji: string; color: stri
 const ServiceArea = () => {
     const { profile } = useAuth();
     const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+    const { branchFilterId } = useBranchScopedQuery(() => { fetchBills(true); fetchTableOrders(); fetchServiceRequests(); });
     const [bills, setBills] = useState<ServiceBill[]>([]);
     const [recentBills, setRecentBills] = useState<ServiceBill[]>([]);
     const [loading, setLoading] = useState(true);
@@ -145,7 +147,7 @@ const ServiceArea = () => {
             });
 
             // 1. Fetch Active Bills
-            const activeQuery = (supabase as any)
+            let activeQuery: any = (supabase as any)
                 .from('bills')
                 .select(`
                     id, bill_no, total_amount, date, created_at,
@@ -160,6 +162,7 @@ const ServiceArea = () => {
                 .or('is_deleted.is.null,is_deleted.eq.false')
                 .in('service_status', ['pending', 'ready', 'preparing'])
                 .order('created_at', { ascending: false });
+            if (branchFilterId) activeQuery = activeQuery.eq('branch_id', branchFilterId);
 
             // 2. Fetch Recently Processed (for Undo)
             const recentQuery = (supabase as any)
@@ -200,19 +203,21 @@ const ServiceArea = () => {
             if (!silent) setLoading(false);
             setInitialLoadDone(true);
         }
-    }, [adminId]);
+    }, [adminId, branchFilterId]);
 
     // Fetch table orders ready to serve
     const fetchTableOrders = useCallback(async () => {
         if (!adminId) return;
         try {
-            const { data, error } = await (supabase as any)
+            let q: any = (supabase as any)
                 .from('table_orders')
                 .select('*')
                 .eq('admin_id', adminId)
                 .in('status', ['ready', 'preparing'])
                 .eq('is_billed', false)
                 .order('created_at', { ascending: false });
+            if (branchFilterId) q = q.eq('branch_id', branchFilterId);
+            const { data, error } = await q;
 
             if (!error && data) {
                 setTableOrders(data as ServiceTableOrder[]);

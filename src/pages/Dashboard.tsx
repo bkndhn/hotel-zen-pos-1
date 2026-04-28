@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { DollarSign, Receipt, TrendingUp, Package } from 'lucide-react';
+import { useBranchScopedQuery } from '@/hooks/useBranchScopedQuery';
 
 interface DashboardStats {
   todaySales: number;
@@ -16,6 +17,7 @@ interface DashboardStats {
 const Dashboard = () => {
   const { profile } = useAuth();
   const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+  const { branchFilterId, activeBranch, isAllBranchesView } = useBranchScopedQuery(() => fetchDashboardStats());
   const [stats, setStats] = useState<DashboardStats>({
     todaySales: 0,
     todayExpenses: 0,
@@ -27,7 +29,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (adminId) fetchDashboardStats();
-  }, [adminId]);
+  }, [adminId, branchFilterId]);
 
   // Real-time subscription for updates
   useEffect(() => {
@@ -51,32 +53,36 @@ const Dashboard = () => {
     };
   }, []);
 
-  const fetchDashboardStats = async () => {
+  const fetchDashboardStats = useCallback(async () => {
     if (!adminId) return;
     try {
       const today = new Date().toISOString().split('T')[0];
 
-      // Fetch today's sales (exclude deleted bills)
-      const { data: billsData } = await supabase
+      // Fetch today's sales (exclude deleted bills) — branch-scoped
+      let billsQuery: any = supabase
         .from('bills')
         .select('total_amount')
         .eq('admin_id', adminId)
         .eq('date', today)
         .or('is_deleted.is.null,is_deleted.eq.false');
+      if (branchFilterId) billsQuery = billsQuery.eq('branch_id', branchFilterId);
+      const { data: billsData } = await billsQuery;
 
-      const todaySales = billsData?.reduce((sum, bill) => sum + Number(bill.total_amount), 0) || 0;
+      const todaySales = billsData?.reduce((sum: number, bill: any) => sum + Number(bill.total_amount), 0) || 0;
       const todayBills = billsData?.length || 0;
 
-      // Fetch today's expenses
-      const { data: expensesData } = await supabase
+      // Fetch today's expenses — branch-scoped
+      let expensesQuery: any = supabase
         .from('expenses')
         .select('amount')
         .eq('admin_id', adminId)
         .eq('date', today);
+      if (branchFilterId) expensesQuery = expensesQuery.eq('branch_id', branchFilterId);
+      const { data: expensesData } = await expensesQuery;
 
-      const todayExpenses = expensesData?.reduce((sum, expense) => sum + Number(expense.amount), 0) || 0;
+      const todayExpenses = expensesData?.reduce((sum: number, expense: any) => sum + Number(expense.amount), 0) || 0;
 
-      // Fetch total items
+      // Items are catalog-level (shared across branches)
       const { data: itemsData } = await supabase
         .from('items')
         .select('id')
@@ -97,7 +103,7 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [adminId, branchFilterId]);
 
 
 

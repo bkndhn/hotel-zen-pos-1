@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { Plus } from 'lucide-react';
 import { cachedFetch, CACHE_KEYS, dataCache } from '@/utils/cacheUtils';
 
@@ -22,6 +23,7 @@ interface AddExpenseDialogProps {
 
 export const AddExpenseDialog: React.FC<AddExpenseDialogProps> = ({ onExpenseAdded }) => {
   const { profile } = useAuth();
+  const { operatingBranchId, isAllBranchesView } = useBranch();
   const [open, setOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [formData, setFormData] = useState({
@@ -83,7 +85,8 @@ export const AddExpenseDialog: React.FC<AddExpenseDialogProps> = ({ onExpenseAdd
         note: formData.note.trim() || null,
         date: formData.date,
         created_by: profile?.user_id,
-        admin_id: adminId || null
+        admin_id: adminId || null,
+        branch_id: operatingBranchId || null,
       });
 
       if (error) throw error;
@@ -120,7 +123,7 @@ export const AddExpenseDialog: React.FC<AddExpenseDialogProps> = ({ onExpenseAdd
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
+        <Button disabled={isAllBranchesView} title={isAllBranchesView ? 'Switch to a specific branch to add expense' : ''}>
           <Plus className="w-4 h-4 mr-2" />
           Add Expense
         </Button>

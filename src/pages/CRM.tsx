@@ -11,6 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import { Users, Search, Phone, Calendar, DollarSign, Download, FileSpreadsheet, Edit, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
+import { useBranchScopedQuery } from '@/hooks/useBranchScopedQuery';
 
 interface Customer {
   id: string;
@@ -25,6 +26,7 @@ interface Customer {
 const CRM: React.FC = () => {
   const { profile } = useAuth();
   const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+  const { branchFilterId } = useBranchScopedQuery(() => fetchCustomers());
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,16 +44,18 @@ const CRM: React.FC = () => {
 
   useEffect(() => {
     if (adminId) fetchCustomers();
-  }, [adminId]);
+  }, [adminId, branchFilterId]);
 
   const fetchCustomers = async () => {
     if (!adminId) return;
     try {
-      const { data, error } = await supabase
+      let query: any = supabase
         .from('customers')
         .select('*')
         .eq('admin_id', adminId)
         .order('last_visit', { ascending: false });
+      if (branchFilterId) query = query.eq('branch_id', branchFilterId);
+      const { data, error } = await query;
 
       if (error) throw error;
       setCustomers((data || []).map(c => ({
