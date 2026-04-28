@@ -103,7 +103,7 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [adminId, branchFilterId]);
 
 
 
