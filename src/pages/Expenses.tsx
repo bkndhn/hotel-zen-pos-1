@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { exportToPDF, exportToExcel } from '@/utils/exportUtils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { useBranchScopedQuery } from '@/hooks/useBranchScopedQuery';
 
 interface Expense {
   id: string;
@@ -30,6 +31,7 @@ interface Expense {
 const Expenses: React.FC = () => {
   const { profile } = useAuth();
   const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+  const { branchFilterId, readOnly: branchReadOnly, isAllBranchesView } = useBranchScopedQuery(() => fetchExpenses());
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [filteredExpenses, setFilteredExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +42,7 @@ const Expenses: React.FC = () => {
 
   useEffect(() => {
     if (adminId) fetchExpenses();
-  }, [adminId]);
+  }, [adminId, branchFilterId]);
 
   useEffect(() => {
     applyFilters();
@@ -49,14 +51,18 @@ const Expenses: React.FC = () => {
   const fetchExpenses = async () => {
     if (!adminId) return;
     try {
+      // Bypass cache when branch filter changes — cache key includes branch
+      const cacheKey = `${CACHE_KEYS.EXPENSES}_${adminId}_${branchFilterId || 'all'}_list`;
       const data = await cachedFetch(
-        `${CACHE_KEYS.EXPENSES}_${adminId}_list`,
+        cacheKey,
         async () => {
-          const { data, error } = await supabase
+          let query: any = supabase
             .from('expenses')
             .select('*')
             .eq('admin_id', adminId)
             .order('date', { ascending: false });
+          if (branchFilterId) query = query.eq('branch_id', branchFilterId);
+          const { data, error } = await query;
 
           if (error) throw error;
           return data || [];
