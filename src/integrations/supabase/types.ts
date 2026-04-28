@@ -272,6 +272,60 @@ export type Database = {
         }
         Relationships: []
       }
+      branch_item_stock: {
+        Row: {
+          admin_id: string
+          branch_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          item_id: string
+          minimum_stock_alert: number
+          stock_quantity: number
+          unlimited_stock: boolean
+          updated_at: string
+        }
+        Insert: {
+          admin_id: string
+          branch_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          item_id: string
+          minimum_stock_alert?: number
+          stock_quantity?: number
+          unlimited_stock?: boolean
+          updated_at?: string
+        }
+        Update: {
+          admin_id?: string
+          branch_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          item_id?: string
+          minimum_stock_alert?: number
+          stock_quantity?: number
+          unlimited_stock?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_item_stock_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_item_stock_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branches: {
         Row: {
           address: string | null
@@ -1072,6 +1126,7 @@ export type Database = {
       table_service_requests: {
         Row: {
           admin_id: string
+          branch_id: string | null
           created_at: string | null
           id: string
           message: string | null
@@ -1084,6 +1139,7 @@ export type Database = {
         }
         Insert: {
           admin_id: string
+          branch_id?: string | null
           created_at?: string | null
           id?: string
           message?: string | null
@@ -1096,6 +1152,7 @@ export type Database = {
         }
         Update: {
           admin_id?: string
+          branch_id?: string | null
           created_at?: string | null
           id?: string
           message?: string | null
@@ -1361,6 +1418,19 @@ export type Database = {
             }
             Returns: Json
           }
+        | {
+            Args: {
+              p_bill_no: string
+              p_branch_id?: string
+              p_discount: number
+              p_items: Json
+              p_payment_details?: Json
+              p_payment_mode: Database["public"]["Enums"]["payment_method"]
+              p_table_id?: string
+              p_user_id: string
+            }
+            Returns: Json
+          }
       get_my_admin_id: { Args: never; Returns: string }
       get_my_permissions: {
         Args: never
@@ -1402,6 +1472,7 @@ export type Database = {
         }[]
       }
       resolve_menu_slug: { Args: { p_slug: string }; Returns: string }
+      seed_branch_stock: { Args: { p_branch_id: string }; Returns: number }
       user_has_branch_access: {
         Args: { p_branch_id: string }
         Returns: boolean
