@@ -9,6 +9,7 @@ import { toast } from '@/hooks/use-toast';
 import { getTimeElapsed, formatTimeAMPM, formatQuantityWithUnit } from '@/utils/timeUtils';
 import { cn } from '@/lib/utils';
 import { kitchenOfflineManager } from '@/utils/kitchenOfflineManager';
+import { useBranchScopedQuery } from '@/hooks/useBranchScopedQuery';
 
 // BroadcastChannel for instant cross-tab sync
 const billsChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('bills-updates') : null;
@@ -61,6 +62,7 @@ interface KitchenTableOrder {
 const KitchenDisplay = () => {
     const { profile } = useAuth();
     const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+    const { branchFilterId } = useBranchScopedQuery(() => { fetchBills(true); fetchTableOrders(); });
     const [bills, setBills] = useState<KitchenBill[]>([]);
     const [loading, setLoading] = useState(true);
     const [initialLoadDone, setInitialLoadDone] = useState(false);
@@ -141,7 +143,7 @@ const KitchenDisplay = () => {
 
         try {
             // Always try to fetch from server first with a timeout
-            const query = (supabase as any)
+            let query: any = (supabase as any)
                 .from('bills')
                 .select(`
                     id, bill_no, created_at, kitchen_status, service_status, table_no, order_type,
@@ -156,6 +158,7 @@ const KitchenDisplay = () => {
                 .neq('service_status', 'completed')
                 .neq('service_status', 'rejected')
                 .order('created_at', { ascending: false });
+            if (branchFilterId) query = query.eq('branch_id', branchFilterId);
 
             // Add timeout to prevent hanging
             const timeoutPromise = new Promise((_, reject) => {
@@ -197,19 +200,21 @@ const KitchenDisplay = () => {
             if (!silent) setLoading(false);
             setInitialLoadDone(true);
         }
-    }, []);
+    }, [branchFilterId, adminId]);
 
     // Fetch table orders (from table QR ordering)
     const fetchTableOrders = useCallback(async () => {
         if (!adminId) return;
         try {
-            const { data, error } = await (supabase as any)
+            let q: any = (supabase as any)
                 .from('table_orders')
                 .select('*')
                 .eq('admin_id', adminId)
                 .in('status', ['pending', 'preparing', 'ready'])
                 .eq('is_billed', false)
                 .order('created_at', { ascending: false });
+            if (branchFilterId) q = q.eq('branch_id', branchFilterId);
+            const { data, error } = await q;
 
             if (!error && data) {
                 setTableOrders(data as KitchenTableOrder[]);
@@ -217,7 +222,7 @@ const KitchenDisplay = () => {
         } catch (e) {
             console.warn('[Kitchen] Table orders fetch error:', e);
         }
-    }, []);
+    }, [adminId, branchFilterId]);
 
     // Track known bill IDs to detect new orders
     const knownBillIds = useRef<Set<string>>(new Set());
