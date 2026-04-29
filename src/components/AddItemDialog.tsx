@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Plus } from 'lucide-react';
 import { MediaUpload } from '@/components/MediaUpload';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { Switch } from '@/components/ui/switch';
 
 interface TaxRateOption {
