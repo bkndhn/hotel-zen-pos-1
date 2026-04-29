@@ -49,6 +49,7 @@ interface AddItemDialogProps {
 
 export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, existingItems }) => {
   const { profile } = useAuth();
+  const { operatingBranchId, isAllBranchesView } = useBranch();
   const [open, setOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [hasPremiumAccess, setHasPremiumAccess] = useState(false);
@@ -224,7 +225,8 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
         media_type: formData.media_type,
         is_active: formData.is_active,
         unlimited_stock: formData.unlimited_stock,
-        admin_id: adminId
+        admin_id: adminId,
+        branch_id: operatingBranchId || null,
       };
 
       // Add GST fields if enabled
