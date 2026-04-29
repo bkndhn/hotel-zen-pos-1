@@ -496,19 +496,26 @@ const Items: React.FC = () => {
             <Package className="w-5 h-5 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-lg sm:text-xl font-bold tracking-tight">Items</h1>
-            <p className="text-muted-foreground text-[10px] sm:text-xs">Manage your menu items</p>
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight">
+              Items{activeBranch ? ` — ${activeBranch.name}` : ''}
+            </h1>
+            <p className="text-muted-foreground text-[10px] sm:text-xs">
+              {isAllBranchesView ? 'Combined view (read-only)' : 'Manage menu items for this branch'}
+            </p>
           </div>
         </div>
-        <div className="flex gap-2">
-          {profile?.role === 'admin' && (
+        <div className="flex gap-2 flex-wrap">
+          {profile?.role === 'admin' && !isAllBranchesView && (
             <>
               <ItemCategoryManagement onCategoriesUpdated={handleCategoriesUpdated} />
+              <CopyMenuToBranchDialog sourceBranchId={branchFilterId} onCopied={fetchItems} />
               <AddItemDialog onItemAdded={handleItemAdded} existingItems={items} />
             </>
           )}
         </div>
       </div>
+
+      <AllBranchesReadOnlyBanner message="Add items by switching to a specific branch." />
 
       {/* Search and Filter */}
       <Card className="mb-4 bg-card/80 backdrop-blur-sm border-border/50">
