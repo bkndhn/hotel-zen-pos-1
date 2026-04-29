@@ -1034,6 +1034,7 @@ const Billing = () => {
             .from('customers')
             .insert({
               admin_id: adminId,
+              branch_id: operatingBranchId || null,
               phone: cleanPhone,
               visit_count: 1,
               total_spent: total,
@@ -1247,6 +1248,7 @@ const Billing = () => {
         additional_charges: additionalChargesArray,
         created_by: profile?.user_id,
         admin_id: adminId || null,
+        branch_id: operatingBranchId || null,
         date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
         // Service Area & Kitchen Display status - enables realtime updates
         service_status: 'pending',
