@@ -289,9 +289,12 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
               {currentItemCount}/{itemLimit} items
             </span>
           )}
-          <Button disabled={itemLimit !== null && currentItemCount >= itemLimit}>
+          <Button
+            disabled={(itemLimit !== null && currentItemCount >= itemLimit) || isAllBranchesView}
+            title={isAllBranchesView ? 'Switch to a specific branch to add items' : ''}
+          >
             <Plus className="w-4 h-4 mr-2" />
-            {itemLimit !== null && currentItemCount >= itemLimit ? 'Limit Reached' : 'Add Item'}
+            {isAllBranchesView ? 'Pick a branch' : (itemLimit !== null && currentItemCount >= itemLimit ? 'Limit Reached' : 'Add Item')}
           </Button>
         </div>
       </DialogTrigger>
