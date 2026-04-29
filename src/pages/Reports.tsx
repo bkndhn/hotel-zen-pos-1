@@ -946,7 +946,8 @@ const Reports: React.FC = () => {
         items: itemsForExport,
         payments: paymentsForExport,
         profitLoss: profitLossForExport,
-        dateRange: dateRangeText
+        dateRange: dateRangeText,
+        branchName: isAllBranchesView ? undefined : (activeBranch?.name || undefined),
       });
 
       toast({
@@ -1017,7 +1018,8 @@ const Reports: React.FC = () => {
         items: itemsForExport,
         payments: paymentsForExport,
         profitLoss: profitLossForExport,
-        dateRange: dateRangeText
+        dateRange: dateRangeText,
+        branchName: isAllBranchesView ? undefined : (activeBranch?.name || undefined),
       });
 
       toast({

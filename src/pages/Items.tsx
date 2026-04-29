@@ -14,6 +14,9 @@ import { EditItemDialog } from '@/components/EditItemDialog';
 import { ItemCategoryManagement } from '@/components/ItemCategoryManagement';
 import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
 import { getShortUnit, formatQuantityWithUnit } from '@/utils/timeUtils';
+import { useBranchScopedQuery } from '@/hooks/useBranchScopedQuery';
+import { AllBranchesReadOnlyBanner } from '@/components/AllBranchesReadOnlyBanner';
+import { CopyMenuToBranchDialog } from '@/components/CopyMenuToBranchDialog';
 
 interface Item {
   id: string;
@@ -39,6 +42,12 @@ interface Item {
 const Items: React.FC = () => {
   const { profile } = useAuth();
   const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+  const { branchFilterId, isAllBranchesView, operatingBranchId, activeBranch } = useBranchScopedQuery(() => {
+    if (adminId) {
+      fetchItems();
+      fetchCategories();
+    }
+  });
   const [items, setItems] = useState<Item[]>([]);
   const [filteredItems, setFilteredItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +76,7 @@ const Items: React.FC = () => {
       fetchItems();
       fetchCategories();
     }
-  }, [adminId]);
+  }, [adminId, branchFilterId]);
 
   // Listen for real-time update events
   useEffect(() => {
@@ -97,8 +106,11 @@ const Items: React.FC = () => {
   const fetchItems = async () => {
     if (!adminId) return;
     try {
-      // Try with display_order first, fallback to name only if column doesn't exist
+      // Branch-scoped fetch: filter by branch_id (null = All Branches view)
       let query = supabase.from('items').select('*').eq('admin_id', adminId);
+      if (branchFilterId) {
+        query = query.eq('branch_id', branchFilterId);
+      }
 
       const { data, error } = await query.order('name');
 
@@ -484,19 +496,26 @@ const Items: React.FC = () => {
             <Package className="w-5 h-5 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-lg sm:text-xl font-bold tracking-tight">Items</h1>
-            <p className="text-muted-foreground text-[10px] sm:text-xs">Manage your menu items</p>
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight">
+              Items{activeBranch ? ` — ${activeBranch.name}` : ''}
+            </h1>
+            <p className="text-muted-foreground text-[10px] sm:text-xs">
+              {isAllBranchesView ? 'Combined view (read-only)' : 'Manage menu items for this branch'}
+            </p>
           </div>
         </div>
-        <div className="flex gap-2">
-          {profile?.role === 'admin' && (
+        <div className="flex gap-2 flex-wrap">
+          {profile?.role === 'admin' && !isAllBranchesView && (
             <>
               <ItemCategoryManagement onCategoriesUpdated={handleCategoriesUpdated} />
+              <CopyMenuToBranchDialog sourceBranchId={branchFilterId} onCopied={fetchItems} />
               <AddItemDialog onItemAdded={handleItemAdded} existingItems={items} />
             </>
           )}
         </div>
       </div>
+
+      <AllBranchesReadOnlyBanner message="Add items by switching to a specific branch." />
 
       {/* Search and Filter */}
       <Card className="mb-4 bg-card/80 backdrop-blur-sm border-border/50">

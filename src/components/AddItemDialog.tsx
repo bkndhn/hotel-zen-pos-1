@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Plus } from 'lucide-react';
 import { MediaUpload } from '@/components/MediaUpload';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { Switch } from '@/components/ui/switch';
 
 interface TaxRateOption {
@@ -48,6 +49,7 @@ interface AddItemDialogProps {
 
 export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, existingItems }) => {
   const { profile } = useAuth();
+  const { operatingBranchId, isAllBranchesView } = useBranch();
   const [open, setOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [hasPremiumAccess, setHasPremiumAccess] = useState(false);
@@ -223,7 +225,8 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
         media_type: formData.media_type,
         is_active: formData.is_active,
         unlimited_stock: formData.unlimited_stock,
-        admin_id: adminId
+        admin_id: adminId,
+        branch_id: operatingBranchId || null,
       };
 
       // Add GST fields if enabled
@@ -286,9 +289,12 @@ export const AddItemDialog: React.FC<AddItemDialogProps> = ({ onItemAdded, exist
               {currentItemCount}/{itemLimit} items
             </span>
           )}
-          <Button disabled={itemLimit !== null && currentItemCount >= itemLimit}>
+          <Button
+            disabled={(itemLimit !== null && currentItemCount >= itemLimit) || isAllBranchesView}
+            title={isAllBranchesView ? 'Switch to a specific branch to add items' : ''}
+          >
             <Plus className="w-4 h-4 mr-2" />
-            {itemLimit !== null && currentItemCount >= itemLimit ? 'Limit Reached' : 'Add Item'}
+            {isAllBranchesView ? 'Pick a branch' : (itemLimit !== null && currentItemCount >= itemLimit ? 'Limit Reached' : 'Add Item')}
           </Button>
         </div>
       </DialogTrigger>

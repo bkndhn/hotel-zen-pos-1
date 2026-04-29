@@ -18,6 +18,8 @@ import { printReceipt, PrintData } from '@/utils/bluetoothPrinter';
 import { printBrowserReceipt } from '@/utils/browserPrinter';
 import { format } from 'date-fns';
 import { getShortUnit, formatQuantityWithUnit, isWeightOrVolumeUnit } from '@/utils/timeUtils';
+import { useBranchScopedQuery } from '@/hooks/useBranchScopedQuery';
+import { AllBranchesReadOnlyBanner } from '@/components/AllBranchesReadOnlyBanner';
 
 // BroadcastChannel for instant cross-tab sync
 const billsChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('bills-updates') : null;
@@ -145,6 +147,9 @@ const Billing = () => {
     profile
   } = useAuth();
   const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
+  const { branchFilterId, isAllBranchesView, operatingBranchId } = useBranchScopedQuery(() => {
+    fetchItems();
+  });
   const location = useLocation();
   const navigate = useNavigate();
   const [items, setItems] = useState<Item[]>([]);
@@ -275,12 +280,13 @@ const Billing = () => {
     try {
       // Try to get from network first
       if (navigator.onLine) {
-        const { data, error } = await supabase
+        let q = supabase
           .from('items')
           .select('*')
           .eq('admin_id', adminId)
-          .eq('is_active', true)
-          .order('name');
+          .eq('is_active', true);
+        if (branchFilterId) q = q.eq('branch_id', branchFilterId);
+        const { data, error } = await q.order('name');
 
         if (error) throw error;
 
@@ -1028,6 +1034,7 @@ const Billing = () => {
             .from('customers')
             .insert({
               admin_id: adminId,
+              branch_id: operatingBranchId || null,
               phone: cleanPhone,
               visit_count: 1,
               total_spent: total,
@@ -1241,6 +1248,7 @@ const Billing = () => {
         additional_charges: additionalChargesArray,
         created_by: profile?.user_id,
         admin_id: adminId || null,
+        branch_id: operatingBranchId || null,
         date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
         // Service Area & Kitchen Display status - enables realtime updates
         service_status: 'pending',

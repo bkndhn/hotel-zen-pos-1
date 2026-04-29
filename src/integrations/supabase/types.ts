@@ -272,60 +272,6 @@ export type Database = {
         }
         Relationships: []
       }
-      branch_item_stock: {
-        Row: {
-          admin_id: string
-          branch_id: string
-          created_at: string
-          id: string
-          is_active: boolean
-          item_id: string
-          minimum_stock_alert: number
-          stock_quantity: number
-          unlimited_stock: boolean
-          updated_at: string
-        }
-        Insert: {
-          admin_id: string
-          branch_id: string
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          item_id: string
-          minimum_stock_alert?: number
-          stock_quantity?: number
-          unlimited_stock?: boolean
-          updated_at?: string
-        }
-        Update: {
-          admin_id?: string
-          branch_id?: string
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          item_id?: string
-          minimum_stock_alert?: number
-          stock_quantity?: number
-          unlimited_stock?: boolean
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "branch_item_stock_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "branch_item_stock_item_id_fkey"
-            columns: ["item_id"]
-            isOneToOne: false
-            referencedRelation: "items"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       branches: {
         Row: {
           address: string | null
@@ -1391,6 +1337,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      copy_items_to_branch: {
+        Args: {
+          p_item_ids?: string[]
+          p_source_branch_id: string
+          p_target_branch_id: string
+        }
+        Returns: number
+      }
       create_bill_transaction:
         | {
             Args: {
@@ -1472,7 +1426,10 @@ export type Database = {
         }[]
       }
       resolve_menu_slug: { Args: { p_slug: string }; Returns: string }
-      seed_branch_stock: { Args: { p_branch_id: string }; Returns: number }
+      seed_branch_defaults: {
+        Args: { p_source_branch_id?: string; p_target_branch_id: string }
+        Returns: Json
+      }
       user_has_branch_access: {
         Args: { p_branch_id: string }
         Returns: boolean

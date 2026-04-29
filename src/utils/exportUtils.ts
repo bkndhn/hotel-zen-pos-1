@@ -103,6 +103,7 @@ export const exportAllReportsToExcel = (data: {
   payments: PaymentForExport[];
   profitLoss: ProfitLossForExport[];
   dateRange: string;
+  branchName?: string;
 }) => {
   const wb = XLSX.utils.book_new();
 
@@ -243,7 +244,10 @@ export const exportAllReportsToExcel = (data: {
   // Generate clean filename with current date
   const today = new Date().toISOString().split('T')[0];
   const cleanDateRange = data.dateRange.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-  const filename = `reports-${cleanDateRange}-${today}.xlsx`;
+  const branchSlug = data.branchName
+    ? data.branchName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    : 'all-branches';
+  const filename = `reports-${branchSlug}-${cleanDateRange}-${today}.xlsx`;
 
   // Write file with explicit options for better browser compatibility
   XLSX.writeFile(wb, filename, { bookType: 'xlsx' });
@@ -256,6 +260,7 @@ export const exportAllReportsToPDF = (data: {
   payments: PaymentForExport[];
   profitLoss: ProfitLossForExport[];
   dateRange: string;
+  branchName?: string;
 }) => {
   // Calculate totals
   const billsTotal = data.bills.reduce((sum, bill) => sum + bill.total_amount, 0);
@@ -286,8 +291,8 @@ export const exportAllReportsToPDF = (data: {
   </style>
 </head>
 <body>
-  <h1>Business Reports</h1>
-  <p>Period: ${data.dateRange} | Generated: ${new Date().toLocaleDateString()}</p>
+  <h1>Business Reports${data.branchName ? ` — ${data.branchName}` : ''}</h1>
+  <p>Branch: ${data.branchName || 'All Branches'} | Period: ${data.dateRange} | Generated: ${new Date().toLocaleDateString()}</p>
 
 ${data.items.length > 0 ? `
   <h2>Items Sales Report</h2>
