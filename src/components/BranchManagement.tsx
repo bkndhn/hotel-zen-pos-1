@@ -43,16 +43,27 @@ export const BranchManagement: React.FC = () => {
     }
     setAdding(true);
     try {
-      const { error } = await supabase.from('branches').insert({
+      const { data: created, error } = await supabase.from('branches').insert({
         admin_id: adminId,
         name,
         code: name.substring(0, 6).toUpperCase().replace(/\s+/g, ''),
         is_active: true,
         is_main: false,
         shop_name: name,
-      });
+      }).select().single();
       if (error) throw error;
-      toast({ title: 'Branch created', description: name });
+
+      // Seed default categories/payments/charges/taxes from Main branch (or admin defaults)
+      if (created?.id) {
+        const mainBranchId = branches.find(b => b.is_main)?.id || null;
+        const { error: seedErr } = await (supabase as any).rpc('seed_branch_defaults', {
+          p_target_branch_id: created.id,
+          p_source_branch_id: mainBranchId,
+        });
+        if (seedErr) console.warn('Branch defaults seeding failed:', seedErr);
+      }
+
+      toast({ title: 'Branch created', description: `${name} ready with default settings` });
       setNewName('');
       setAddOpen(false);
       await refresh();
