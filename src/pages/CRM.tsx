@@ -12,6 +12,7 @@ import { Users, Search, Phone, Calendar, DollarSign, Download, FileSpreadsheet, 
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { useBranchScopedQuery } from '@/hooks/useBranchScopedQuery';
+import { AllBranchesReadOnlyBanner } from '@/components/AllBranchesReadOnlyBanner';
 
 interface Customer {
   id: string;
