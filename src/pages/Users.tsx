@@ -632,26 +632,35 @@ const Users: React.FC = () => {
                     </div>
 
                     {isAdmin && user.user_id !== profile?.user_id && (
-                      <div className="flex flex-wrap gap-1 pt-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => updateUserStatus(user.id, user.status === 'active' ? 'paused' : 'active')}
-                          className="text-xs flex-1 sm:flex-none"
-                        >
-                          {user.status === 'active' ? 'Pause' : 'Activate'}
-                        </Button>
-                        {user.status !== 'deleted' && (
+                      <>
+                        {user.role === 'user' && profile?.id && (
+                          <SubUserBranchAssignments
+                            subUserAuthId={user.user_id}
+                            adminId={profile.id}
+                            className="pt-2 border-t"
+                          />
+                        )}
+                        <div className="flex flex-wrap gap-1 pt-2">
                           <Button
                             size="sm"
-                            variant="destructive"
-                            onClick={() => updateUserStatus(user.id, 'deleted')}
+                            variant="outline"
+                            onClick={() => updateUserStatus(user.id, user.status === 'active' ? 'paused' : 'active')}
                             className="text-xs flex-1 sm:flex-none"
                           >
-                            Delete
+                            {user.status === 'active' ? 'Pause' : 'Activate'}
                           </Button>
-                        )}
-                      </div>
+                          {user.status !== 'deleted' && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => updateUserStatus(user.id, 'deleted')}
+                              className="text-xs flex-1 sm:flex-none"
+                            >
+                              Delete
+                            </Button>
+                          )}
+                        </div>
+                      </>
                     )}
                   </div>
                 </Card>
