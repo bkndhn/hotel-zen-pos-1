@@ -277,6 +277,7 @@ const CRM: React.FC = () => {
 
   return (
     <div className="p-3 sm:p-4 space-y-4 max-w-full overflow-x-hidden pb-24 md:pb-4">
+      <AllBranchesReadOnlyBanner message="Read-only aggregate of customers across all branches." />
       {/* Header */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2.5">
