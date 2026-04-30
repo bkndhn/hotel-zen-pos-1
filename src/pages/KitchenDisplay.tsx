@@ -10,6 +10,7 @@ import { getTimeElapsed, formatTimeAMPM, formatQuantityWithUnit } from '@/utils/
 import { cn } from '@/lib/utils';
 import { kitchenOfflineManager } from '@/utils/kitchenOfflineManager';
 import { useBranchScopedQuery } from '@/hooks/useBranchScopedQuery';
+import { AllBranchesReadOnlyBanner } from '@/components/AllBranchesReadOnlyBanner';
 
 // BroadcastChannel for instant cross-tab sync
 const billsChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('bills-updates') : null;
