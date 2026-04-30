@@ -617,6 +617,8 @@ const KitchenDisplay = () => {
                 </div>
             </div>
 
+            <div className="px-4 pt-3"><AllBranchesReadOnlyBanner message="Switch to a specific branch to manage kitchen orders." /></div>
+
             {/* Offline Banner */}
             {!isOnline && (
                 <div className="bg-orange-500/10 border-b border-orange-500/20 px-4 py-2 text-center">
