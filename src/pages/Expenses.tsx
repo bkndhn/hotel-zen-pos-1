@@ -16,6 +16,7 @@ import { exportToPDF, exportToExcel } from '@/utils/exportUtils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useBranchScopedQuery } from '@/hooks/useBranchScopedQuery';
+import { AllBranchesReadOnlyBanner } from '@/components/AllBranchesReadOnlyBanner';
 
 interface Expense {
   id: string;
