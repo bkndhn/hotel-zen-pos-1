@@ -259,6 +259,7 @@ const TableManagement: React.FC = () => {
   return (
     <div className="min-h-screen p-3 sm:p-4">
       <div className="max-w-6xl mx-auto">
+        <AllBranchesReadOnlyBanner message="Switch to a specific branch to add or edit tables." />
         {/* Header */}
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <div className="flex items-center gap-2.5">
