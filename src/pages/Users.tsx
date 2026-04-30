@@ -558,7 +558,7 @@ const Users: React.FC = () => {
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {admin.subUsers.map(subUser => (
                               <Card key={subUser.id} className="p-3 bg-background">
-                                <div className="flex items-start justify-between">
+                                <div className="flex items-start justify-between mb-2">
                                   <div>
                                     <h6 className="font-medium">{subUser.name}</h6>
                                     <Badge
@@ -573,6 +573,13 @@ const Users: React.FC = () => {
                                     {subUser.role}
                                   </Badge>
                                 </div>
+                                {(admin.branchCount ?? 0) > 0 && (
+                                  <SubUserBranchAssignments
+                                    subUserAuthId={subUser.user_id}
+                                    adminId={admin.id}
+                                    className="mt-2 pt-2 border-t"
+                                  />
+                                )}
                               </Card>
                             ))}
                           </div>
