@@ -11,6 +11,7 @@ import { AddUserDialog } from '@/components/AddUserDialog';
 import { Switch } from '@/components/ui/switch';
 
 import { UserPermissions } from '@/components/UserPermissions';
+import { SubUserBranchAssignments } from '@/components/SubUserBranchAssignments';
 import type { UserProfile, UserStatus, UserRole } from '@/types/user';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { format } from 'date-fns';
@@ -557,7 +558,7 @@ const Users: React.FC = () => {
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {admin.subUsers.map(subUser => (
                               <Card key={subUser.id} className="p-3 bg-background">
-                                <div className="flex items-start justify-between">
+                                <div className="flex items-start justify-between mb-2">
                                   <div>
                                     <h6 className="font-medium">{subUser.name}</h6>
                                     <Badge
@@ -572,6 +573,13 @@ const Users: React.FC = () => {
                                     {subUser.role}
                                   </Badge>
                                 </div>
+                                {(admin.branchCount ?? 0) > 0 && (
+                                  <SubUserBranchAssignments
+                                    subUserAuthId={subUser.user_id}
+                                    adminId={admin.id}
+                                    className="mt-2 pt-2 border-t"
+                                  />
+                                )}
                               </Card>
                             ))}
                           </div>
@@ -624,26 +632,35 @@ const Users: React.FC = () => {
                     </div>
 
                     {isAdmin && user.user_id !== profile?.user_id && (
-                      <div className="flex flex-wrap gap-1 pt-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => updateUserStatus(user.id, user.status === 'active' ? 'paused' : 'active')}
-                          className="text-xs flex-1 sm:flex-none"
-                        >
-                          {user.status === 'active' ? 'Pause' : 'Activate'}
-                        </Button>
-                        {user.status !== 'deleted' && (
+                      <>
+                        {user.role === 'user' && profile?.id && (
+                          <SubUserBranchAssignments
+                            subUserAuthId={user.user_id}
+                            adminId={profile.id}
+                            className="pt-2 border-t"
+                          />
+                        )}
+                        <div className="flex flex-wrap gap-1 pt-2">
                           <Button
                             size="sm"
-                            variant="destructive"
-                            onClick={() => updateUserStatus(user.id, 'deleted')}
+                            variant="outline"
+                            onClick={() => updateUserStatus(user.id, user.status === 'active' ? 'paused' : 'active')}
                             className="text-xs flex-1 sm:flex-none"
                           >
-                            Delete
+                            {user.status === 'active' ? 'Pause' : 'Activate'}
                           </Button>
-                        )}
-                      </div>
+                          {user.status !== 'deleted' && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => updateUserStatus(user.id, 'deleted')}
+                              className="text-xs flex-1 sm:flex-none"
+                            >
+                              Delete
+                            </Button>
+                          )}
+                        </div>
+                      </>
                     )}
                   </div>
                 </Card>

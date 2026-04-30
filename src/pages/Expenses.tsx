@@ -16,6 +16,7 @@ import { exportToPDF, exportToExcel } from '@/utils/exportUtils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useBranchScopedQuery } from '@/hooks/useBranchScopedQuery';
+import { AllBranchesReadOnlyBanner } from '@/components/AllBranchesReadOnlyBanner';
 
 interface Expense {
   id: string;
@@ -242,6 +243,7 @@ const Expenses: React.FC = () => {
 
   return (
     <div className="p-3 sm:p-4 max-w-full overflow-x-hidden">
+      <AllBranchesReadOnlyBanner message="Switch to a specific branch to add expenses." />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2.5">

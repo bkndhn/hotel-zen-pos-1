@@ -10,6 +10,7 @@ import { getTimeElapsed, formatTimeAMPM, formatQuantityWithUnit } from '@/utils/
 import { cn } from '@/lib/utils';
 import { kitchenOfflineManager } from '@/utils/kitchenOfflineManager';
 import { useBranchScopedQuery } from '@/hooks/useBranchScopedQuery';
+import { AllBranchesReadOnlyBanner } from '@/components/AllBranchesReadOnlyBanner';
 
 // BroadcastChannel for instant cross-tab sync
 const billsChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('bills-updates') : null;
@@ -615,6 +616,8 @@ const KitchenDisplay = () => {
                     </div>
                 </div>
             </div>
+
+            <div className="px-4 pt-3"><AllBranchesReadOnlyBanner message="Switch to a specific branch to manage kitchen orders." /></div>
 
             {/* Offline Banner */}
             {!isOnline && (

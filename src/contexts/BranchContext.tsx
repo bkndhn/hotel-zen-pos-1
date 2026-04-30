@@ -55,7 +55,7 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     try {
-      const [{ data: branchData }, { data: profileData }] = await Promise.all([
+      const [{ data: branchData }, { data: profileData }, { data: assignedData }] = await Promise.all([
         supabase
           .from('branches')
           .select('*')
@@ -68,9 +68,20 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           .select('max_branches')
           .eq('id', adminId)
           .maybeSingle(),
+        // For sub-users, restrict to assigned branches only
+        profile.role === 'user'
+          ? supabase.from('user_branches').select('branch_id').eq('user_id', profile.user_id)
+          : Promise.resolve({ data: null } as any),
       ]);
 
-      const list = (branchData || []) as Branch[];
+      let list = (branchData || []) as Branch[];
+
+      // Sub-user branch restriction: only show branches they're assigned to
+      if (profile.role === 'user' && Array.isArray(assignedData)) {
+        const allowed = new Set((assignedData as any[]).map(r => r.branch_id));
+        list = list.filter(b => allowed.has(b.id));
+      }
+
       setBranches(list);
       setMaxBranches((profileData as any)?.max_branches ?? 1);
 
