@@ -15,6 +15,7 @@ import { LayoutGrid, Plus, Edit, Trash2, Users, Utensils, Clock, CheckCircle2, S
 import { cn } from '@/lib/utils';
 import { useBranchScopedQuery } from '@/hooks/useBranchScopedQuery';
 import { useBranch } from '@/contexts/BranchContext';
+import { AllBranchesReadOnlyBanner } from '@/components/AllBranchesReadOnlyBanner';
 
 interface Table {
   id: string;
