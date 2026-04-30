@@ -1483,6 +1483,7 @@ const Billing = () => {
   return <div className="min-h-screen flex overflow-x-hidden max-w-[100vw]">
     {/* Main Items Area */}
     <div className="flex-1 p-4 overflow-hidden max-w-full">
+      <AllBranchesReadOnlyBanner message="Switch to a specific branch to create bills." />
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
