@@ -675,6 +675,7 @@ const ServiceArea = () => {
 
     return (
         <div className="p-3 sm:p-4 space-y-4">
+            <AllBranchesReadOnlyBanner message="Switch to a specific branch to manage service." />
             <div className="flex items-center justify-between">
                 <div className="flex flex-col">
                     <div className="flex items-center gap-2">
