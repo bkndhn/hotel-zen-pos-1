@@ -24,8 +24,10 @@ interface ExtendedUserProfile extends UserProfile {
   has_qr_menu_access?: boolean;
   item_limit?: number | null;
   max_branches?: number | null;
+  max_sub_users?: number | null;
   branchCount?: number;
   itemCount?: number;
+  subUserCount?: number;
 }
 
 const Users: React.FC = () => {
