@@ -552,12 +552,36 @@ const Users: React.FC = () => {
                             </Badge>
                           </div>
 
-                          <Button
-                            size="sm"
-                            variant={admin.status === 'active' ? 'outline' : 'default'}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              updateUserStatus(admin.id, admin.status === 'active' ? 'paused' : 'active', true);
+                          {/* Max Sub-Users Control */}
+                          <div
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-muted/30"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <UserIcon className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-xs font-medium whitespace-nowrap">Max Sub-Users</span>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={editingSubUserLimits[admin.id] ?? String(admin.max_sub_users ?? 5)}
+                              onChange={(e) => setEditingSubUserLimits(prev => ({ ...prev, [admin.id]: e.target.value }))}
+                              className="w-16 h-7 text-xs px-2"
+                            />
+                            {editingSubUserLimits[admin.id] !== undefined && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                onClick={(e) => { e.stopPropagation(); updateMaxSubUsers(admin.id); }}
+                                disabled={savingSubUserLimit === admin.id}
+                              >
+                                <Save className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                            <Badge variant="outline" className="text-[10px] whitespace-nowrap">
+                              {admin.subUserCount ?? (admin.subUsers?.length ?? 0)}/{admin.max_sub_users ?? 5}
+                            </Badge>
+                          </div>
+
                             }}
                             className="text-xs"
                           >
