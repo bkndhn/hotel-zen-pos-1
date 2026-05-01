@@ -82,6 +82,10 @@ const KitchenDisplay = () => {
     const [tableOrders, setTableOrders] = useState<KitchenTableOrder[]>([]);
     const knownTableOrderIds = useRef<Set<string>>(new Set());
 
+    // Filters
+    const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'preparing' | 'ready'>('all');
+    const [timeFilter, setTimeFilter] = useState<'all' | '15' | '30' | '60'>('all');
+
     // Recently processed bills/orders for undo (last 5 minutes)
     const [recentlyProcessed, setRecentlyProcessed] = useState<Array<{
         id: string;
