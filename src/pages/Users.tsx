@@ -109,7 +109,8 @@ const Users: React.FC = () => {
         login_count: user.login_count,
         has_qr_menu_access: user.has_qr_menu_access ?? false,
         item_limit: (user as any).item_limit ?? null,
-        max_branches: (user as any).max_branches ?? 1
+        max_branches: (user as any).max_branches ?? 1,
+        max_sub_users: (user as any).max_sub_users ?? 5
       })) as ExtendedUserProfile[];
 
       if (isSuperAdmin) {
