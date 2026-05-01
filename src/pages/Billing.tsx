@@ -466,10 +466,10 @@ const Billing = () => {
 
       if (data) {
         const settings = {
-          shopName: data.shop_name || '',
-          address: data.address || '',
-          contactNumber: data.contact_number || '',
-          logoUrl: data.logo_url || '',
+          shopName: (activeBranch?.shop_name && activeBranch.shop_name.trim()) || data.shop_name || '',
+          address: (activeBranch?.address && activeBranch.address.trim()) || data.address || '',
+          contactNumber: (activeBranch?.contact_number && activeBranch.contact_number.trim()) || data.contact_number || '',
+          logoUrl: (activeBranch?.logo_url && activeBranch.logo_url.trim()) || data.logo_url || '',
           facebook: data.facebook || '',
           showFacebook: data.show_facebook,
           instagram: data.instagram || '',
