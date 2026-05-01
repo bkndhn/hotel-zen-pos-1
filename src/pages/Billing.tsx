@@ -528,6 +528,15 @@ const Billing = () => {
     if (profile?.user_id) {
       fetchDisplaySettings();
     }
+  }, []);
+
+  // Re-fetch shop settings whenever the active branch changes so prints/share use branch header
+  useEffect(() => {
+    fetchShopSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBranch?.id]);
+
+  useEffect(() => {
 
     // Check if we're editing a bill
     const billData = location.state?.bill;
