@@ -231,6 +231,40 @@ const AdminManagement = () => {
                           </>
                         )}
                       </div>
+                      {userProfile.role === 'admin' && (
+                        <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
+                          <label className="flex items-center gap-1">
+                            <span className="text-muted-foreground">Max branches:</span>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={100}
+                              defaultValue={userProfile.max_branches ?? 1}
+                              disabled={!isSuperAdmin}
+                              onBlur={(e) => {
+                                const v = Number(e.target.value);
+                                if (v !== (userProfile.max_branches ?? 1)) updateLimits(userProfile.id, 'max_branches', v);
+                              }}
+                              className="h-7 w-16"
+                            />
+                          </label>
+                          <label className="flex items-center gap-1">
+                            <span className="text-muted-foreground">Max sub-users:</span>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={100}
+                              defaultValue={userProfile.max_sub_users ?? 5}
+                              disabled={!isSuperAdmin}
+                              onBlur={(e) => {
+                                const v = Number(e.target.value);
+                                if (v !== (userProfile.max_sub_users ?? 5)) updateLimits(userProfile.id, 'max_sub_users', v);
+                              }}
+                              className="h-7 w-16"
+                            />
+                          </label>
+                        </div>
+                      )}
                     </div>
                   </div>
 
