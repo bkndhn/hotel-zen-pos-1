@@ -742,6 +742,7 @@ export type Database = {
           last_login: string | null
           login_count: number | null
           max_branches: number
+          max_sub_users: number
           multi_branch_enabled: boolean | null
           name: string
           role: Database["public"]["Enums"]["app_role"]
@@ -759,6 +760,7 @@ export type Database = {
           last_login?: string | null
           login_count?: number | null
           max_branches?: number
+          max_sub_users?: number
           multi_branch_enabled?: boolean | null
           name: string
           role?: Database["public"]["Enums"]["app_role"]
@@ -776,6 +778,7 @@ export type Database = {
           last_login?: string | null
           login_count?: number | null
           max_branches?: number
+          max_sub_users?: number
           multi_branch_enabled?: boolean | null
           name?: string
           role?: Database["public"]["Enums"]["app_role"]
