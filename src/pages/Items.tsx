@@ -105,7 +105,7 @@ const Items: React.FC = () => {
 
   useEffect(() => {
     applyFilters();
-  }, [searchTerm, selectedCategory, items]);
+  }, [searchTerm, selectedCategory, items, isAllBranchesView]);
 
   const fetchItems = async () => {
     if (!adminId) return;
