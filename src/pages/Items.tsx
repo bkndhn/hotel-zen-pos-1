@@ -494,6 +494,9 @@ const Items: React.FC = () => {
               {item.stock_quantity !== null && item.stock_quantity !== undefined && (
                 <span className={`text-[10px] ${isLowStock(item) ? 'text-orange-500 font-semibold' : 'text-muted-foreground'}`}>
                   Stk: {formatQuantityWithUnit(item.stock_quantity, item.unit)}
+                  {isAllBranchesView && item.__branchCount && item.__branchCount > 1 && (
+                    <span className="ml-1 text-primary">({item.__branchCount} branches)</span>
+                  )}
                 </span>
               )}
             </div>
