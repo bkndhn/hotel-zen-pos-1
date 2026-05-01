@@ -108,7 +108,7 @@ const AdminManagement = () => {
     profile.hotel_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (profile?.role !== 'admin') {
+  if (!isAdmin && !isSuperAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Card className="w-96">
