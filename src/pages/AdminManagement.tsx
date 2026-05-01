@@ -21,6 +21,8 @@ interface Profile {
   updated_at: string;
   last_login?: string;
   login_count?: number;
+  max_branches?: number;
+  max_sub_users?: number;
 }
 
 type UserStatus = 'active' | 'inactive' | 'suspended';
