@@ -37,6 +37,10 @@ interface Item {
   minimum_stock_alert?: number;
   quantity_step?: number;
   display_order?: number;
+  branch_id?: string | null;
+  // Aggregated meta for All-Branches view
+  __branchCount?: number;
+  __branchBreakdown?: Array<{ branch_id: string | null; stock: number }>;
 }
 
 const Items: React.FC = () => {
