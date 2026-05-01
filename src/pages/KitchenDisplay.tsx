@@ -631,6 +631,34 @@ const KitchenDisplay = () => {
                         </Button>
                     </div>
                 </div>
+                {/* Filters row */}
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+                    <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
+                        <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All statuses</SelectItem>
+                            <SelectItem value="pending">New</SelectItem>
+                            <SelectItem value="preparing">Preparing</SelectItem>
+                            <SelectItem value="ready">Ready</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Select value={timeFilter} onValueChange={(v: any) => setTimeFilter(v)}>
+                        <SelectTrigger className="h-7 w-[140px] text-xs"><SelectValue placeholder="Time window" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All time</SelectItem>
+                            <SelectItem value="15">Last 15 min</SelectItem>
+                            <SelectItem value="30">Last 30 min</SelectItem>
+                            <SelectItem value="60">Last 60 min</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    {(statusFilter !== 'all' || timeFilter !== 'all') && (
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs"
+                            onClick={() => { setStatusFilter('all'); setTimeFilter('all'); }}>
+                            Clear
+                        </Button>
+                    )}
+                </div>
             </div>
 
             <div className="px-4 pt-3"><AllBranchesReadOnlyBanner message="Switch to a specific branch to manage kitchen orders." /></div>
