@@ -628,6 +628,13 @@ const Billing = () => {
         quantity: baseValue
       }];
     });
+    // Low-stock warning when item drops below configured threshold
+    if (isLowStock(item)) {
+      toast({
+        title: '⚠️ Low Stock',
+        description: `${item.name}: only ${item.stock_quantity} left (alert ≤ ${item.minimum_stock_alert})`,
+      });
+    }
     // Clear search after adding to cart for user friendliness
     setSearchQuery('');
   };
