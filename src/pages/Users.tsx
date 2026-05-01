@@ -282,6 +282,30 @@ const Users: React.FC = () => {
     }
   };
 
+  const updateMaxSubUsers = async (adminId: string) => {
+    setSavingSubUserLimit(adminId);
+    try {
+      const rawValue = editingSubUserLimits[adminId];
+      const newLimit = rawValue === '' || rawValue === undefined ? 5 : parseInt(rawValue, 10);
+      if (isNaN(newLimit) || newLimit < 1) {
+        toast({ title: 'Invalid Value', description: 'Max sub-users must be at least 1', variant: 'destructive' });
+        setSavingSubUserLimit(null);
+        return;
+      }
+      const { error } = await supabase.from('profiles').update({ max_sub_users: newLimit } as any).eq('id', adminId);
+      if (error) throw error;
+      setUsers(prev => prev.map(u => u.id === adminId ? { ...u, max_sub_users: newLimit } : u));
+      setFilteredUsers(prev => prev.map(u => u.id === adminId ? { ...u, max_sub_users: newLimit } : u));
+      setEditingSubUserLimits(prev => { const n = { ...prev }; delete n[adminId]; return n; });
+      toast({ title: '✅ Saved', description: `Sub-user limit set to ${newLimit}` });
+    } catch (err) {
+      console.error('Error updating max_sub_users:', err);
+      toast({ title: 'Error', description: 'Failed to update sub-user limit', variant: 'destructive' });
+    } finally {
+      setSavingSubUserLimit(null);
+    }
+  };
+
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'super_admin':
