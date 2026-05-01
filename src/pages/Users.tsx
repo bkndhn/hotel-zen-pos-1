@@ -131,6 +131,7 @@ const Users: React.FC = () => {
           ]);
           admin.itemCount = itemCount ?? 0;
           admin.branchCount = branchCount ?? 0;
+          admin.subUserCount = (admin.subUsers || []).filter(s => s.status !== 'deleted').length;
         }
 
         setUsers(admins);
