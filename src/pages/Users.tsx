@@ -582,6 +582,12 @@ const Users: React.FC = () => {
                             </Badge>
                           </div>
 
+                          <Button
+                            size="sm"
+                            variant={admin.status === 'active' ? 'outline' : 'default'}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateUserStatus(admin.id, admin.status === 'active' ? 'paused' : 'active', true);
                             }}
                             className="text-xs"
                           >
