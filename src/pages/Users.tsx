@@ -41,6 +41,8 @@ const Users: React.FC = () => {
   const [savingLimit, setSavingLimit] = useState<string | null>(null);
   const [editingBranchLimits, setEditingBranchLimits] = useState<Record<string, string>>({});
   const [savingBranchLimit, setSavingBranchLimit] = useState<string | null>(null);
+  const [editingSubUserLimits, setEditingSubUserLimits] = useState<Record<string, string>>({});
+  const [savingSubUserLimit, setSavingSubUserLimit] = useState<string | null>(null);
 
   const isSuperAdmin = profile?.role === 'super_admin';
   const isAdmin = profile?.role === 'admin';
