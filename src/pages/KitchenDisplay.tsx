@@ -463,15 +463,26 @@ const KitchenDisplay = () => {
         }
     };
 
+    // Apply time-window filter (minutes since created)
+    const withinWindow = (createdAt: string) => {
+      if (timeFilter === 'all') return true;
+      const minutes = (Date.now() - new Date(createdAt).getTime()) / 60000;
+      return minutes <= Number(timeFilter);
+    };
+    const matchesStatus = (s: string) => statusFilter === 'all' || s === statusFilter;
+
+    const filteredBills = bills.filter(b => withinWindow(b.created_at) && matchesStatus(b.kitchen_status));
+    const filteredTableOrders = tableOrders.filter(o => withinWindow(o.created_at) && matchesStatus(o.status));
+
     // Group bills by status
-    const pendingBills = bills.filter(b => b.kitchen_status === 'pending');
-    const preparingBills = bills.filter(b => b.kitchen_status === 'preparing');
-    const readyBills = bills.filter(b => b.kitchen_status === 'ready');
+    const pendingBills = filteredBills.filter(b => b.kitchen_status === 'pending');
+    const preparingBills = filteredBills.filter(b => b.kitchen_status === 'preparing');
+    const readyBills = filteredBills.filter(b => b.kitchen_status === 'ready');
 
     // Group table orders by status
-    const pendingTableOrders = tableOrders.filter(o => o.status === 'pending');
-    const preparingTableOrders = tableOrders.filter(o => o.status === 'preparing');
-    const readyTableOrders = tableOrders.filter(o => o.status === 'ready');
+    const pendingTableOrders = filteredTableOrders.filter(o => o.status === 'pending');
+    const preparingTableOrders = filteredTableOrders.filter(o => o.status === 'preparing');
+    const readyTableOrders = filteredTableOrders.filter(o => o.status === 'ready');
 
     // Update table order status
     const updateTableOrderStatus = async (orderId: string, tableNumber: string, sessionId: string, status: 'preparing' | 'ready' | 'served') => {
