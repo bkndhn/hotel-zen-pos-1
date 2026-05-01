@@ -147,7 +147,7 @@ const Billing = () => {
     profile
   } = useAuth();
   const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
-  const { branchFilterId, isAllBranchesView, operatingBranchId } = useBranchScopedQuery(() => {
+  const { branchFilterId, isAllBranchesView, operatingBranchId, activeBranch } = useBranchScopedQuery(() => {
     fetchItems();
   });
   const location = useLocation();
@@ -466,10 +466,10 @@ const Billing = () => {
 
       if (data) {
         const settings = {
-          shopName: data.shop_name || '',
-          address: data.address || '',
-          contactNumber: data.contact_number || '',
-          logoUrl: data.logo_url || '',
+          shopName: (activeBranch?.shop_name && activeBranch.shop_name.trim()) || data.shop_name || '',
+          address: (activeBranch?.address && activeBranch.address.trim()) || data.address || '',
+          contactNumber: (activeBranch?.contact_number && activeBranch.contact_number.trim()) || data.contact_number || '',
+          logoUrl: (activeBranch?.logo_url && activeBranch.logo_url.trim()) || data.logo_url || '',
           facebook: data.facebook || '',
           showFacebook: data.show_facebook,
           instagram: data.instagram || '',
@@ -528,6 +528,15 @@ const Billing = () => {
     if (profile?.user_id) {
       fetchDisplaySettings();
     }
+  }, []);
+
+  // Re-fetch shop settings whenever the active branch changes so prints/share use branch header
+  useEffect(() => {
+    fetchShopSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBranch?.id]);
+
+  useEffect(() => {
 
     // Check if we're editing a bill
     const billData = location.state?.bill;
@@ -628,6 +637,13 @@ const Billing = () => {
         quantity: baseValue
       }];
     });
+    // Low-stock warning when item drops below configured threshold
+    if (isLowStock(item)) {
+      toast({
+        title: '⚠️ Low Stock',
+        description: `${item.name}: only ${item.stock_quantity} left (alert ≤ ${item.minimum_stock_alert})`,
+      });
+    }
     // Clear search after adding to cart for user friendliness
     setSearchQuery('');
   };

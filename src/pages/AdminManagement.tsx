@@ -21,6 +21,8 @@ interface Profile {
   updated_at: string;
   last_login?: string;
   login_count?: number;
+  max_branches?: number;
+  max_sub_users?: number;
 }
 
 type UserStatus = 'active' | 'inactive' | 'suspended';
@@ -32,11 +34,28 @@ const AdminManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [chargeDialogOpen, setChargeDialogOpen] = useState(false);
 
+  const isSuperAdmin = profile?.role === 'super_admin';
+  const isAdmin = profile?.role === 'admin';
+
   useEffect(() => {
-    if (profile?.role === 'admin') {
+    if (isAdmin || isSuperAdmin) {
       fetchProfiles();
     }
   }, [profile]);
+
+  const updateLimits = async (profileId: string, field: 'max_branches' | 'max_sub_users', value: number) => {
+    if (!isSuperAdmin) return;
+    const v = Math.max(1, Math.min(100, Number.isFinite(value) ? value : 1));
+    try {
+      const { error } = await supabase.from('profiles').update({ [field]: v } as any).eq('id', profileId);
+      if (error) throw error;
+      setProfiles(prev => prev.map(p => p.id === profileId ? { ...p, [field]: v } : p));
+      toast({ title: 'Limit updated', description: `${field.replace('_', ' ')} = ${v}` });
+    } catch (e: any) {
+      toast({ title: 'Update failed', description: e?.message || 'Could not update limit', variant: 'destructive' });
+    }
+  };
+
 
   const fetchProfiles = async () => {
     try {
@@ -89,7 +108,7 @@ const AdminManagement = () => {
     profile.hotel_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (profile?.role !== 'admin') {
+  if (!isAdmin && !isSuperAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Card className="w-96">
@@ -212,6 +231,40 @@ const AdminManagement = () => {
                           </>
                         )}
                       </div>
+                      {userProfile.role === 'admin' && (
+                        <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
+                          <label className="flex items-center gap-1">
+                            <span className="text-muted-foreground">Max branches:</span>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={100}
+                              defaultValue={userProfile.max_branches ?? 1}
+                              disabled={!isSuperAdmin}
+                              onBlur={(e) => {
+                                const v = Number(e.target.value);
+                                if (v !== (userProfile.max_branches ?? 1)) updateLimits(userProfile.id, 'max_branches', v);
+                              }}
+                              className="h-7 w-16"
+                            />
+                          </label>
+                          <label className="flex items-center gap-1">
+                            <span className="text-muted-foreground">Max sub-users:</span>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={100}
+                              defaultValue={userProfile.max_sub_users ?? 5}
+                              disabled={!isSuperAdmin}
+                              onBlur={(e) => {
+                                const v = Number(e.target.value);
+                                if (v !== (userProfile.max_sub_users ?? 5)) updateLimits(userProfile.id, 'max_sub_users', v);
+                              }}
+                              className="h-7 w-16"
+                            />
+                          </label>
+                        </div>
+                      )}
                     </div>
                   </div>
 

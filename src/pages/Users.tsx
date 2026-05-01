@@ -24,8 +24,10 @@ interface ExtendedUserProfile extends UserProfile {
   has_qr_menu_access?: boolean;
   item_limit?: number | null;
   max_branches?: number | null;
+  max_sub_users?: number | null;
   branchCount?: number;
   itemCount?: number;
+  subUserCount?: number;
 }
 
 const Users: React.FC = () => {
@@ -39,6 +41,8 @@ const Users: React.FC = () => {
   const [savingLimit, setSavingLimit] = useState<string | null>(null);
   const [editingBranchLimits, setEditingBranchLimits] = useState<Record<string, string>>({});
   const [savingBranchLimit, setSavingBranchLimit] = useState<string | null>(null);
+  const [editingSubUserLimits, setEditingSubUserLimits] = useState<Record<string, string>>({});
+  const [savingSubUserLimit, setSavingSubUserLimit] = useState<string | null>(null);
 
   const isSuperAdmin = profile?.role === 'super_admin';
   const isAdmin = profile?.role === 'admin';
@@ -107,7 +111,8 @@ const Users: React.FC = () => {
         login_count: user.login_count,
         has_qr_menu_access: user.has_qr_menu_access ?? false,
         item_limit: (user as any).item_limit ?? null,
-        max_branches: (user as any).max_branches ?? 1
+        max_branches: (user as any).max_branches ?? 1,
+        max_sub_users: (user as any).max_sub_users ?? 5
       })) as ExtendedUserProfile[];
 
       if (isSuperAdmin) {
@@ -128,6 +133,7 @@ const Users: React.FC = () => {
           ]);
           admin.itemCount = itemCount ?? 0;
           admin.branchCount = branchCount ?? 0;
+          admin.subUserCount = (admin.subUsers || []).filter(s => s.status !== 'deleted').length;
         }
 
         setUsers(admins);
@@ -273,6 +279,30 @@ const Users: React.FC = () => {
       toast({ title: 'Error', description: 'Failed to update branch limit', variant: 'destructive' });
     } finally {
       setSavingBranchLimit(null);
+    }
+  };
+
+  const updateMaxSubUsers = async (adminId: string) => {
+    setSavingSubUserLimit(adminId);
+    try {
+      const rawValue = editingSubUserLimits[adminId];
+      const newLimit = rawValue === '' || rawValue === undefined ? 5 : parseInt(rawValue, 10);
+      if (isNaN(newLimit) || newLimit < 1) {
+        toast({ title: 'Invalid Value', description: 'Max sub-users must be at least 1', variant: 'destructive' });
+        setSavingSubUserLimit(null);
+        return;
+      }
+      const { error } = await supabase.from('profiles').update({ max_sub_users: newLimit } as any).eq('id', adminId);
+      if (error) throw error;
+      setUsers(prev => prev.map(u => u.id === adminId ? { ...u, max_sub_users: newLimit } : u));
+      setFilteredUsers(prev => prev.map(u => u.id === adminId ? { ...u, max_sub_users: newLimit } : u));
+      setEditingSubUserLimits(prev => { const n = { ...prev }; delete n[adminId]; return n; });
+      toast({ title: '✅ Saved', description: `Sub-user limit set to ${newLimit}` });
+    } catch (err) {
+      console.error('Error updating max_sub_users:', err);
+      toast({ title: 'Error', description: 'Failed to update sub-user limit', variant: 'destructive' });
+    } finally {
+      setSavingSubUserLimit(null);
     }
   };
 
@@ -519,6 +549,36 @@ const Users: React.FC = () => {
                             )}
                             <Badge variant="outline" className="text-[10px] whitespace-nowrap">
                               {admin.branchCount ?? '?'}/{admin.max_branches ?? 1}
+                            </Badge>
+                          </div>
+
+                          {/* Max Sub-Users Control */}
+                          <div
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-muted/30"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <UsersIcon className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-xs font-medium whitespace-nowrap">Max Sub-Users</span>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={editingSubUserLimits[admin.id] ?? String(admin.max_sub_users ?? 5)}
+                              onChange={(e) => setEditingSubUserLimits(prev => ({ ...prev, [admin.id]: e.target.value }))}
+                              className="w-16 h-7 text-xs px-2"
+                            />
+                            {editingSubUserLimits[admin.id] !== undefined && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                onClick={(e) => { e.stopPropagation(); updateMaxSubUsers(admin.id); }}
+                                disabled={savingSubUserLimit === admin.id}
+                              >
+                                <Save className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                            <Badge variant="outline" className="text-[10px] whitespace-nowrap">
+                              {admin.subUserCount ?? (admin.subUsers?.length ?? 0)}/{admin.max_sub_users ?? 5}
                             </Badge>
                           </div>
 

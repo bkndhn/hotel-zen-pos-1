@@ -4,7 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChefHat, Clock, Bell, Volume2, VolumeX, Wifi, WifiOff, RefreshCw, Undo2 } from 'lucide-react';
+import { ChefHat, Clock, Bell, Volume2, VolumeX, Wifi, WifiOff, RefreshCw, Undo2, Filter } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { getTimeElapsed, formatTimeAMPM, formatQuantityWithUnit } from '@/utils/timeUtils';
 import { cn } from '@/lib/utils';
@@ -80,6 +81,10 @@ const KitchenDisplay = () => {
     // Table orders state
     const [tableOrders, setTableOrders] = useState<KitchenTableOrder[]>([]);
     const knownTableOrderIds = useRef<Set<string>>(new Set());
+
+    // Filters
+    const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'preparing' | 'ready'>('all');
+    const [timeFilter, setTimeFilter] = useState<'all' | '15' | '30' | '60'>('all');
 
     // Recently processed bills/orders for undo (last 5 minutes)
     const [recentlyProcessed, setRecentlyProcessed] = useState<Array<{
@@ -458,15 +463,26 @@ const KitchenDisplay = () => {
         }
     };
 
+    // Apply time-window filter (minutes since created)
+    const withinWindow = (createdAt: string) => {
+      if (timeFilter === 'all') return true;
+      const minutes = (Date.now() - new Date(createdAt).getTime()) / 60000;
+      return minutes <= Number(timeFilter);
+    };
+    const matchesStatus = (s: string) => statusFilter === 'all' || s === statusFilter;
+
+    const filteredBills = bills.filter(b => withinWindow(b.created_at) && matchesStatus(b.kitchen_status));
+    const filteredTableOrders = tableOrders.filter(o => withinWindow(o.created_at) && matchesStatus(o.status));
+
     // Group bills by status
-    const pendingBills = bills.filter(b => b.kitchen_status === 'pending');
-    const preparingBills = bills.filter(b => b.kitchen_status === 'preparing');
-    const readyBills = bills.filter(b => b.kitchen_status === 'ready');
+    const pendingBills = filteredBills.filter(b => b.kitchen_status === 'pending');
+    const preparingBills = filteredBills.filter(b => b.kitchen_status === 'preparing');
+    const readyBills = filteredBills.filter(b => b.kitchen_status === 'ready');
 
     // Group table orders by status
-    const pendingTableOrders = tableOrders.filter(o => o.status === 'pending');
-    const preparingTableOrders = tableOrders.filter(o => o.status === 'preparing');
-    const readyTableOrders = tableOrders.filter(o => o.status === 'ready');
+    const pendingTableOrders = filteredTableOrders.filter(o => o.status === 'pending');
+    const preparingTableOrders = filteredTableOrders.filter(o => o.status === 'preparing');
+    const readyTableOrders = filteredTableOrders.filter(o => o.status === 'ready');
 
     // Update table order status
     const updateTableOrderStatus = async (orderId: string, tableNumber: string, sessionId: string, status: 'preparing' | 'ready' | 'served') => {
@@ -614,6 +630,34 @@ const KitchenDisplay = () => {
                             Refresh
                         </Button>
                     </div>
+                </div>
+                {/* Filters row */}
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+                    <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
+                        <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All statuses</SelectItem>
+                            <SelectItem value="pending">New</SelectItem>
+                            <SelectItem value="preparing">Preparing</SelectItem>
+                            <SelectItem value="ready">Ready</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Select value={timeFilter} onValueChange={(v: any) => setTimeFilter(v)}>
+                        <SelectTrigger className="h-7 w-[140px] text-xs"><SelectValue placeholder="Time window" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All time</SelectItem>
+                            <SelectItem value="15">Last 15 min</SelectItem>
+                            <SelectItem value="30">Last 30 min</SelectItem>
+                            <SelectItem value="60">Last 60 min</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    {(statusFilter !== 'all' || timeFilter !== 'all') && (
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs"
+                            onClick={() => { setStatusFilter('all'); setTimeFilter('all'); }}>
+                            Clear
+                        </Button>
+                    )}
                 </div>
             </div>
 
