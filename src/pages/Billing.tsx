@@ -147,7 +147,7 @@ const Billing = () => {
     profile
   } = useAuth();
   const adminId = profile?.role === 'admin' ? profile?.id : profile?.admin_id;
-  const { branchFilterId, isAllBranchesView, operatingBranchId } = useBranchScopedQuery(() => {
+  const { branchFilterId, isAllBranchesView, operatingBranchId, activeBranch } = useBranchScopedQuery(() => {
     fetchItems();
   });
   const location = useLocation();
