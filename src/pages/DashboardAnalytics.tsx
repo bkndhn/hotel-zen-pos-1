@@ -795,6 +795,73 @@ const DashboardAnalytics = () => {
         </CardContent>
       </Card>
 
+      {/* Per-branch P&L */}
+      <Card className="border-2 border-primary/20 shadow-lg">
+        <CardHeader className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg sm:text-xl flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-primary" /> Profit & Loss by Branch
+              </CardTitle>
+              <CardDescription>Sales − Expenses for the selected date range</CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input type="date" value={plFromDate} max={plToDate} onChange={(e) => setPlFromDate(e.target.value)} className="h-9 w-[140px] text-xs" />
+              <span className="text-muted-foreground text-xs">→</span>
+              <Input type="date" value={plToDate} min={plFromDate} max={new Date().toISOString().split('T')[0]} onChange={(e) => setPlToDate(e.target.value)} className="h-9 w-[140px] text-xs" />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {plLoading ? (
+            <div className="p-8 text-center text-muted-foreground animate-pulse">Loading branch P&L…</div>
+          ) : plRows.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">No branch data</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40">
+                  <tr>
+                    <th className="text-left p-3">Branch</th>
+                    <th className="text-right p-3">Bills</th>
+                    <th className="text-right p-3">Sales</th>
+                    <th className="text-right p-3">Expenses</th>
+                    <th className="text-right p-3">Net Profit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plRows.map((r) => (
+                    <tr key={r.branch_id || 'none'} className="border-t border-border/40 hover:bg-muted/20">
+                      <td className="p-3 font-medium">{r.name}</td>
+                      <td className="p-3 text-right">{r.bills}</td>
+                      <td className="p-3 text-right text-emerald-600 font-semibold">{formatCurrency(r.sales)}</td>
+                      <td className="p-3 text-right text-rose-600">{formatCurrency(r.expenses)}</td>
+                      <td className={`p-3 text-right font-bold ${r.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatCurrency(r.profit)}</td>
+                    </tr>
+                  ))}
+                  {plRows.length > 1 && (() => {
+                    const t = plRows.reduce((a, r) => ({ s: a.s + r.sales, e: a.e + r.expenses, b: a.b + r.bills }), { s: 0, e: 0, b: 0 });
+                    return (
+                      <tr className="border-t-2 border-primary/30 bg-primary/5 font-bold">
+                        <td className="p-3">Total</td>
+                        <td className="p-3 text-right">{t.b}</td>
+                        <td className="p-3 text-right text-emerald-700">{formatCurrency(t.s)}</td>
+                        <td className="p-3 text-right text-rose-700">{formatCurrency(t.e)}</td>
+                        <td className={`p-3 text-right ${t.s - t.e >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatCurrency(t.s - t.e)}</td>
+                      </tr>
+                    );
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {isAllBranchesView && (
+        <p className="text-xs text-muted-foreground text-center">Showing aggregate across all branches. Switch to a specific branch from the header to filter.</p>
+      )}
+
     </div>
   );
 };
