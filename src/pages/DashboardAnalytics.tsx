@@ -10,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, DollarSign, ShoppingBag, Package, ArrowUpRight, ArrowDownRight, Minus, Calendar } from 'lucide-react';
 import { formatQuantityWithUnit } from '@/utils/timeUtils';
+import { useBranchScopedQuery } from '@/hooks/useBranchScopedQuery';
+import { Building2 } from 'lucide-react';
 
 interface SalesData {
   date: string;
