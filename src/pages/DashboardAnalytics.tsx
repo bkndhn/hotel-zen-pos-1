@@ -219,9 +219,17 @@ const DashboardAnalytics = () => {
         const startStr = toLocalDateString(start);
         const endStr = toLocalDateString(end);
 
-        const { data: bills } = await supabase.from('bills').select('total_amount, is_deleted').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr).or('is_deleted.is.null,is_deleted.eq.false');
-        const { data: expenses } = await supabase.from('expenses').select('amount').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr);
-        const { data: billItems } = await supabase.from('bill_items').select('quantity, total, items(name, unit), bills!inner(date, is_deleted, admin_id)').eq('bills.admin_id', adminId).gte('bills.date', startStr).lte('bills.date', endStr);
+        let billsQ = supabase.from('bills').select('total_amount, is_deleted').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr).or('is_deleted.is.null,is_deleted.eq.false');
+        let expensesQ = supabase.from('expenses').select('amount').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr);
+        let billItemsQ = supabase.from('bill_items').select('quantity, total, items(name, unit), bills!inner(date, is_deleted, admin_id, branch_id)').eq('bills.admin_id', adminId).gte('bills.date', startStr).lte('bills.date', endStr);
+        if (branchFilterId) {
+          billsQ = billsQ.eq('branch_id', branchFilterId);
+          expensesQ = expensesQ.eq('branch_id', branchFilterId);
+          billItemsQ = billItemsQ.eq('bills.branch_id', branchFilterId);
+        }
+        const { data: bills } = await billsQ;
+        const { data: expenses } = await expensesQ;
+        const { data: billItems } = await billItemsQ;
 
         const revenue = bills?.reduce((sum, b) => sum + Number(b.total_amount), 0) || 0;
         const totalExpenses = expenses?.reduce((sum, e) => sum + Number(e.amount), 0) || 0;
