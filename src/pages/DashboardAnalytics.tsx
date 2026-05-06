@@ -80,6 +80,12 @@ const DashboardAnalytics = () => {
   } | null>(null);
   const [compLoading, setCompLoading] = useState(false);
 
+  // Per-branch P&L
+  const [plFromDate, setPlFromDate] = useState<string>(today);
+  const [plToDate, setPlToDate] = useState<string>(today);
+  const [plRows, setPlRows] = useState<Array<{ branch_id: string | null; name: string; sales: number; expenses: number; profit: number; bills: number }>>([]);
+  const [plLoading, setPlLoading] = useState(false);
+
   const { branchFilterId, isAllBranchesView, activeBranch } = useBranchScopedQuery(() => {
     if (adminId) { fetchAnalyticsData(); fetchComparisonData(); }
   });
