@@ -80,13 +80,17 @@ const DashboardAnalytics = () => {
   } | null>(null);
   const [compLoading, setCompLoading] = useState(false);
 
+  const { branchFilterId, isAllBranchesView, activeBranch } = useBranchScopedQuery(() => {
+    if (adminId) { fetchAnalyticsData(); fetchComparisonData(); }
+  });
+
   useEffect(() => {
     if (adminId) fetchAnalyticsData();
-  }, [period, adminId]);
+  }, [period, adminId, branchFilterId]);
 
   useEffect(() => {
     if (adminId) fetchComparisonData();
-  }, [compMode, currentFromDate, currentToDate, compareFromDate, compareToDate, adminId]);
+  }, [compMode, currentFromDate, currentToDate, compareFromDate, compareToDate, adminId, branchFilterId]);
 
   // Real-time subscription
   useEffect(() => {
@@ -95,7 +99,7 @@ const DashboardAnalytics = () => {
       supabase.channel('analytics-expenses').on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => { fetchAnalyticsData(); fetchComparisonData(); }).subscribe()
     ];
     return () => { channels.forEach(c => supabase.removeChannel(c)); };
-  }, [period, compMode, currentFromDate, currentToDate, compareFromDate, compareToDate]);
+  }, [period, compMode, currentFromDate, currentToDate, compareFromDate, compareToDate, branchFilterId]);
 
 
   const fetchAnalyticsData = async () => {
