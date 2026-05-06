@@ -10,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, DollarSign, ShoppingBag, Package, ArrowUpRight, ArrowDownRight, Minus, Calendar } from 'lucide-react';
 import { formatQuantityWithUnit } from '@/utils/timeUtils';
+import { useBranchScopedQuery } from '@/hooks/useBranchScopedQuery';
+import { Building2 } from 'lucide-react';
 
 interface SalesData {
   date: string;
@@ -78,13 +80,23 @@ const DashboardAnalytics = () => {
   } | null>(null);
   const [compLoading, setCompLoading] = useState(false);
 
+  // Per-branch P&L
+  const [plFromDate, setPlFromDate] = useState<string>(today);
+  const [plToDate, setPlToDate] = useState<string>(today);
+  const [plRows, setPlRows] = useState<Array<{ branch_id: string | null; name: string; sales: number; expenses: number; profit: number; bills: number }>>([]);
+  const [plLoading, setPlLoading] = useState(false);
+
+  const { branchFilterId, isAllBranchesView, activeBranch } = useBranchScopedQuery(() => {
+    if (adminId) { fetchAnalyticsData(); fetchComparisonData(); }
+  });
+
   useEffect(() => {
     if (adminId) fetchAnalyticsData();
-  }, [period, adminId]);
+  }, [period, adminId, branchFilterId]);
 
   useEffect(() => {
     if (adminId) fetchComparisonData();
-  }, [compMode, currentFromDate, currentToDate, compareFromDate, compareToDate, adminId]);
+  }, [compMode, currentFromDate, currentToDate, compareFromDate, compareToDate, adminId, branchFilterId]);
 
   // Real-time subscription
   useEffect(() => {
@@ -93,7 +105,7 @@ const DashboardAnalytics = () => {
       supabase.channel('analytics-expenses').on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => { fetchAnalyticsData(); fetchComparisonData(); }).subscribe()
     ];
     return () => { channels.forEach(c => supabase.removeChannel(c)); };
-  }, [period, compMode, currentFromDate, currentToDate, compareFromDate, compareToDate]);
+  }, [period, compMode, currentFromDate, currentToDate, compareFromDate, compareToDate, branchFilterId]);
 
 
   const fetchAnalyticsData = async () => {
@@ -213,9 +225,17 @@ const DashboardAnalytics = () => {
         const startStr = toLocalDateString(start);
         const endStr = toLocalDateString(end);
 
-        const { data: bills } = await supabase.from('bills').select('total_amount, is_deleted').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr).or('is_deleted.is.null,is_deleted.eq.false');
-        const { data: expenses } = await supabase.from('expenses').select('amount').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr);
-        const { data: billItems } = await supabase.from('bill_items').select('quantity, total, items(name, unit), bills!inner(date, is_deleted, admin_id)').eq('bills.admin_id', adminId).gte('bills.date', startStr).lte('bills.date', endStr);
+        let billsQ = supabase.from('bills').select('total_amount, is_deleted').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr).or('is_deleted.is.null,is_deleted.eq.false');
+        let expensesQ = supabase.from('expenses').select('amount').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr);
+        let billItemsQ = supabase.from('bill_items').select('quantity, total, items(name, unit), bills!inner(date, is_deleted, admin_id, branch_id)').eq('bills.admin_id', adminId).gte('bills.date', startStr).lte('bills.date', endStr);
+        if (branchFilterId) {
+          billsQ = billsQ.eq('branch_id', branchFilterId);
+          expensesQ = expensesQ.eq('branch_id', branchFilterId);
+          billItemsQ = billItemsQ.eq('bills.branch_id', branchFilterId);
+        }
+        const { data: bills } = await billsQ;
+        const { data: expenses } = await expensesQ;
+        const { data: billItems } = await billItemsQ;
 
         const revenue = bills?.reduce((sum, b) => sum + Number(b.total_amount), 0) || 0;
         const totalExpenses = expenses?.reduce((sum, e) => sum + Number(e.amount), 0) || 0;
@@ -252,9 +272,17 @@ const DashboardAnalytics = () => {
 
     // ... (This logic is largely same as original fetchAnalyticsData, reused here or kept inside)
     // To keep file clean, I'll essentially paste the logic from original component here
-    const { data: billsData } = await supabase.from('bills').select('total_amount, date').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr).or('is_deleted.is.null,is_deleted.eq.false').order('date');
-    const { data: expensesData } = await supabase.from('expenses').select('amount, date').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr).order('date');
-    const { data: billItemsData } = await supabase.from('bill_items').select('quantity, total, items(name, unit), bills!inner(date, is_deleted, admin_id)').eq('bills.admin_id', adminId).gte('bills.date', startStr).lte('bills.date', endStr);
+    let billsQ = supabase.from('bills').select('total_amount, date').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr).or('is_deleted.is.null,is_deleted.eq.false').order('date');
+    let expensesQ = supabase.from('expenses').select('amount, date').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr).order('date');
+    let billItemsQ = supabase.from('bill_items').select('quantity, total, items(name, unit), bills!inner(date, is_deleted, admin_id, branch_id)').eq('bills.admin_id', adminId).gte('bills.date', startStr).lte('bills.date', endStr);
+    if (branchFilterId) {
+      billsQ = billsQ.eq('branch_id', branchFilterId);
+      expensesQ = expensesQ.eq('branch_id', branchFilterId);
+      billItemsQ = billItemsQ.eq('bills.branch_id', branchFilterId);
+    }
+    const { data: billsData } = await billsQ;
+    const { data: expensesData } = await expensesQ;
+    const { data: billItemsData } = await billItemsQ;
 
     // Process Sales Chart
     const salesMap = new Map<string, { sales: number; expenses: number }>();
@@ -410,6 +438,39 @@ const DashboardAnalytics = () => {
       </div>
     );
   };
+  // Per-branch P&L fetch
+  const fetchBranchPL = async () => {
+    if (!adminId) return;
+    try {
+      setPlLoading(true);
+      const [{ data: brs }, { data: bills }, { data: exps }] = await Promise.all([
+        supabase.from('branches').select('id,name').eq('admin_id', adminId).eq('is_active', true),
+        supabase.from('bills').select('branch_id,total_amount,is_deleted').eq('admin_id', adminId).gte('date', plFromDate).lte('date', plToDate).or('is_deleted.is.null,is_deleted.eq.false'),
+        supabase.from('expenses').select('branch_id,amount').eq('admin_id', adminId).gte('date', plFromDate).lte('date', plToDate),
+      ]);
+      const map = new Map<string, { sales: number; expenses: number; bills: number }>();
+      (brs || []).forEach(b => map.set(b.id, { sales: 0, expenses: 0, bills: 0 }));
+      (bills || []).forEach((b: any) => {
+        const k = b.branch_id || '__none__';
+        const cur = map.get(k) || { sales: 0, expenses: 0, bills: 0 };
+        cur.sales += Number(b.total_amount || 0); cur.bills += 1; map.set(k, cur);
+      });
+      (exps || []).forEach((e: any) => {
+        const k = e.branch_id || '__none__';
+        const cur = map.get(k) || { sales: 0, expenses: 0, bills: 0 };
+        cur.expenses += Number(e.amount || 0); map.set(k, cur);
+      });
+      const rows = Array.from(map.entries()).map(([k, v]) => ({
+        branch_id: k === '__none__' ? null : k,
+        name: k === '__none__' ? 'Unassigned' : (brs?.find(b => b.id === k)?.name || 'Branch'),
+        sales: v.sales, expenses: v.expenses, profit: v.sales - v.expenses, bills: v.bills,
+      })).sort((a, b) => b.sales - a.sales);
+      setPlRows(rows);
+    } finally { setPlLoading(false); }
+  };
+
+  useEffect(() => { fetchBranchPL(); }, [adminId, plFromDate, plToDate]);
+
   // Permission check is now handled by ProtectedRoute
   if (loading && !compData) return <div className="p-12 text-center">Loading Analytics...</div>;
 
@@ -733,6 +794,73 @@ const DashboardAnalytics = () => {
           ) : (<div className="p-6 text-center text-muted-foreground">Select dates to compare</div>)}
         </CardContent>
       </Card>
+
+      {/* Per-branch P&L */}
+      <Card className="border-2 border-primary/20 shadow-lg">
+        <CardHeader className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg sm:text-xl flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-primary" /> Profit & Loss by Branch
+              </CardTitle>
+              <CardDescription>Sales − Expenses for the selected date range</CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input type="date" value={plFromDate} max={plToDate} onChange={(e) => setPlFromDate(e.target.value)} className="h-9 w-[140px] text-xs" />
+              <span className="text-muted-foreground text-xs">→</span>
+              <Input type="date" value={plToDate} min={plFromDate} max={new Date().toISOString().split('T')[0]} onChange={(e) => setPlToDate(e.target.value)} className="h-9 w-[140px] text-xs" />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {plLoading ? (
+            <div className="p-8 text-center text-muted-foreground animate-pulse">Loading branch P&L…</div>
+          ) : plRows.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">No branch data</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40">
+                  <tr>
+                    <th className="text-left p-3">Branch</th>
+                    <th className="text-right p-3">Bills</th>
+                    <th className="text-right p-3">Sales</th>
+                    <th className="text-right p-3">Expenses</th>
+                    <th className="text-right p-3">Net Profit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plRows.map((r) => (
+                    <tr key={r.branch_id || 'none'} className="border-t border-border/40 hover:bg-muted/20">
+                      <td className="p-3 font-medium">{r.name}</td>
+                      <td className="p-3 text-right">{r.bills}</td>
+                      <td className="p-3 text-right text-emerald-600 font-semibold">{formatCurrency(r.sales)}</td>
+                      <td className="p-3 text-right text-rose-600">{formatCurrency(r.expenses)}</td>
+                      <td className={`p-3 text-right font-bold ${r.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatCurrency(r.profit)}</td>
+                    </tr>
+                  ))}
+                  {plRows.length > 1 && (() => {
+                    const t = plRows.reduce((a, r) => ({ s: a.s + r.sales, e: a.e + r.expenses, b: a.b + r.bills }), { s: 0, e: 0, b: 0 });
+                    return (
+                      <tr className="border-t-2 border-primary/30 bg-primary/5 font-bold">
+                        <td className="p-3">Total</td>
+                        <td className="p-3 text-right">{t.b}</td>
+                        <td className="p-3 text-right text-emerald-700">{formatCurrency(t.s)}</td>
+                        <td className="p-3 text-right text-rose-700">{formatCurrency(t.e)}</td>
+                        <td className={`p-3 text-right ${t.s - t.e >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatCurrency(t.s - t.e)}</td>
+                      </tr>
+                    );
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {isAllBranchesView && (
+        <p className="text-xs text-muted-foreground text-center">Showing aggregate across all branches. Switch to a specific branch from the header to filter.</p>
+      )}
 
     </div>
   );

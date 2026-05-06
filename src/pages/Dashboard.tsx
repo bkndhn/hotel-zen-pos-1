@@ -138,7 +138,13 @@ const Dashboard = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Dashboard</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">Welcome back! Here's what's happening today.</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            {isAllBranchesView
+              ? 'All Branches — combined view'
+              : activeBranch
+                ? `Branch: ${activeBranch.name}`
+                : "Welcome back! Here's what's happening today."}
+          </p>
         </div>
       </div>
 
