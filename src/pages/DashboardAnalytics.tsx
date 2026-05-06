@@ -438,6 +438,39 @@ const DashboardAnalytics = () => {
       </div>
     );
   };
+  // Per-branch P&L fetch
+  const fetchBranchPL = async () => {
+    if (!adminId) return;
+    try {
+      setPlLoading(true);
+      const [{ data: brs }, { data: bills }, { data: exps }] = await Promise.all([
+        supabase.from('branches').select('id,name').eq('admin_id', adminId).eq('is_active', true),
+        supabase.from('bills').select('branch_id,total_amount,is_deleted').eq('admin_id', adminId).gte('date', plFromDate).lte('date', plToDate).or('is_deleted.is.null,is_deleted.eq.false'),
+        supabase.from('expenses').select('branch_id,amount').eq('admin_id', adminId).gte('date', plFromDate).lte('date', plToDate),
+      ]);
+      const map = new Map<string, { sales: number; expenses: number; bills: number }>();
+      (brs || []).forEach(b => map.set(b.id, { sales: 0, expenses: 0, bills: 0 }));
+      (bills || []).forEach((b: any) => {
+        const k = b.branch_id || '__none__';
+        const cur = map.get(k) || { sales: 0, expenses: 0, bills: 0 };
+        cur.sales += Number(b.total_amount || 0); cur.bills += 1; map.set(k, cur);
+      });
+      (exps || []).forEach((e: any) => {
+        const k = e.branch_id || '__none__';
+        const cur = map.get(k) || { sales: 0, expenses: 0, bills: 0 };
+        cur.expenses += Number(e.amount || 0); map.set(k, cur);
+      });
+      const rows = Array.from(map.entries()).map(([k, v]) => ({
+        branch_id: k === '__none__' ? null : k,
+        name: k === '__none__' ? 'Unassigned' : (brs?.find(b => b.id === k)?.name || 'Branch'),
+        sales: v.sales, expenses: v.expenses, profit: v.sales - v.expenses, bills: v.bills,
+      })).sort((a, b) => b.sales - a.sales);
+      setPlRows(rows);
+    } finally { setPlLoading(false); }
+  };
+
+  useEffect(() => { fetchBranchPL(); }, [adminId, plFromDate, plToDate]);
+
   // Permission check is now handled by ProtectedRoute
   if (loading && !compData) return <div className="p-12 text-center">Loading Analytics...</div>;
 
