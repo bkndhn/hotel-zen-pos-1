@@ -1398,6 +1398,14 @@ export type Database = {
       }
       get_my_profile_id: { Args: never; Returns: string }
       get_my_role: { Args: never; Returns: string }
+      get_public_item_categories: {
+        Args: { p_admin_id: string }
+        Returns: {
+          branch_id: string
+          id: string
+          name: string
+        }[]
+      }
       get_public_shop_settings: { Args: { p_user_id: string }; Returns: Json }
       get_public_shop_settings_by_profile: {
         Args: { p_profile_id: string }
