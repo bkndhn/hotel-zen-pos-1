@@ -266,9 +266,17 @@ const DashboardAnalytics = () => {
 
     // ... (This logic is largely same as original fetchAnalyticsData, reused here or kept inside)
     // To keep file clean, I'll essentially paste the logic from original component here
-    const { data: billsData } = await supabase.from('bills').select('total_amount, date').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr).or('is_deleted.is.null,is_deleted.eq.false').order('date');
-    const { data: expensesData } = await supabase.from('expenses').select('amount, date').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr).order('date');
-    const { data: billItemsData } = await supabase.from('bill_items').select('quantity, total, items(name, unit), bills!inner(date, is_deleted, admin_id)').eq('bills.admin_id', adminId).gte('bills.date', startStr).lte('bills.date', endStr);
+    let billsQ = supabase.from('bills').select('total_amount, date').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr).or('is_deleted.is.null,is_deleted.eq.false').order('date');
+    let expensesQ = supabase.from('expenses').select('amount, date').eq('admin_id', adminId).gte('date', startStr).lte('date', endStr).order('date');
+    let billItemsQ = supabase.from('bill_items').select('quantity, total, items(name, unit), bills!inner(date, is_deleted, admin_id, branch_id)').eq('bills.admin_id', adminId).gte('bills.date', startStr).lte('bills.date', endStr);
+    if (branchFilterId) {
+      billsQ = billsQ.eq('branch_id', branchFilterId);
+      expensesQ = expensesQ.eq('branch_id', branchFilterId);
+      billItemsQ = billItemsQ.eq('bills.branch_id', branchFilterId);
+    }
+    const { data: billsData } = await billsQ;
+    const { data: expensesData } = await expensesQ;
+    const { data: billItemsData } = await billItemsQ;
 
     // Process Sales Chart
     const salesMap = new Map<string, { sales: number; expenses: number }>();
