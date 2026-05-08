@@ -76,21 +76,34 @@ export const ShopSettingsForm = () => {
         // Always show the form (with cached or empty values)
         setLoading(false);
 
-        // 2. Background sync from Supabase
-        if (profile?.user_id) {
+        // 2. Background sync from Supabase (refetches when active branch changes)
+        if (profile?.user_id && operatingBranchId) {
             fetchSettings();
         }
-    }, [profile?.user_id]);
+    }, [profile?.user_id, operatingBranchId]);
 
     const fetchSettings = async () => {
         try {
-            const { data, error } = await supabase
+            // Try current branch first
+            let { data, error } = await supabase
                 .from('shop_settings')
                 .select('*')
                 .eq('user_id', profile?.user_id)
+                .eq('branch_id', operatingBranchId)
                 .maybeSingle();
 
-            if (error && error.code !== 'PGRST116') throw error;
+            // Fallback to main branch row if current branch has none
+            if (!data && mainBranchId && mainBranchId !== operatingBranchId) {
+                const { data: mainRow } = await supabase
+                    .from('shop_settings')
+                    .select('*')
+                    .eq('user_id', profile?.user_id)
+                    .eq('branch_id', mainBranchId)
+                    .maybeSingle();
+                data = mainRow as any;
+            }
+
+            if (error && (error as any).code !== 'PGRST116') throw error;
 
             if (data) {
                 setShopName(data.shop_name || '');
