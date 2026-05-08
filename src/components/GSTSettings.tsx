@@ -115,18 +115,28 @@ export const GSTSettings: React.FC = () => {
             return;
         }
 
+        if (!operatingBranchId) {
+            toast({ title: 'No branch selected', variant: 'destructive' });
+            return;
+        }
         setSaving(true);
         try {
-            const { error } = await (supabase as any)
+            const payload = {
+                gst_enabled: gstEnabled,
+                gstin: gstin.trim().toUpperCase() || null,
+                is_composition_scheme: isComposition,
+                composition_rate: compositionRate,
+                updated_at: new Date().toISOString()
+            };
+            const { data: existing } = await (supabase as any)
                 .from('shop_settings')
-                .upsert({
-                    user_id: profile.user_id,
-                    gst_enabled: gstEnabled,
-                    gstin: gstin.trim().toUpperCase() || null,
-                    is_composition_scheme: isComposition,
-                    composition_rate: compositionRate,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'user_id' });
+                .select('id')
+                .eq('user_id', profile.user_id)
+                .eq('branch_id', operatingBranchId)
+                .maybeSingle();
+            const { error } = existing?.id
+                ? await (supabase as any).from('shop_settings').update(payload).eq('id', existing.id)
+                : await (supabase as any).from('shop_settings').insert({ ...payload, user_id: profile.user_id, branch_id: operatingBranchId });
 
             if (error) throw error;
 
