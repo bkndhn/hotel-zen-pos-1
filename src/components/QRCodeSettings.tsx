@@ -39,6 +39,9 @@ const generateQRCodeUrl = (text: string, size: number = 300, fgColor: string = '
 
 const QRCodeSettings = () => {
     const { profile } = useAuth();
+    const { operatingBranchId, branches } = useBranch();
+    const operatingBranch = branches.find(b => b.id === operatingBranchId) || null;
+    const isMainBranch = !!operatingBranch?.is_main;
     const [copied, setCopied] = useState(false);
     const [tableMode, setTableMode] = useState(false);
     const [dbTables, setDbTables] = useState<{ id: string; table_number: string }[]>([]);
