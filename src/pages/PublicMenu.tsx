@@ -912,6 +912,7 @@ const PublicMenu = () => {
                 .from('table_service_requests')
                 .insert({
                     admin_id: adminId,
+                    branch_id: branchId,
                     table_number: tableNo,
                     session_id: sessionId,
                     request_type: requestType,
