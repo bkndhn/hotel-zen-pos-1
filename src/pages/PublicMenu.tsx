@@ -618,6 +618,7 @@ const PublicMenu = () => {
                 .from('table_orders')
                 .insert({
                     admin_id: adminId,
+                    branch_id: branchId,
                     table_number: tableNo,
                     session_id: sessionId,
                     order_number: orderNumber,
