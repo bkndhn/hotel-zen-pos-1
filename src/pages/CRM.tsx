@@ -165,21 +165,25 @@ const CRM: React.FC = () => {
         'First Visit': format(new Date(c.created_at), 'dd/MM/yyyy')
       }));
 
-      const ws = XLSX.utils.json_to_sheet(data);
-
-      // Auto-fit column widths
-      const colWidths = Object.keys(data[0] || {}).map(key => ({
-        wch: Math.max(key.length, ...data.map(row => String((row as any)[key]).length)) + 2
-      }));
-      ws['!cols'] = colWidths;
-
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Customers');
-      XLSX.writeFile(wb, `CRM_Export_${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
+      const headers = Object.keys(data[0] || {});
+      const escape = (v: any) => {
+        const s = v === null || v === undefined ? '' : String(v);
+        return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const csv = [headers.join(','), ...data.map(r => headers.map(h => escape((r as any)[h])).join(','))].join('\r\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `CRM_Export_${format(new Date(), 'dd-MM-yyyy')}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
 
       toast({
         title: "Success",
-        description: "Customer data exported to Excel!"
+        description: "Customer data exported to CSV!"
       });
     } catch (error) {
       console.error('Export error:', error);
