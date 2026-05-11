@@ -1,4 +1,31 @@
-import * as XLSX from 'xlsx';
+// CSV-based exports (xlsx package removed for security — prototype pollution / ReDoS)
+
+const csvEscape = (val: any): string => {
+  if (val === null || val === undefined) return '';
+  const s = String(val);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+};
+
+const rowsToCsv = (rows: Record<string, any>[]): string => {
+  if (!rows.length) return '';
+  const headers = Object.keys(rows[0]);
+  const lines = [headers.join(',')];
+  for (const r of rows) lines.push(headers.map((h) => csvEscape(r[h])).join(','));
+  return lines.join('\r\n');
+};
+
+const downloadCsv = (filename: string, content: string) => {
+  const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
 
 // Define interfaces for different report types
 interface ExpenseForPDF {
