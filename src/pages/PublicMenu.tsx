@@ -107,6 +107,7 @@ const PublicMenu = () => {
     const tableNo = searchParams.get('table');
 
     const [adminId, setAdminId] = useState<string | null>(null);
+    const [branchId, setBranchId] = useState<string | null>(null);
     const [items, setItems] = useState<MenuItem[]>([]);
     const [categories, setCategories] = useState<ItemCategory[]>([]);
     const [shopSettings, setShopSettings] = useState<ShopSettings | null>(null);
