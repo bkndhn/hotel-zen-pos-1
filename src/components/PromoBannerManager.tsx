@@ -65,7 +65,7 @@ export const PromoBannerManager = () => {
         if (!adminId) return;
         try {
             let q: any = supabase.from('promo_banners').select('*').eq('admin_id', adminId);
-            if (operatingBranchId) q = q.eq('branch_id', operatingBranchId);
+            if (operatingBranchId) q = q.or(`branch_id.eq.${operatingBranchId},branch_id.is.null`);
             const { data, error } = await q.order('display_order');
             if (error) throw error;
             setBanners(data || []);
