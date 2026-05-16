@@ -47,7 +47,7 @@ export const ShopSettingsForm = () => {
     const [showWhatsapp, setShowWhatsapp] = useState(true);
 
     // Nav Settings
-    const [visiblePages, setVisiblePages] = useState<string[]>(['dashboard', 'billing', 'serviceArea', 'kitchen', 'tables', 'tableBilling', 'items', 'reports', 'settings', 'customers', 'expenses']);
+    const [visiblePages, setVisiblePages] = useState<string[]>(['dashboard', 'billing', 'serviceArea', 'kitchen', 'tables', 'tableBilling', 'items', 'reports', 'settings', 'customers', 'expenses', 'qrMenu']);
 
     useEffect(() => {
         // 1. Instant load from localStorage cache (no loading state)
@@ -124,7 +124,7 @@ export const ShopSettingsForm = () => {
                 if ((data as any).visible_nav_pages && Array.isArray((data as any).visible_nav_pages)) {
                     const savedPages = (data as any).visible_nav_pages as string[];
                     // Auto-inject any new pages that didn't exist when the user last saved
-                    const requiredNewPages = ['tableBilling'];
+                    const requiredNewPages = ['tableBilling', 'qrMenu'];
                     const updated = [...savedPages];
                     requiredNewPages.forEach(p => { if (!updated.includes(p)) updated.push(p); });
                     setVisiblePages(updated);
@@ -153,7 +153,7 @@ export const ShopSettingsForm = () => {
                     showInstagram: data.show_instagram !== false,
                     whatsapp: data.whatsapp || '',
                     showWhatsapp: data.show_whatsapp !== false,
-                    visiblePages: (data as any).visible_nav_pages || ['dashboard', 'billing', 'serviceArea', 'kitchen', 'tables', 'tableBilling', 'items', 'reports', 'settings', 'customers', 'expenses'],
+                    visiblePages: (data as any).visible_nav_pages || ['dashboard', 'billing', 'serviceArea', 'kitchen', 'tables', 'tableBilling', 'items', 'reports', 'settings', 'customers', 'expenses', 'qrMenu'],
                     menuSlug: isFallback ? '' : ((data as any).menu_slug || ''),
                     menuShowShopName: (data as any).menu_show_shop_name !== false,
                     menuShowAddress: (data as any).menu_show_address !== false,

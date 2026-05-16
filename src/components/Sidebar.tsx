@@ -59,7 +59,7 @@ export const Sidebar: React.FC = () => {
         <p className="text-sm text-sidebar-accent-foreground">POS Management</p>
       </div>
 
-      <nav className="flex-1 px-4">
+      <nav className="flex-1 px-4 overflow-y-auto pb-20">
         <ul className="space-y-2">
           {navItems.map(({ to, icon: Icon, label }) => {
             const isActive = location.pathname === to ||

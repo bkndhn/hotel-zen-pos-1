@@ -53,13 +53,13 @@ export const BottomNavigation: React.FC = () => {
           if (parsed.visiblePages && Array.isArray(parsed.visiblePages)) {
             setVisiblePages(parsed.visiblePages);
           } else {
-            setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'tableBilling', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'customers']);
+            setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'tableBilling', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'customers', 'qrMenu']);
           }
         } catch {
-          setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'tableBilling', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'customers']);
+          setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'tableBilling', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'customers', 'qrMenu']);
         }
       } else {
-        setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'tableBilling', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'customers']);
+        setVisiblePages(['analytics', 'billing', 'serviceArea', 'tables', 'tableBilling', 'items', 'expenses', 'reports', 'settings', 'kitchen', 'customers', 'qrMenu']);
       }
 
       // Then sync from Supabase for latest data
@@ -86,7 +86,7 @@ export const BottomNavigation: React.FC = () => {
           if (data?.visible_nav_pages && Array.isArray(data.visible_nav_pages)) {
             // Auto-inject any new pages that didn't exist when the user last saved
             const savedPages = data.visible_nav_pages as string[];
-            const requiredNewPages = ['tableBilling'];
+            const requiredNewPages = ['tableBilling', 'qrMenu'];
             const updated = [...savedPages];
             requiredNewPages.forEach(p => { if (!updated.includes(p)) updated.push(p); });
             setVisiblePages(updated);
