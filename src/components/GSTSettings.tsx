@@ -102,7 +102,7 @@ export const GSTSettings: React.FC = () => {
 
             // Scope to current branch + legacy rows (null branch_id)
             if (operatingBranchId) {
-                query = query.or(`branch_id.eq.${operatingBranchId},branch_id.is.null`);
+                query = query.eq('branch_id', operatingBranchId);
             }
 
             const { data } = await query.order('rate', { ascending: true });

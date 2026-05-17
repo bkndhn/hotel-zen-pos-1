@@ -75,7 +75,7 @@ export const DisplaySettings: React.FC<DisplaySettingsProps> = ({ userId }) => {
 
       // Scope to admin's categories only — never cross-tenant
       if (adminId) query = (query as any).eq('admin_id', adminId);
-      if (operatingBranchId) query = (query as any).or(`branch_id.eq.${operatingBranchId},branch_id.is.null`);
+      if (operatingBranchId) query = (query as any).eq('branch_id', operatingBranchId);
 
       const { data, error } = await (query as any).order('name');
       if (error) throw error;

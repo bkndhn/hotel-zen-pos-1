@@ -47,7 +47,7 @@ export const PaymentTypesManagement: React.FC = () => {
         .eq('admin_id', adminId);
 
       if (operatingBranchId) {
-        query = query.or(`branch_id.eq.${operatingBranchId},branch_id.is.null`);
+        query = query.eq('branch_id', operatingBranchId);
       }
 
       const { data, error } = await query.order('payment_type');

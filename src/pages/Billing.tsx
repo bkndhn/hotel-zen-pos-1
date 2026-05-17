@@ -287,7 +287,7 @@ const Billing = () => {
           .select('*')
           .eq('admin_id', adminId)
           .eq('is_active', true);
-        if (branchFilterId) q = q.or(`branch_id.eq.${branchFilterId},branch_id.is.null`);
+        if (branchFilterId) q = q.eq('branch_id', branchFilterId);
         const { data, error } = await q.order('name');
 
         if (error) throw error;
@@ -359,7 +359,7 @@ const Billing = () => {
         .eq('is_disabled', false);
 
       if (operatingBranchId) {
-        query = query.or(`branch_id.eq.${operatingBranchId},branch_id.is.null`);
+        query = query.eq('branch_id', operatingBranchId);
       }
 
       const { data, error } = await query.order('payment_type');
@@ -395,7 +395,7 @@ const Billing = () => {
         .eq('is_active', true);
 
       if (operatingBranchId) {
-        query = query.or(`branch_id.eq.${operatingBranchId},branch_id.is.null`);
+        query = query.eq('branch_id', operatingBranchId);
       }
 
       const { data, error } = await query.order('name');

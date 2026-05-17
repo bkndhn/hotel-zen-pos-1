@@ -54,7 +54,7 @@ export const TableSelector: React.FC<TableSelectorProps> = ({
         .eq('is_active', true);
 
       if (operatingBranchId) {
-        query = query.or(`branch_id.eq.${operatingBranchId},branch_id.is.null`);
+        query = query.eq('branch_id', operatingBranchId);
       }
 
       const { data, error } = await query.order('display_order', { ascending: true });

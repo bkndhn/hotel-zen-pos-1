@@ -165,7 +165,7 @@ const QRCodeSettings = () => {
                 .from('tables')
                 .select('id, table_number, branch_id')
                 .eq('admin_id', adminId);
-            if (operatingBranchId) q = q.or(`branch_id.eq.${operatingBranchId},branch_id.is.null`);
+            if (operatingBranchId) q = q.eq('branch_id', operatingBranchId);
             const { data } = await q.order('table_number', { ascending: true });
             if (data) setDbTables(data);
         } catch (e) {

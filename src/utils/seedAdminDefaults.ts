@@ -26,12 +26,24 @@ export const seedAdminDefaults = async (adminProfileId: string) => {
       return;
     }
 
-    console.log('[Seed] Seeding default data for admin:', adminProfileId);
+    // Get the Main branch for this admin
+    const { data: mainBranch } = await supabase
+      .from('branches')
+      .select('id')
+      .eq('admin_id', adminProfileId)
+      .eq('is_main', true)
+      .limit(1)
+      .single();
+
+    const branchId = mainBranch?.id || null;
+
+    console.log('[Seed] Seeding default data for admin:', adminProfileId, 'Branch:', branchId);
 
     // Seed item categories
     const itemCats = DEFAULT_ITEM_CATEGORIES.map(name => ({
       name,
       admin_id: adminProfileId,
+      branch_id: branchId,
       is_deleted: false,
     }));
     await supabase.from('item_categories').insert(itemCats);
@@ -40,6 +52,7 @@ export const seedAdminDefaults = async (adminProfileId: string) => {
     const expenseCats = DEFAULT_EXPENSE_CATEGORIES.map(name => ({
       name,
       admin_id: adminProfileId,
+      branch_id: branchId,
       is_deleted: false,
     }));
     await supabase.from('expense_categories').insert(expenseCats);
@@ -48,6 +61,7 @@ export const seedAdminDefaults = async (adminProfileId: string) => {
     const payments = DEFAULT_PAYMENT_TYPES.map(p => ({
       ...p,
       admin_id: adminProfileId,
+      branch_id: branchId,
     }));
     await supabase.from('payments').insert(payments);
 

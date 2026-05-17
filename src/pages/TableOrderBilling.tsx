@@ -132,7 +132,7 @@ const TableOrderBilling: React.FC = () => {
                 .eq('is_disabled', false);
 
             if (operatingBranchId) {
-                query = query.or(`branch_id.eq.${operatingBranchId},branch_id.is.null`);
+                query = query.eq('branch_id', operatingBranchId);
             }
 
             const { data, error } = await query.order('payment_type');
@@ -154,7 +154,7 @@ const TableOrderBilling: React.FC = () => {
                 .eq('is_active', true);
 
             if (operatingBranchId) {
-                query = query.or(`branch_id.eq.${operatingBranchId},branch_id.is.null`);
+                query = query.eq('branch_id', operatingBranchId);
             }
 
             const { data, error } = await query.order('name');
